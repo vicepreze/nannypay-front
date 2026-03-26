@@ -56,7 +56,7 @@
     /* ── MODAL ÉVÉNEMENT ── */
     .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.3); z-index:100; align-items:center; justify-content:center; }
     .modal-bg.open { display:flex; }
-    .modal { background:#fff; border-radius:12px; padding:24px; width:340px; box-shadow:0 8px 32px rgba(0,0,0,.12); }
+    .modal { background:#fff; border-radius:12px; padding:24px; width:min(360px,90vw); box-shadow:0 8px 32px rgba(0,0,0,.12); box-sizing:border-box; }
     .modal h3 { font-size:16px; font-weight:500; margin-bottom:16px; }
     .modal-btns { display:flex; gap:8px; margin-top:20px; }
     .evt-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
@@ -294,11 +294,11 @@
     <div class="two-col" style="margin-bottom:12px">
       <div class="field" style="margin-bottom:0">
         <label>Date début</label>
-        <input type="date" id="evt-debut">
+        <input type="date" id="evt-debut" style="width:100%;font-size:13px">
       </div>
       <div class="field" style="margin-bottom:0">
         <label>Date fin</label>
-        <input type="date" id="evt-fin">
+        <input type="date" id="evt-fin" style="width:100%;font-size:13px">
       </div>
     </div>
     <div class="field" style="margin-bottom:0">
@@ -386,9 +386,13 @@ function renderCalendrier() {
 function renderJour(j) {
   if (!j) return `<div class="jour-cell weekend" style="background:#f5f4f2"></div>`;
 
-  const dateStr  = j.toISOString().slice(0,10);
+  // Format YYYY-MM-DD sans conversion UTC (évite décalage timezone UTC+1/+2)
+  const yy = j.getFullYear(), mm = String(j.getMonth()+1).padStart(2,'0'), dd = String(j.getDate()).padStart(2,'0');
+  const dateStr = `${yy}-${mm}-${dd}`;
+  const now_ = new Date();
+  const todayStr = `${now_.getFullYear()}-${String(now_.getMonth()+1).padStart(2,'0')}-${String(now_.getDate()).padStart(2,'0')}`;
   const isFerie  = FERIES_FR.includes(dateStr);
-  const isToday  = dateStr === new Date().toISOString().slice(0,10);
+  const isToday  = dateStr === todayStr;
   const evtsDuJour = evenements.filter(e => e.date_debut <= dateStr && e.date_fin >= dateStr);
   const dateNum  = j.getDate();
 
@@ -483,6 +487,13 @@ window.navMois = function(dir) {
 
 // ─── MODAL ÉVÉNEMENT ──────────────────────────────────────────────
 window.ouvrirJour = function(date) {
+  // Vérifier si ce jour a déjà un événement
+  const existant = evenements.find(e => e.date_debut <= date && e.date_fin >= date);
+  if (existant) {
+    const labels = { conge_paye:'Congé payé', maladie_nounou:'Maladie', ferie:'Férié',
+                     absence_famille_a:'Absence Fam. A', absence_famille_b:'Absence Fam. B' };
+    if (!confirm(`Ce jour a déjà un événement (${labels[existant.type]||existant.type}).\nAjouter quand même ?`)) return;
+  }
   document.getElementById('evt-debut').value = date;
   document.getElementById('evt-fin').value   = date;
   document.getElementById('modal-bg').classList.add('open');
@@ -502,6 +513,16 @@ window.selectEvtType = function(type, btn) {
   evtType = type;
   document.querySelectorAll('.evt-type-btn').forEach(b=>b.classList.remove('selected'));
   btn.classList.add('selected');
+};
+
+window.supprimerEvt = async function(evtId) {
+  if (!confirm('Supprimer cet événement ?')) return;
+  try {
+    await fetch(`${API_BASE}/gardes/${gardeId}/mois/${annee}/${moisNum}/evenements/${evtId}`, {
+      method:'DELETE', headers:{ 'Authorization':'Bearer '+localStorage.getItem('nl_token') }
+    });
+    chargerMois();
+  } catch(e) { alert('Erreur : ' + e.message); }
 };
 
 window.saveEvenement = async function() {
