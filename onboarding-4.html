@@ -6,17 +6,57 @@
   <title>nounoulink — Planning type (4/5)</title>
   <link rel="stylesheet" href="css/style.css">
   <style>
-    .planning-card { border:1.5px solid var(--line); border-radius:var(--radius); background:#fff; margin-bottom:16px; overflow:hidden; }
-    .ph-copy { font-size:11px; color:var(--blue); cursor:pointer; text-decoration:underline; }
-    .jours-grid { display:grid; grid-template-columns:repeat(5, 1fr); border-top:1.5px solid var(--line); }
-    .jour-col { padding:8px; border-right:.5px solid var(--line); text-align:center; }
-    .plage-item { background:var(--paper); border-radius:4px; margin-bottom:4px; padding:4px; font-size:11px; }
-    .plage-item input { border:none; background:transparent; width:45px; font-size:11px; }
+    .planning-card { border:1.5px solid var(--line); border-radius:var(--radius); background:#fff; overflow:hidden; margin-bottom:16px; }
+    .planning-card.fam-a { border-top:3px solid var(--blue); }
+    .planning-card.fam-b { border-top:3px solid var(--sage); }
+    .planning-header { padding:12px 18px; border-bottom:.5px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+    .planning-header .ph-title { font-size:13px; font-weight:500; display:flex; align-items:center; gap:8px; }
+    .planning-header .ph-total { font-size:12px; color:var(--dust); }
+    .planning-header .ph-total strong { font-size:14px; color:var(--ink); }
+
+    .jours-grid { display:grid; grid-template-columns:repeat(5,1fr); }
+    .jour-col { border-right:.5px solid var(--line); }
+    .jour-col:last-child { border-right:none; }
+    .jour-hdr { padding:8px 4px; text-align:center; font-size:10px; font-weight:500; color:var(--dust); text-transform:uppercase; letter-spacing:.06em; background:var(--paper); border-bottom:.5px solid var(--line); }
+    .jour-body { padding:6px; min-height:88px; display:flex; flex-direction:column; gap:4px; }
+    .jour-body.inactive { background:var(--paper); opacity:.5; }
+
+    .jour-toggle-row { display:flex; justify-content:center; margin-bottom:4px; }
+
+    .plage { display:flex; align-items:center; gap:2px; border-radius:6px; padding:3px 4px; font-size:10px; }
+    .plage.a { background:var(--blue-light); }
+    .plage.b { background:var(--sage-light); }
+    .plage input[type=time] { width:48px; border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:10px; color:var(--ink); outline:none; padding:1px; }
+    .plage-sep { color:var(--dust); font-size:9px; }
+    .plage-del { font-size:9px; color:var(--dust); cursor:pointer; padding:0 2px; opacity:0; transition:opacity .15s; flex-shrink:0; border:none; background:none; }
+    .plage:hover .plage-del { opacity:1; }
+
+    .btn-add-plage { width:100%; font-size:9px; color:var(--dust); background:none; border:1px dashed var(--line); border-radius:4px; cursor:pointer; padding:2px 4px; font-family:'DM Sans',sans-serif; transition:all .15s; }
+    .btn-add-plage:hover { border-color:var(--dust); color:var(--ink); }
+
+    .repas-row { display:flex; align-items:center; gap:4px; padding-top:4px; margin-top:2px; border-top:.5px solid var(--line); }
+    .repas-row input { accent-color:var(--sage); width:11px; height:11px; cursor:pointer; }
+    .repas-row label { font-size:9px; color:var(--dust); cursor:pointer; }
+
+    .synthese { border:1.5px solid var(--line); border-radius:var(--radius); background:#fff; overflow:hidden; margin-bottom:16px; }
+    .syn-header { padding:10px 16px; background:var(--paper); border-bottom:.5px solid var(--line); font-size:11px; font-weight:500; color:var(--dust); text-transform:uppercase; letter-spacing:.06em; }
+    .syn-stats { padding:12px 16px; display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+    .syn-stat { text-align:center; }
+    .syn-val { font-size:20px; font-weight:500; color:var(--ink); line-height:1; }
+    .syn-lbl { font-size:10px; color:var(--dust); margin-top:4px; }
+    .syn-val.warn { color:var(--warn); }
+    .syn-val.danger { color:var(--red); }
+
+    .alert-strip { padding:8px 16px; font-size:12px; line-height:1.5; border-top:.5px solid var(--line); }
+    .alert-strip.info { background:var(--blue-light); color:var(--blue); }
+    .alert-strip.warn { background:var(--warn-light); color:var(--warn); }
+    .alert-strip.danger { background:var(--red-light); color:var(--red); }
   </style>
 </head>
 <body>
 
 <div class="ob-shell">
+
   <nav class="ob-side">
     <a href="/" class="ob-logo">nounoulink<em>.</em></a>
     <div class="ob-steps">
@@ -31,88 +71,303 @@
 
   <main class="ob-main">
     <div class="ob-progress"><div class="ob-progress-fill" style="width:80%"></div></div>
-    <h1 class="ob-headline">Planning — semaine modèle</h1>
-    <p class="ob-subline">Définissez les horaires habituels. Astuce : complétez le lundi et copiez sur la semaine.</p>
 
+    <p class="ob-eyebrow">Étape 4 sur 5</p>
+    <h1 class="ob-headline">Planning type — semaine modèle</h1>
+    <p class="ob-subline">Définissez les horaires habituels de chaque enfant. Ce modèle sert de base chaque mois — vous n'ajustez que les écarts réels.</p>
+
+    <div class="error-box" id="error-box"></div>
+    <div id="alert-zone"></div>
+
+    <!-- Grilles planning — générées dynamiquement -->
     <div id="plannings-zone"></div>
+
+    <!-- Synthèse live -->
+    <div class="synthese">
+      <div class="syn-header">Synthèse — calcul en temps réel</div>
+      <div class="syn-stats">
+        <div class="syn-stat"><div class="syn-val" id="syn-htot">—</div><div class="syn-lbl">h/sem nounou</div></div>
+        <div class="syn-stat"><div class="syn-val" id="syn-hmens">—</div><div class="syn-lbl">h mensualisées</div></div>
+        <div class="syn-stat"><div class="syn-val" id="syn-hsup">—</div><div class="syn-lbl">h sup/sem</div></div>
+        <div class="syn-stat">
+          <div style="height:8px;border-radius:4px;overflow:hidden;display:flex;margin-bottom:4px">
+            <div class="rep-seg-a" id="syn-seg-a" style="flex:50;background:var(--blue)"></div>
+            <div class="rep-seg-b" id="syn-seg-b" style="flex:50;background:var(--sage)"></div>
+          </div>
+          <div class="syn-lbl" id="syn-rep">Répartition</div>
+        </div>
+      </div>
+      <div id="syn-alert" style="display:none" class="alert-strip info"></div>
+    </div>
 
     <div class="ob-actions">
       <button class="btn-ghost" onclick="window.location.href='/onboarding-3.html'">← Étape 3</button>
-      <button class="btn-primary" id="btn-next" onclick="window.handleNext()">Continuer — Taux & aides →</button>
+      <button class="btn-primary" id="btn-next" onclick="handleNext()">Continuer — Taux & aides →</button>
     </div>
   </main>
 </div>
 
 <script type="module">
-import { requireLogin, draft } from './js/api.js';
+import { requireLogin, onboarding, draft } from './js/api.js';
+requireLogin();
+
+const d = draft.get();
+if (!d.gardeId || !d.enfants) { window.location.href = '/onboarding-3.html'; }
+
+// Sidebar
+document.getElementById('side-garde').textContent   = d.nom || '—';
+document.getElementById('side-nounou').textContent   = [d.nounouPrenom, d.nounouNom].filter(Boolean).join(' ') || '—';
+document.getElementById('side-enfants').textContent  = (d.enfants || []).map(e => e.prenom).join(', ') || '—';
+document.getElementById('side-footer').textContent   = (d.nom || '—') + '\n' + ([d.nounouPrenom, d.nounouNom].filter(Boolean).join(' ') || '—');
 
 const JOURS = ['lundi','mardi','mercredi','jeudi','vendredi'];
+const JOURS_LABELS = ['Lun','Mar','Mer','Jeu','Ven'];
 
-window.renderAll = function() {
-  const zone = document.getElementById('plannings-zone');
-  zone.innerHTML = window.enfants.map(e => `
-    <div class="planning-card">
-      <div style="padding:12px; display:flex; justify-content:space-between; align-items:center;">
-        <strong>${e.prenom}</strong>
-        <span class="ph-copy" onclick="window.copyMonday('${e.id}')">Appliquer le lundi à toute la semaine</span>
-      </div>
-      <div class="jours-grid">
-        ${JOURS.map((j, i) => `
-          <div class="jour-col">
-            <div style="font-size:10px; color:var(--dust); margin-bottom:8px;">${j.toUpperCase().slice(0,3)}</div>
-            <div class="plage-item">
-              <input type="time" value="${window.state[e.id][i].debut}" onchange="window.updateTime('${e.id}',${i},'debut',this.value)">
-              -
-              <input type="time" value="${window.state[e.id][i].fin}" onchange="window.updateTime('${e.id}',${i},'fin',this.value)">
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>`).join('');
-};
+// ─── ÉTAT ────────────────────────────────────────────────────────────────────
+// state[enfantId][jourIdx] = { actif, plages: [[debut,fin],...], repas }
+const state = {};
+const enfants = d.enfants || [];
 
-window.updateTime = function(eid, jourIdx, key, val) {
-  window.state[eid][jourIdx][key] = val;
-};
-
-window.copyMonday = function(eid) {
-  const mon = window.state[eid][0];
+enfants.forEach(e => {
+  state[e.tempId || e.id] = {};
   JOURS.forEach((_, i) => {
-    window.state[eid][i] = { ...mon };
+    state[e.tempId || e.id][i] = {
+      actif: true,
+      plages: [['08:45','18:00']],
+      repas: true,
+    };
   });
-  window.renderAll();
+});
+
+// ─── RENDU ────────────────────────────────────────────────────────────────────
+
+function renderAll() {
+  const zone = document.getElementById('plannings-zone');
+  zone.innerHTML = '';
+  enfants.forEach(e => {
+    const eid = e.tempId || e.id;
+    const fam = e.fam;
+    const card = document.createElement('div');
+    card.className = `planning-card fam-${fam}`;
+    card.innerHTML = `
+      <div class="planning-header">
+        <div class="ph-title">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--${fam==='a'?'blue':'sage'});flex-shrink:0"></span>
+          ${e.prenom} <span style="font-size:11px;font-weight:400;color:var(--dust);margin-left:4px">· Famille ${fam.toUpperCase()}</span>
+        </div>
+        <div class="ph-total">Total semaine : <strong id="total-${eid}">0h</strong></div>
+      </div>
+      <div class="jours-grid" id="grid-${eid}"></div>
+      <div style="padding:8px 18px 12px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="repas-global-${eid}" checked
+          style="accent-color:var(--${fam==='a'?'blue':'sage'});width:13px;height:13px;cursor:pointer"
+          onchange="toggleRepasGlobal('${eid}',this.checked)">
+        <label for="repas-global-${eid}" style="font-size:12px;color:var(--dust);cursor:pointer">
+          Prime panier repas due les jours travaillés
+        </label>
+      </div>`;
+    zone.appendChild(card);
+    renderGrid(eid, fam);
+  });
+  updateSynthese();
+}
+
+function renderGrid(eid, fam) {
+  const grid = document.getElementById('grid-' + eid);
+  grid.innerHTML = JOURS.map((jour, i) => {
+    const s = state[eid][i];
+    const plagesHTML = s.actif
+      ? s.plages.map((p, pi) => `
+          <div class="plage ${fam}">
+            <input type="time" value="${p[0]}" onchange="updatePlage('${eid}',${i},${pi},0,this.value)">
+            <span class="plage-sep">–</span>
+            <input type="time" value="${p[1]}" onchange="updatePlage('${eid}',${i},${pi},1,this.value)">
+            ${s.plages.length > 1 ? `<button class="plage-del" onclick="removePlage('${eid}',${i},${pi})">✕</button>` : ''}
+          </div>`).join('')
+        + `<button class="btn-add-plage" onclick="addPlage('${eid}',${i})">+ plage</button>`
+        + `<div class="repas-row"><input type="checkbox" id="repas-${eid}-${i}" ${s.repas?'checked':''} onchange="updateRepas('${eid}',${i},this.checked)"><label for="repas-${eid}-${i}">Repas</label></div>`
+      : '';
+    return `
+      <div class="jour-col">
+        <div class="jour-hdr">${JOURS_LABELS[i]}</div>
+        <div class="jour-body ${s.actif?'':'inactive'}" id="jour-${eid}-${i}">
+          <div class="jour-toggle-row">
+            <label class="sw" style="width:28px;height:16px">
+              <input type="checkbox" ${s.actif?'checked':''} onchange="toggleJour('${eid}',${i},this.checked)">
+              <span class="sw-tr" style="background:${s.actif?`var(--${fam==='a'?'blue':'sage'})`:''};border-radius:10px"></span>
+              <span class="sw-th" style="transform:${s.actif?'translateX(12px)':'none'};width:12px;height:12px;top:2px;left:2px"></span>
+            </label>
+          </div>
+          ${plagesHTML}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ─── INTERACTIONS ──────────────────────────────────────────────────────────────
+
+window.toggleJour = function(eid, i, val) {
+  state[eid][i].actif = val;
+  renderGrid(eid, enfants.find(e=>(e.tempId||e.id)===eid)?.fam || 'a');
+  updateSynthese();
 };
+window.updatePlage = function(eid, i, pi, idx, val) {
+  state[eid][i].plages[pi][idx] = val;
+  updateSynthese();
+  const tot = calcEnfantH(eid);
+  const el = document.getElementById('total-' + eid);
+  if (el) el.textContent = r1(tot) + 'h';
+};
+window.addPlage = function(eid, i) {
+  state[eid][i].plages.push(['12:00','14:00']);
+  renderGrid(eid, enfants.find(e=>(e.tempId||e.id)===eid)?.fam || 'a');
+  updateSynthese();
+};
+window.removePlage = function(eid, i, pi) {
+  if (state[eid][i].plages.length <= 1) return;
+  state[eid][i].plages.splice(pi, 1);
+  renderGrid(eid, enfants.find(e=>(e.tempId||e.id)===eid)?.fam || 'a');
+  updateSynthese();
+};
+window.updateRepas = function(eid, i, val) { state[eid][i].repas = val; };
+window.toggleRepasGlobal = function(eid, val) {
+  JOURS.forEach((_, i) => { state[eid][i].repas = val; });
+};
+
+// ─── MOTEUR SIMPLIFIÉ ─────────────────────────────────────────────────────────
+
+function toMin(t) { const[h,m]=t.split(':').map(Number); return h*60+m; }
+function r1(n) { return Math.round(n*10)/10; }
+
+function unionPlages(plages) {
+  const ivs = plages.map(([d,f])=>({s:toMin(d),e:toMin(f)})).filter(p=>p.e>p.s).sort((a,b)=>a.s-b.s);
+  if (!ivs.length) return 0;
+  const merged = [{...ivs[0]}];
+  for (let i=1;i<ivs.length;i++) {
+    const cur=ivs[i], last=merged[merged.length-1];
+    if (cur.s<=last.e) last.e=Math.max(last.e,cur.e); else merged.push({...cur});
+  }
+  return merged.reduce((s,p)=>s+(p.e-p.s)/60,0);
+}
+
+function calcEnfantH(eid) {
+  return JOURS.reduce((s,_,i) => {
+    if (!state[eid][i].actif) return s;
+    return s + state[eid][i].plages.reduce((ps,[d,f]) => ps + Math.max(0,(toMin(f)-toMin(d))/60), 0);
+  }, 0);
+}
+
+function updateSynthese() {
+  // Heures nounou = union par jour de tous les enfants
+  let hNounou = 0;
+  const hParFam = {};
+  enfants.forEach(e => { hParFam[e.fam] = 0; });
+
+  JOURS.forEach((_, i) => {
+    const enfantsPresents = enfants.filter(e => state[e.tempId||e.id][i].actif);
+    if (!enfantsPresents.length) return;
+    const toutesPlages = enfantsPresents.flatMap(e => state[e.tempId||e.id][i].plages);
+    const union = unionPlages(toutesPlages);
+    hNounou += union;
+
+    // Segmentation par enfant
+    const n = enfantsPresents.length;
+    const part = union / n;
+    const famCount = {};
+    enfantsPresents.forEach(e => { famCount[e.fam] = (famCount[e.fam]||0) + 1; });
+    Object.entries(famCount).forEach(([fam, cnt]) => { hParFam[fam] = (hParFam[fam]||0) + cnt * part; });
+  });
+
+  // Heures par enfant pour les totaux individuels
+  enfants.forEach(e => {
+    const eid = e.tempId || e.id;
+    const h = calcEnfantH(eid);
+    const el = document.getElementById('total-' + eid);
+    if (el) el.textContent = r1(h) + 'h';
+  });
+
+  const hMens = Math.round(hNounou * 52 / 12);
+  const hSup  = Math.max(0, hNounou - 40);
+  const totFam = Object.values(hParFam).reduce((s,v)=>s+v,0) || 1;
+  const pA = Math.round((hParFam['a']||0) / totFam * 100);
+  const pB = 100 - pA;
+
+  document.getElementById('syn-htot').textContent  = r1(hNounou) + 'h';
+  document.getElementById('syn-hmens').textContent = hMens + 'h';
+
+  const supEl = document.getElementById('syn-hsup');
+  supEl.textContent = hSup > 0 ? r1(hSup) + 'h' : '—';
+  supEl.className = 'syn-val' + (hNounou > 50 ? ' danger' : hNounou > 48 ? ' warn' : hSup > 0 ? ' warn' : '');
+
+  document.getElementById('syn-seg-a').style.flex = pA;
+  document.getElementById('syn-seg-b').style.flex = pB;
+  document.getElementById('syn-rep').textContent  = `A ${pA}% · B ${pB}%`;
+
+  // Alerte
+  const alertEl = document.getElementById('syn-alert');
+  if (hNounou > 50) {
+    alertEl.style.display = '';
+    alertEl.className = 'alert-strip danger';
+    alertEl.textContent = `⚠ Total ${r1(hNounou)}h/sem — dépasse 50h, interdit légalement. Réduisez les horaires.`;
+  } else if (hNounou > 48) {
+    alertEl.style.display = '';
+    alertEl.className = 'alert-strip warn';
+    alertEl.textContent = `! ${r1(hNounou)}h/sem — au-delà de 48h, les heures supplémentaires doivent être récupérées.`;
+  } else if (hSup > 0) {
+    alertEl.style.display = '';
+    alertEl.className = 'alert-strip info';
+    alertEl.textContent = `ℹ ${r1(hSup)}h sup/sem au-delà de 40h — majorées à 25%. Incluses dans le calcul du salaire.`;
+  } else {
+    alertEl.style.display = 'none';
+  }
+}
+
+// ─── ENREGISTREMENT ───────────────────────────────────────────────────────────
 
 window.handleNext = async function() {
+  clearError();
+  // Vérifier qu'au moins un enfant a des horaires
+  const hasHours = enfants.some(e => {
+    const eid = e.tempId || e.id;
+    return JOURS.some((_, i) => state[eid][i].actif && state[eid][i].plages.length > 0);
+  });
+  if (!hasHours) return showError('Définissez au moins un jour travaillé pour un enfant.');
+
+  // Construire les jours pour l'API
   const jours = [];
-  window.enfants.forEach(e => {
-    JOURS.forEach((j, i) => {
+  enfants.forEach(e => {
+    const eid = e.tempId || e.id;
+    JOURS.forEach((jour, i) => {
+      const s = state[eid][i];
       jours.push({
-        enfantId: e.id, 
-        jourSemaine: j,
-        debut: window.state[e.id][i].debut,
-        fin: window.state[e.id][i].fin,
-        actif: true
+        enfantId:    e.id,        // ID API (pas tempId)
+        jourSemaine: jour,
+        actif:       s.actif,
+        repas:       s.repas,
+        plages:      s.plages.map(([debut, fin]) => ({ debut, fin })),
       });
     });
   });
 
-  draft.set({ jours, hNormalesSemaine: 40 }); // Calcul simplifié pour le moment
+  // Calculer heures nounou pour le draft
+  let hNounou = 0;
+  JOURS.forEach((_, i) => {
+    const enfantsPresents = enfants.filter(e => state[e.tempId||e.id][i].actif);
+    if (!enfantsPresents.length) return;
+    const toutesPlages = enfantsPresents.flatMap(e => state[e.tempId||e.id][i].plages);
+    hNounou += unionPlages(toutesPlages);
+  });
+
+  draft.set({ jours, hNormalesSemaine: Math.min(hNounou, 40), hTotSemaine: hNounou });
   window.location.href = '/onboarding-5.html';
 };
 
+function showError(msg) { const e=document.getElementById('error-box'); e.textContent=msg; e.classList.add('visible'); }
+function clearError() { document.getElementById('error-box').classList.remove('visible'); }
+
 // Init
-requireLogin();
-const d = draft.get();
-window.enfants = d.enfants || [];
-window.state = {};
-
-window.enfants.forEach(e => {
-  window.state[e.id] = JOURS.map(() => ({ debut: '08:45', fin: '18:00' }));
-});
-
-document.getElementById('side-garde').textContent = d.nom || '—';
-window.renderAll();
+renderAll();
 </script>
+
 </body>
 </html>
