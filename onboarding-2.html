@@ -5,34 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>nounoulink — Votre nounou (2/5)</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Amélioration visuelle pour les cartes d'accès */
+    .access-card {
+      border: 1.5px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s ease;
+      background: #fff;
+    }
+    .access-card:hover { border-color: var(--sage-mid); }
+    .access-card.active {
+      border-color: var(--sage) !important;
+      background: var(--sage-light) !important;
+    }
+    .chk-circle {
+      position: absolute; top: 12px; right: 12px;
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 1.5px solid var(--line);
+      display: flex; align-items: center; justify-content: center; font-size: 10px;
+    }
+    .access-card.active .chk-circle {
+      background: var(--sage); border-color: var(--sage); color: #fff;
+    }
+  </style>
 </head>
 <body>
 
 <div class="ob-shell">
-
   <nav class="ob-side">
     <a href="/" class="ob-logo">nounoulink<em>.</em></a>
     <div class="ob-steps">
-      <div class="ob-step done">
-        <div class="ob-step-num">✓</div>
-        <div><div class="ob-step-label">Votre garde</div><div class="ob-step-sub" id="side-garde">—</div></div>
-      </div>
-      <div class="ob-step active">
-        <div class="ob-step-num">2</div>
-        <div><div class="ob-step-label">Votre nounou</div><div class="ob-step-sub">Identité, accès</div></div>
-      </div>
-      <div class="ob-step future">
-        <div class="ob-step-num">3</div>
-        <div><div class="ob-step-label">Les enfants</div><div class="ob-step-sub">Prénom, famille</div></div>
-      </div>
-      <div class="ob-step future">
-        <div class="ob-step-num">4</div>
-        <div><div class="ob-step-label">Planning type</div><div class="ob-step-sub">Horaires par enfant</div></div>
-      </div>
-      <div class="ob-step future">
-        <div class="ob-step-num">5</div>
-        <div><div class="ob-step-label">Taux & aides</div><div class="ob-step-sub">Salaire, indemnités</div></div>
-      </div>
+      <div class="ob-step done"><div class="ob-step-num">✓</div><div><div class="ob-step-label">Votre garde</div><div class="ob-step-sub" id="side-garde">—</div></div></div>
+      <div class="ob-step active"><div class="ob-step-num">2</div><div><div class="ob-step-label">Votre nounou</div><div class="ob-step-sub">Identité, accès</div></div></div>
+      <div class="ob-step future"><div class="ob-step-num">3</div><div><div class="ob-step-label">Les enfants</div><div class="ob-step-sub">Prénom, famille</div></div></div>
+      <div class="ob-step future"><div class="ob-step-num">4</div><div><div class="ob-step-label">Planning type</div><div class="ob-step-sub">Horaires par enfant</div></div></div>
+      <div class="ob-step future"><div class="ob-step-num">5</div><div><div class="ob-step-label">Taux & aides</div><div class="ob-step-sub">Salaire, indemnités</div></div></div>
     </div>
     <div class="ob-side-footer" id="side-footer">—</div>
   </nav>
@@ -42,13 +52,12 @@
 
     <p class="ob-eyebrow">Étape 2 sur 5</p>
     <h1 class="ob-headline">Votre nounou</h1>
-    <p class="ob-subline">Ces informations apparaissent dans les guides Pajemploi. Son accès à l'outil est optionnel.</p>
+    <p class="ob-subline">Ces informations apparaissent dans les guides Pajemploi.</p>
 
     <div class="error-box" id="error-box"></div>
 
-    <!-- Carte identité live -->
-    <div id="avatar-card" style="display:flex;align-items:center;gap:16px;padding:16px 20px;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);margin-bottom:24px;transition:border-color .2s">
-      <div id="avatar-circle" style="width:52px;height:52px;border-radius:50%;background:var(--sage-light);border:2px solid var(--sage-mid);display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:20px;color:var(--sage);flex-shrink:0;transition:all .2s">?</div>
+    <div id="avatar-card" style="display:flex;align-items:center;gap:16px;padding:16px 20px;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);margin-bottom:24px;">
+      <div id="avatar-circle" style="width:52px;height:52px;border-radius:50%;background:var(--sage-light);border:2px solid var(--sage-mid);display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:20px;color:var(--sage);flex-shrink:0;">?</div>
       <div>
         <div id="avatar-name" style="font-size:15px;font-weight:500;min-height:22px">Prénom Nom</div>
         <div style="font-size:12px;color:var(--dust);margin-top:2px">Garde d'enfants à domicile</div>
@@ -56,175 +65,151 @@
       </div>
     </div>
 
-    <!-- Identité -->
     <div class="section">
       <div class="section-title">Identité</div>
       <div class="two-col">
         <div class="field">
           <label for="prenom">Prénom</label>
-          <input type="text" id="prenom" placeholder="Souhila" oninput="updateAvatar()">
+          <input type="text" id="prenom" placeholder="Souhila" oninput="window.updateAvatar()">
         </div>
         <div class="field">
           <label for="nom">Nom</label>
-          <div class="hint">Tel qu'il apparaît sur Pajemploi</div>
-          <input type="text" id="nom" placeholder="Ben Youssef" oninput="updateAvatar()">
+          <input type="text" id="nom" placeholder="Ben Youssef" oninput="window.updateAvatar()">
         </div>
       </div>
     </div>
 
-    <!-- Accès -->
     <div class="section">
       <div class="section-title">Accès à l'outil</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <div class="access-card" id="card-passif" onclick="selectAccess('passif')" style="border:1.5px solid var(--sage);background:var(--sage-light);border-radius:var(--radius);padding:14px 16px;cursor:pointer;position:relative">
-          <div style="font-size:13px;font-weight:500;margin-bottom:4px">Lien mensuel uniquement</div>
-          <div style="font-size:12px;color:var(--dust);line-height:1.5">Reçoit chaque mois un lien pour consulter son récapitulatif.</div>
-          <div id="chk-passif" style="position:absolute;top:12px;right:12px;width:18px;height:18px;border-radius:50%;background:var(--sage);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px">✓</div>
+        <div class="access-card active" id="card-passif" onclick="window.selectAccess('passif')">
+          <div style="font-size:13px;font-weight:500;margin-bottom:4px">Lien mensuel</div>
+          <div style="font-size:12px;color:var(--dust);line-height:1.4">Simple consultation par lien email.</div>
+          <div class="chk-circle" id="chk-passif">✓</div>
         </div>
-        <div class="access-card" id="card-actif" onclick="selectAccess('actif')" style="border:1.5px solid var(--line);border-radius:var(--radius);padding:14px 16px;cursor:pointer;position:relative">
+        <div class="access-card" id="card-actif" onclick="window.selectAccess('actif')">
           <div style="font-size:13px;font-weight:500;margin-bottom:4px">Accès complet</div>
-          <div style="font-size:12px;color:var(--dust);line-height:1.5">Peut saisir ses congés et arrêts maladie directement.</div>
-          <div id="chk-actif" style="position:absolute;top:12px;right:12px;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:10px"></div>
+          <div style="font-size:12px;color:var(--dust);line-height:1.4">Peut saisir ses congés directement.</div>
+          <div class="chk-circle" id="chk-actif"></div>
         </div>
       </div>
 
-      <div id="email-lien-block">
-        <div class="field" style="margin-bottom:0">
-          <label for="email-lien">Email pour le lien mensuel <span class="opt">optionnel</span></label>
-          <div class="hint">Elle recevra automatiquement le récapitulatif chaque mois.</div>
-          <input type="email" id="email-lien" placeholder="nounou@exemple.fr" oninput="updateBadge()">
-        </div>
-      </div>
-      <div id="email-actif-block" style="display:none">
-        <div class="field" style="margin-bottom:0">
-          <label for="email-actif">Email de la nounou</label>
-          <input type="email" id="email-actif" placeholder="nounou@exemple.fr" oninput="updateBadge()">
-        </div>
+      <div class="field">
+        <label id="label-email" for="email">Email de la nounou <span class="opt">optionnel</span></label>
+        <input type="email" id="email" placeholder="nounou@exemple.fr" oninput="window.updateBadge()">
       </div>
     </div>
 
-    <!-- CP initial -->
     <div class="section">
-      <div class="section-title">Congés payés — solde initial <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0;color:var(--dust)">optionnel</span></div>
+      <div class="section-title">Congés payés — solde initial</div>
       <div class="toggle-row" style="margin-bottom:8px">
-        <label class="sw"><input type="checkbox" id="cp-check" onchange="toggleCP()"><span class="sw-tr"></span><span class="sw-th"></span></label>
+        <label class="sw"><input type="checkbox" id="cp-check" onchange="window.toggleCP()"><span class="sw-tr"></span><span class="sw-th"></span></label>
         <div class="tl">La garde a démarré avant cet outil<small>Un stock de CP existe déjà</small></div>
         <div id="cp-input-wrap" style="display:none;align-items:center;gap:6px">
-          <input type="number" id="cp-val" value="5" min="0" max="60" step="0.5"
-            style="width:64px;padding:6px 10px;border:1.5px solid var(--sage-mid);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;text-align:center;outline:none">
+          <input type="number" id="cp-val" value="0" min="0" max="60" step="0.5" style="width:64px;padding:6px;border:1.5px solid var(--sage-mid);border-radius:8px;text-align:center;">
           <span style="font-size:12px;color:var(--dust)">jours</span>
         </div>
       </div>
-      <div class="info-box">Le solde CP est rattaché à cette garde, pas à la nounou en tant que personne.</div>
     </div>
 
     <div class="ob-actions">
       <button class="btn-ghost" onclick="window.location.href='/onboarding-1.html'">← Étape 1</button>
-      <button class="btn-primary" id="btn-next" onclick="handleNext()">Continuer — Les enfants →</button>
+      <button class="btn-primary" id="btn-next" onclick="window.handleNext()">Continuer — Les enfants →</button>
     </div>
   </main>
 </div>
 
 <script type="module">
 import { requireLogin, onboarding, draft } from './js/api.js';
-requireLogin();
 
-const d = draft.get();
-if (!d.gardeId) { window.location.href = '/onboarding-1.html'; }
-
-// Sidebar
-document.getElementById('side-garde').textContent = d.nom || '—';
-document.getElementById('side-footer').textContent = (d.nom || '—') + '\n' + (d.nomFamille || '—');
-
-let accessMode = 'passif';
-
-// Pré-remplir
-if (d.nounouPrenom) document.getElementById('prenom').value = d.nounouPrenom;
-if (d.nounouNom)    document.getElementById('nom').value = d.nounouNom;
-if (d.nounouEmail)  document.getElementById('email-lien').value = d.nounouEmail;
-updateAvatar();
-
+// 1. DÉFINITION DES FONCTIONS (En premier !)
 window.updateAvatar = function() {
   const p = document.getElementById('prenom').value.trim();
   const n = document.getElementById('nom').value.trim();
-  const initiales = (p ? p[0] : '') + (n ? n[0] : '');
-  document.getElementById('avatar-circle').textContent = initiales.toUpperCase() || '?';
+  document.getElementById('avatar-circle').textContent = ((p[0] || '') + (n[0] || '')).toUpperCase() || '?';
   document.getElementById('avatar-name').textContent = [p, n].filter(Boolean).join(' ') || 'Prénom Nom';
-  if (p || n) document.getElementById('avatar-card').style.borderColor = 'var(--sage-mid)';
 };
 
 window.selectAccess = function(mode) {
-  accessMode = mode;
-  const isPassif = mode === 'passif';
-  // Passif card
-  document.getElementById('card-passif').style.border = isPassif ? '1.5px solid var(--sage)' : '1.5px solid var(--line)';
-  document.getElementById('card-passif').style.background = isPassif ? 'var(--sage-light)' : '#fff';
-  document.getElementById('chk-passif').style.background = isPassif ? 'var(--sage)' : 'transparent';
-  document.getElementById('chk-passif').textContent = isPassif ? '✓' : '';
-  // Actif card
-  document.getElementById('card-actif').style.border = !isPassif ? '1.5px solid var(--sage)' : '1.5px solid var(--line)';
-  document.getElementById('card-actif').style.background = !isPassif ? 'var(--sage-light)' : '#fff';
-  document.getElementById('chk-actif').style.background = !isPassif ? 'var(--sage)' : 'transparent';
-  document.getElementById('chk-actif').textContent = !isPassif ? '✓' : '';
-  // Blocs email
-  document.getElementById('email-lien-block').style.display = isPassif ? '' : 'none';
-  document.getElementById('email-actif-block').style.display = !isPassif ? '' : 'none';
-  updateBadge();
+  window.accessMode = mode;
+  document.getElementById('card-passif').classList.toggle('active', mode === 'passif');
+  document.getElementById('card-actif').classList.toggle('active', mode === 'actif');
+  document.getElementById('chk-passif').textContent = mode === 'passif' ? '✓' : '';
+  document.getElementById('chk-actif').textContent = mode === 'actif' ? '✓' : '';
+  
+  const label = document.getElementById('label-email');
+  label.innerHTML = mode === 'actif' ? 'Email de la nounou' : 'Email pour le lien mensuel <span class="opt">optionnel</span>';
+  window.updateBadge();
 };
 
 window.updateBadge = function() {
+  const email = document.getElementById('email').value.trim();
   const badge = document.getElementById('avatar-badge');
-  const email = accessMode === 'passif'
-    ? document.getElementById('email-lien').value
-    : document.getElementById('email-actif').value;
-  if (email) {
-    badge.textContent = accessMode === 'actif' ? 'Invitation à envoyer' : 'Recevra le lien mensuel';
+  if (!email) {
+    badge.textContent = "Sans compte pour l'instant";
   } else {
-    badge.textContent = 'Sans compte pour l\'instant';
+    badge.textContent = window.accessMode === 'actif' ? "Invitation à envoyer" : "Recevra le lien mensuel";
   }
 };
 
 window.toggleCP = function() {
-  const checked = document.getElementById('cp-check').checked;
-  const wrap = document.getElementById('cp-input-wrap');
-  wrap.style.display = checked ? 'flex' : 'none';
+  document.getElementById('cp-input-wrap').style.display = document.getElementById('cp-check').checked ? 'flex' : 'none';
 };
 
 window.handleNext = async function() {
-  clearError();
-  const prenom = document.getElementById('prenom').value.trim();
-  const nom    = document.getElementById('nom').value.trim();
-  if (!prenom || !nom) return showError('Le prénom et le nom de la nounou sont requis.');
+  const errorBox = document.getElementById('error-box');
+  errorBox.classList.remove('visible');
 
-  const email = accessMode === 'passif'
-    ? document.getElementById('email-lien').value
-    : document.getElementById('email-actif').value;
-  const cpCheck = document.getElementById('cp-check').checked;
-  const cpVal   = cpCheck ? parseFloat(document.getElementById('cp-val').value) : 0;
+  const prenom = document.getElementById('prenom').value.trim();
+  const nom = document.getElementById('nom').value.trim();
+  const email = document.getElementById('email').value.trim();
+
+  if (!prenom || !nom) {
+    errorBox.textContent = "Le prénom et le nom sont requis.";
+    errorBox.classList.add('visible');
+    return;
+  }
 
   const btn = document.getElementById('btn-next');
-  btn.classList.add('btn-loading');
-  btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Enregistrement...';
 
   try {
+    const d = draft.get();
+    const cpVal = document.getElementById('cp-check').checked ? parseFloat(document.getElementById('cp-val').value) : 0;
+
     const res = await onboarding.ajouterNounou(d.gardeId, {
       prenom, nom, email: email || null,
       cpAcquisDebut: cpVal,
       cpMode: 'accumulation',
-      cpJoursParMois: 2.5,
+      cpJoursParMois: 2.5
     });
+
     draft.set({ nounouId: res.nounou.id, nounouPrenom: prenom, nounouNom: nom, nounouEmail: email });
     window.location.href = '/onboarding-3.html';
   } catch (err) {
-    showError(err.message || 'Erreur lors de l\'enregistrement');
-    btn.classList.remove('btn-loading');
+    errorBox.textContent = err.message || "Erreur lors de l'enregistrement";
+    errorBox.classList.add('visible');
+    btn.disabled = false;
     btn.textContent = 'Continuer — Les enfants →';
   }
 };
 
-function showError(msg) { const e = document.getElementById('error-box'); e.textContent = msg; e.classList.add('visible'); }
-function clearError() { document.getElementById('error-box').classList.remove('visible'); }
-</script>
+// 2. INITIALISATION (Une fois que tout est défini)
+requireLogin();
+window.accessMode = 'passif';
+const d = draft.get();
 
+if (d.nounouPrenom) document.getElementById('prenom').value = d.nounouPrenom;
+if (d.nounouNom) document.getElementById('nom').value = d.nounouNom;
+if (d.nounouEmail) document.getElementById('email').value = d.nounouEmail;
+
+document.getElementById('side-garde').textContent = d.nom || '—';
+document.getElementById('side-footer').textContent = (d.nom || '—') + '\n' + (d.nomFamille || '—');
+
+window.updateAvatar();
+window.updateBadge();
+
+</script>
 </body>
 </html>
