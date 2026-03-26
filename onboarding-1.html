@@ -10,6 +10,7 @@
 
 <div class="ob-shell">
 
+  <!-- SIDEBAR -->
   <nav class="ob-side">
     <a href="/" class="ob-logo">nounoulink<em>.</em></a>
     <div class="ob-steps">
@@ -40,6 +41,7 @@
     </div>
   </nav>
 
+  <!-- CONTENU -->
   <main class="ob-main">
     <div class="ob-progress"><div class="ob-progress-fill" style="width:20%"></div></div>
 
@@ -49,13 +51,14 @@
 
     <div class="error-box" id="error-box"></div>
 
+    <!-- Identification -->
     <div class="section">
       <div class="section-title">Identification</div>
 
       <div class="field">
         <label for="nom">Nom de la garde</label>
         <div class="hint">Un nom libre pour vous identifier. Ex. "Garde Léo & Emma 2026"</div>
-        <input type="text" id="nom" placeholder="Garde Léo & Emma 2026">
+        <input type="text" id="nom" placeholder="Garde Léo & Emma 2026" oninput="updatePreview()">
       </div>
 
       <div class="two-col">
@@ -65,19 +68,20 @@
         </div>
         <div class="field">
           <label for="nom-famille">Votre nom de famille <span class="opt">Famille A</span></label>
-          <input type="text" id="nom-famille" placeholder="Famille Martin">
+          <input type="text" id="nom-famille" placeholder="Famille Martin" oninput="updatePreview()">
         </div>
       </div>
     </div>
 
+    <!-- Mode calcul -->
     <div class="section">
       <div class="section-title">Mode de calcul du salaire</div>
       <div class="mode-toggle">
-        <button class="mode-btn active" id="btn-mens" onclick="window.setMode('mensualise', this)">
+        <button class="mode-btn active" id="btn-mens" onclick="setMode('mensualise', this)">
           Mensualisation
           <small>Salaire identique chaque mois</small>
         </button>
-        <button class="mode-btn" id="btn-reel" onclick="window.setMode('reel', this)">
+        <button class="mode-btn" id="btn-reel" onclick="setMode('reel', this)">
           Réel des heures
           <small>Calculé sur les heures travaillées</small>
         </button>
@@ -87,35 +91,32 @@
       </div>
     </div>
 
+    <!-- Co-famille — obligatoire -->
     <div class="section">
-      <div class="section-title">Inviter la co-famille <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0;color:var(--dust)">— optionnel maintenant</span></div>
-      <p class="hint" style="margin-bottom:12px">L'outil fonctionne sans elle. Elle pourra rejoindre via un lien à tout moment.</p>
-
-      <div id="invite-form">
-        <div class="field" style="margin-bottom:0">
-          <label for="email-b">Email de la co-famille</label>
-          <div style="display:flex;gap:8px;margin-top:6px">
-            <input type="email" id="email-b" placeholder="co-famille@exemple.fr" style="flex:1">
-            <button type="button" class="btn-secondary" onclick="window.validateInvite()">Inviter</button>
-          </div>
+      <div class="section-title">La co-famille <span style="color:var(--red);margin-left:2px">*</span></div>
+      <p class="hint" style="margin-bottom:12px">
+        La garde partagée implique deux familles. Ces informations sont requises pour configurer la répartition.
+        La co-famille recevra un lien pour rejoindre son espace — elle n'a pas besoin d'agir maintenant.
+      </p>
+      <div class="two-col">
+        <div class="field">
+          <label for="nom-famille-b">Nom de la Famille B <span style="color:var(--red)">*</span></label>
+          <input type="text" id="nom-famille-b" placeholder="Famille Dupont" required>
+        </div>
+        <div class="field">
+          <label for="email-b">Email <span class="opt">pour invitation</span></label>
+          <input type="email" id="email-b" placeholder="dupont@exemple.fr">
         </div>
       </div>
-
-      <div id="invite-sent" style="display:none">
-        <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--sage-light);border:1.5px solid var(--sage-mid);border-radius:var(--radius)">
-          <span style="color:var(--sage);font-size:18px">✓</span>
-          <div>
-            <div style="font-size:13px;font-weight:500" id="invite-email-display"></div>
-            <div style="font-size:11px;color:var(--dust)">Invitation envoyée après activation</div>
-          </div>
-          <button type="button" class="btn-ghost" onclick="window.cancelInvite()" style="margin-left:auto">Annuler</button>
-        </div>
+      <div class="info-box">
+        La Famille B recevra un lien d'invitation après activation. Elle peut rejoindre à tout moment.
       </div>
     </div>
 
+    <!-- Actions -->
     <div class="ob-actions">
       <button class="btn-ghost" onclick="window.location.href='/index.html'">← Retour</button>
-      <button class="btn-primary" id="btn-next" onclick="window.handleNext()">
+      <button class="btn-primary" id="btn-next" onclick="handleNext()">
         Continuer — Votre nounou →
       </button>
     </div>
@@ -123,119 +124,111 @@
 </div>
 
 <script type="module">
-import { requireLogin, gardes, draft } from './js/api.js';
-
-// --- 1. DÉFINITION DES FONCTIONS GLOBALES ---
-
-window.setMode = function(mode, btn) {
-  window.currentModeCalcul = mode;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-  
-  if (btn) {
-    btn.classList.add('active');
-  } else {
-    const targetId = mode === 'mensualise' ? 'btn-mens' : 'btn-reel';
-    document.getElementById(targetId)?.classList.add('active');
-  }
-
-  document.getElementById('mode-info').textContent = mode === 'mensualise'
-    ? "En mensualisation, la nounou reçoit le même salaire chaque mois, qu'il y ait des jours fériés ou des congés. C'est le mode recommandé pour la garde partagée."
-    : "En mode réel, le salaire est calculé sur les heures effectivement travaillées. Le montant peut varier chaque mois.";
-};
-
-window.validateInviteValue = function(email) {
-  window.currentEmailB = email;
-  document.getElementById('invite-form').style.display = 'none';
-  document.getElementById('invite-sent').style.display = 'flex';
-  document.getElementById('invite-email-display').textContent = email;
-};
-
-window.validateInvite = function() {
-  const email = document.getElementById('email-b').value.trim();
-  if (!email.includes('@')) return;
-  window.validateInviteValue(email);
-};
-
-window.cancelInvite = function() {
-  window.currentEmailB = null;
-  document.getElementById('invite-form').style.display = 'block';
-  document.getElementById('invite-sent').style.display = 'none';
-  document.getElementById('email-b').value = '';
-};
-
-window.handleNext = async function() {
-  const errBox = document.getElementById('error-box');
-  errBox.classList.remove('visible');
-
-  const nom = document.getElementById('nom').value.trim();
-  const dateDebut = document.getElementById('date-debut').value;
-  const nomFamille = document.getElementById('nom-famille').value.trim();
-
-  if (!nom || !dateDebut || !nomFamille) {
-    errBox.textContent = "Veuillez remplir tous les champs obligatoires.";
-    errBox.classList.add('visible');
-    return;
-  }
-
-  const btn = document.getElementById('btn-next');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Création...';
-
-  try {
-    const res = await gardes.creer({
-      nom, 
-      dateDebut, 
-      modeCalcul: window.currentModeCalcul, 
-      nomFamilleA: nomFamille,
-      emailFamilleB: window.currentEmailB,
-    });
-
-    // On stocke tout proprement dans le draft pour la suite
-    draft.set({
-      gardeId:    res.garde.id,
-      famAId:     res.familleA.id,
-      famBId:     res.familleB ? res.familleB.id : null,
-      nom, 
-      dateDebut, 
-      modeCalcul: window.currentModeCalcul,
-      nomFamille, 
-      emailB: window.currentEmailB,
-    });
-
-    window.location.href = '/onboarding-2.html';
-  } catch (err) {
-    errBox.textContent = err.message || "Erreur lors de la création";
-    errBox.classList.add('visible');
-    btn.disabled = false;
-    btn.textContent = 'Continuer — Votre nounou →';
-  }
-};
-
-// --- 2. INITIALISATION ---
+import { requireLogin, gardes, draft, getGardeId } from './js/api.js';
 
 requireLogin();
 
+// Pré-remplir depuis le brouillon
 const d = draft.get();
-window.currentModeCalcul = d.modeCalcul || 'mensualise';
-window.currentEmailB = d.emailB || null;
-
-// Remplissage des inputs
-if (d.nom) document.getElementById('nom').value = d.nom;
+if (d.nom)        document.getElementById('nom').value = d.nom;
+if (d.dateDebut)  document.getElementById('date-debut').value = d.dateDebut;
 if (d.nomFamille) document.getElementById('nom-famille').value = d.nomFamille;
+if (d.modeCalcul) setMode(d.modeCalcul, document.getElementById('btn-' + (d.modeCalcul === 'mensualise' ? 'mens' : 'reel')));
+if (d.emailB)     validateInviteValue(d.emailB);
 
-// Date par défaut (1er du mois prochain) si vide
-if (d.dateDebut) {
-  document.getElementById('date-debut').value = d.dateDebut;
-} else {
+// Date de début par défaut : 1er du mois prochain
+if (!d.dateDebut) {
   const next = new Date();
   next.setMonth(next.getMonth() + 1, 1);
   document.getElementById('date-debut').value = next.toISOString().slice(0, 10);
 }
 
-// Application de l'état visuel (Mode et Invitation)
-window.setMode(window.currentModeCalcul, null);
-if (window.currentEmailB) window.validateInviteValue(window.currentEmailB);
+let modeCalcul = d.modeCalcul || 'mensualise';
+let emailB = d.emailB || null;
 
+window.updatePreview = function() {};
+
+window.setMode = function(mode, btn) {
+  modeCalcul = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('mode-info').textContent = mode === 'mensualise'
+    ? "En mensualisation, la nounou reçoit le même salaire chaque mois, qu'il y ait des jours fériés ou des congés. C'est le mode recommandé pour la garde partagée."
+    : "En mode réel, le salaire est calculé sur les heures effectivement travaillées. Le montant peut varier chaque mois.";
+};
+
+window.validateInvite = function() {
+  const email = document.getElementById('email-b').value.trim();
+  if (!email.includes('@')) return;
+  validateInviteValue(email);
+};
+
+function validateInviteValue(email) {
+  emailB = email;
+  document.getElementById('invite-form').style.display = 'none';
+  document.getElementById('invite-sent').style.display = '';
+  document.getElementById('invite-email-display').textContent = email;
+}
+
+window.cancelInvite = function() {
+  emailB = null;
+  document.getElementById('invite-form').style.display = '';
+  document.getElementById('invite-sent').style.display = 'none';
+  document.getElementById('email-b').value = '';
+};
+
+window.handleNext = async function() {
+  clearError();
+  const nom         = document.getElementById('nom').value.trim();
+  const dateDebut   = document.getElementById('date-debut').value;
+  const nomFamille  = document.getElementById('nom-famille').value.trim();
+  const nomFamilleB = document.getElementById('nom-famille-b').value.trim();
+  const emailB      = document.getElementById('email-b').value.trim() || null;
+
+  if (!nom)         return showError('Le nom de la garde est requis.');
+  if (!dateDebut)   return showError('La date de début est requise.');
+  if (!nomFamille)  return showError('Votre nom de famille est requis.');
+  if (!nomFamilleB) return showError('Le nom de la co-famille est requis.');
+
+  const btn = document.getElementById('btn-next');
+  btn.classList.add('btn-loading');
+  btn.innerHTML = '<span class="spinner"></span> Création…';
+
+  try {
+    const res = await gardes.creer({
+      nom, dateDebut, modeCalcul,
+      nomFamilleA: nomFamille,
+      nomFamilleB,
+      emailFamilleB: emailB,
+    });
+
+    // Sauvegarder dans le brouillon — famBId disponible immédiatement
+    draft.set({
+      gardeId:   res.garde.id,
+      famAId:    res.familleA.id,
+      famBId:    res.familleB.id,      // ← Famille B créée en base dès le départ
+      nom, dateDebut, modeCalcul,
+      nomFamille, nomFamilleB, emailB,
+      invToken:  res.garde.invitation_token_b,
+      lienToken: res.garde.lien_partage_token,
+    });
+
+    window.location.href = '/onboarding-2.html';
+  } catch (err) {
+    showError(err.message || 'Erreur lors de la création');
+    btn.classList.remove('btn-loading');
+    btn.textContent = 'Continuer — Votre nounou →';
+  }
+};
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function clearError() {
+  document.getElementById('error-box').classList.remove('visible');
+}
 </script>
 
 </body>
