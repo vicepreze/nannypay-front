@@ -240,7 +240,7 @@ window.handleNext = async function() {
       createdEnfants.push({ ...e, id: res.enfant.id, fam: 'a', familleId: d.famAId });
     }
     // Créer les enfants côté B — famBId toujours disponible (créé dès l'étape 1)
-    if (!d.famBId) return showError('Configuration incomplète : co-famille introuvable. Recommencez depuis l'étape 1.');
+    if (!d.famBId) return showError("Configuration incomplète : co-famille introuvable. Recommencez depuis l'étape 1.");
     for (const e of allB) {
       const res = await onboarding.ajouterEnfant(d.gardeId, { prenom: e.prenom, familleId: d.famBId });
       createdEnfants.push({ ...e, id: res.enfant.id, fam: 'b', familleId: d.famBId });
