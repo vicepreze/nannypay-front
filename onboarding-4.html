@@ -334,13 +334,15 @@ window.handleNext = async function() {
   if (!hasHours) return showError('Définissez au moins un jour travaillé pour un enfant.');
 
   // Construire les jours pour l'API
+  // Les enfants côté Famille B non encore inscrite (id: null) sont exclus —
+  // ils seront ajoutés quand la Famille B rejoindra et configurera son planning
   const jours = [];
-  enfants.forEach(e => {
+  enfants.filter(e => e.id !== null && !e.pendingFamB).forEach(e => {
     const eid = e.tempId || e.id;
     JOURS.forEach((jour, i) => {
       const s = state[eid][i];
       jours.push({
-        enfantId:    e.id,        // ID API (pas tempId)
+        enfantId:    e.id,        // ID API réel — jamais null ici
         jourSemaine: jour,
         actif:       s.actif,
         repas:       s.repas,
