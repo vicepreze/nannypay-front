@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nounoulink — Planning mensuel</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .mois-shell { min-height:100vh; background:var(--paper); }
+
+    /* ── TOP NAV ── */
+    .topnav { height:56px; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; padding:0 24px; gap:16px; }
+    .topnav-logo { font-family:'DM Serif Display',serif; font-size:18px; color:var(--ink); text-decoration:none; }
+    .topnav-logo em { color:var(--sage); font-style:italic; }
+    .topnav-breadcrumb { font-size:12px; color:var(--dust); display:flex; align-items:center; gap:6px; }
+    .topnav-spacer { flex:1; }
+    .topnav-actions { display:flex; gap:8px; }
+
+    /* ── LAYOUT ── */
+    .mois-body { max-width:980px; margin:0 auto; padding:28px 24px; display:grid; grid-template-columns:1fr 340px; gap:24px; align-items:start; }
+    @media(max-width:768px) { .mois-body { grid-template-columns:1fr; } .sidebar-col { order:-1; } }
+
+    /* ── CALENDRIER ── */
+    .cal-card { background:#fff; border:1.5px solid var(--line); border-radius:var(--radius); overflow:hidden; margin-bottom:16px; }
+    .cal-header { padding:14px 20px; border-bottom:.5px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+    .cal-title { font-size:15px; font-weight:500; }
+    .cal-nav { display:flex; gap:6px; }
+    .cal-nav button { width:28px; height:28px; border:1.5px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; }
+    .cal-nav button:hover { border-color:var(--ink); }
+
+    /* Grille 5 colonnes (lun-ven) */
+    .cal-grid { display:grid; grid-template-columns:repeat(5,1fr); }
+    .cal-col-hdr { padding:8px 6px; text-align:center; font-size:10px; font-weight:500; color:var(--dust); text-transform:uppercase; letter-spacing:.06em; background:var(--paper); border-bottom:.5px solid var(--line); border-right:.5px solid var(--line); }
+    .cal-col-hdr:last-child { border-right:none; }
+
+    .jour-cell { border-right:.5px solid var(--line); border-bottom:.5px solid var(--line); min-height:80px; padding:6px; cursor:pointer; transition:background .1s; position:relative; }
+    .jour-cell:last-child { border-right:none; }
+    .jour-cell:hover { background:var(--paper); }
+    .jour-cell.weekend { background:#f5f4f2; cursor:default; }
+    .jour-cell.ferie { background:#f5f4f2; }
+
+    .jour-date { font-size:11px; font-weight:500; color:var(--dust); margin-bottom:4px; }
+    .jour-date.today { background:var(--sage); color:#fff; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; }
+
+    .evt-chips { display:flex; flex-direction:column; gap:2px; }
+    .evt-chip { font-size:9px; padding:2px 5px; border-radius:4px; display:flex; align-items:center; gap:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .evt-cp    { background:#dbeafe; color:#1e40af; }
+    .evt-mal   { background:#fee2e2; color:#991b1b; }
+    .evt-ferie { background:#f3f4f6; color:#6b7280; border:1px solid var(--line); }
+    .evt-abs-a { background:var(--blue-light); color:var(--blue); }
+    .evt-abs-b { background:var(--sage-light); color:var(--sage); }
+
+    /* ── COUCHE 2 TOOLTIP ── */
+    .day-overlay-zone { padding:3px 0; }
+
+    /* ── MODAL ÉVÉNEMENT ── */
+    .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.3); z-index:100; align-items:center; justify-content:center; }
+    .modal-bg.open { display:flex; }
+    .modal { background:#fff; border-radius:12px; padding:24px; width:340px; box-shadow:0 8px 32px rgba(0,0,0,.12); }
+    .modal h3 { font-size:16px; font-weight:500; margin-bottom:16px; }
+    .modal-btns { display:flex; gap:8px; margin-top:20px; }
+    .evt-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+    .evt-type-btn { padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:12px; text-align:center; transition:all .15s; background:#fff; }
+    .evt-type-btn:hover { border-color:var(--dust); }
+    .evt-type-btn.selected { border-color:var(--sage); background:var(--sage-light); color:var(--sage); font-weight:500; }
+
+    /* ── BLOC NARRATIF ── */
+    .narratif { background:var(--sage-light); border:1px solid var(--sage-mid); border-radius:var(--radius); padding:14px 18px; margin-bottom:16px; font-size:13px; color:#2a4027; line-height:1.7; }
+    .narratif-title { font-size:10px; font-weight:500; color:var(--sage); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+
+    /* ── SIDEBAR ── */
+    .sidebar-col { display:flex; flex-direction:column; gap:16px; }
+
+    .side-card { background:#fff; border:1.5px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+    .side-card-hdr { padding:12px 16px; border-bottom:.5px solid var(--line); font-size:12px; font-weight:500; color:var(--dust); text-transform:uppercase; letter-spacing:.06em; display:flex; align-items:center; justify-content:space-between; }
+
+    /* Récap calcul */
+    .calc-line { display:flex; justify-content:space-between; font-size:13px; padding:6px 16px; border-bottom:.5px solid var(--line); }
+    .calc-line:last-child { border-bottom:none; }
+    .calc-line.total { font-weight:500; font-size:14px; background:var(--paper); }
+    .calc-line .muted { color:var(--dust); font-size:12px; }
+
+    /* Pajemploi guide */
+    .paje-field { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; border-bottom:.5px solid var(--line); font-size:12px; }
+    .paje-field:last-child { border-bottom:none; }
+    .paje-field-label { color:var(--dust); }
+    .paje-field-val { font-weight:500; font-family:'DM Mono',monospace; font-size:13px; display:flex; align-items:center; gap:6px; }
+    .btn-copy-small { font-size:10px; color:var(--sage); background:none; border:none; cursor:pointer; padding:2px 5px; border-radius:4px; transition:background .1s; }
+    .btn-copy-small:hover { background:var(--sage-light); }
+
+    /* Validation */
+    .val-row { padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:.5px solid var(--line); }
+    .val-row:last-child { border-bottom:none; }
+    .val-label { font-size:13px; }
+    .val-sub { font-size:11px; color:var(--dust); margin-top:1px; }
+
+    /* ── STATUT BADGE ── */
+    .statut-badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:500; }
+    .sb-encours  { background:var(--warn-light); color:var(--warn); }
+    .sb-valide-a { background:var(--blue-light); color:var(--blue); }
+    .sb-valide-ab{ background:var(--sage-light); color:var(--sage); }
+  </style>
+</head>
+<body>
+
+<div class="mois-shell">
+
+  <!-- TOP NAV -->
+  <nav class="topnav">
+    <a href="/dashboard.html" class="topnav-logo">nounoulink<em>.</em></a>
+    <span style="color:var(--line)">›</span>
+    <div class="topnav-breadcrumb">
+      <span id="nav-garde-nom">—</span>
+      <span style="color:var(--line)">›</span>
+      <span id="nav-mois-label" style="font-weight:500;color:var(--ink)">—</span>
+    </div>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-actions">
+      <span id="statut-badge" class="statut-badge sb-encours">En cours</span>
+      <a id="lien-public-btn" href="#" target="_blank" class="btn-secondary" style="padding:7px 14px;font-size:12px">🔗 Lien public</a>
+    </div>
+  </nav>
+
+  <div class="mois-body">
+
+    <!-- COL PRINCIPALE -->
+    <div>
+
+      <!-- Bloc narratif -->
+      <div class="narratif" id="narratif">
+        <div class="narratif-title">Résumé du mois</div>
+        <div id="narratif-text">Chargement…</div>
+      </div>
+
+      <!-- Calendrier -->
+      <div class="cal-card">
+        <div class="cal-header">
+          <div class="cal-title" id="cal-title">—</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="ajouterEvenement()">+ Événement</button>
+            <div class="cal-nav">
+              <button onclick="navMois(-1)">‹</button>
+              <button onclick="navMois(1)">›</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- En-têtes jours -->
+        <div class="cal-grid" id="cal-hdr">
+          <div class="cal-col-hdr">Lun</div>
+          <div class="cal-col-hdr">Mar</div>
+          <div class="cal-col-hdr">Mer</div>
+          <div class="cal-col-hdr">Jeu</div>
+          <div class="cal-col-hdr">Ven</div>
+        </div>
+
+        <!-- Semaines -->
+        <div id="cal-body"></div>
+      </div>
+
+      <!-- Tableau sources d'écart -->
+      <div class="side-card" id="ecart-card" style="margin-bottom:16px;display:none">
+        <div class="side-card-hdr">Sources d'écart vs mois standard</div>
+        <div id="ecart-table"></div>
+      </div>
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar-col">
+
+      <!-- Bouton calculer -->
+      <button class="btn-primary" id="btn-calculer" onclick="calculerMois()" style="width:100%;justify-content:center;font-size:15px;padding:14px">
+        Calculer le mois
+      </button>
+
+      <!-- Résultat calcul -->
+      <div class="side-card" id="calc-card" style="display:none">
+        <div class="side-card-hdr">
+          <span>Résultat mensuel</span>
+          <span id="calc-badge" style="font-size:10px;color:var(--dust)">—</span>
+        </div>
+
+        <!-- Famille A -->
+        <div style="padding:10px 16px 4px;font-size:11px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:5px">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--blue);display:inline-block"></span>
+          <span id="calc-fam-a-nom">Famille A</span>
+        </div>
+        <div class="calc-line"><span class="muted">Salaire net</span><span id="r-sal-a">—</span></div>
+        <div class="calc-line"><span class="muted">Navigo</span><span id="r-nav-a">—</span></div>
+        <div class="calc-line"><span class="muted">Panier repas</span><span id="r-repas-a">—</span></div>
+        <div class="calc-line total"><span>Virement</span><strong id="r-vir-a">—</strong></div>
+
+        <!-- Famille B -->
+        <div style="padding:10px 16px 4px;font-size:11px;font-weight:500;color:var(--sage);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:5px;margin-top:4px">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--sage);display:inline-block"></span>
+          Famille B
+        </div>
+        <div class="calc-line"><span class="muted">Salaire net</span><span id="r-sal-b">—</span></div>
+        <div class="calc-line"><span class="muted">Navigo</span><span id="r-nav-b">—</span></div>
+        <div class="calc-line"><span class="muted">Panier repas</span><span id="r-repas-b">—</span></div>
+        <div class="calc-line total"><span>Virement</span><strong id="r-vir-b">—</strong></div>
+
+        <!-- Total -->
+        <div style="padding:12px 16px;background:var(--sage-light);display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;color:var(--dust)" id="r-nounou-nom">Total nounou</div>
+            <div style="font-size:11px;color:var(--dust)">salaire + navigo + repas</div>
+          </div>
+          <div style="font-size:22px;font-weight:500" id="r-total">—</div>
+        </div>
+      </div>
+
+      <!-- Guide Pajemploi -->
+      <div class="side-card" id="paje-card" style="display:none">
+        <div class="side-card-hdr">
+          <span>Guide Pajemploi</span>
+          <span style="font-size:10px;color:var(--dust)" id="paje-fam-label">Famille A</span>
+        </div>
+        <div id="paje-toggle-row" style="padding:8px 16px;border-bottom:.5px solid var(--line);display:flex;gap:6px">
+          <button class="rule-btn active" id="paje-btn-a" onclick="showPaje('a')">Famille A</button>
+          <button class="rule-btn" id="paje-btn-b" onclick="showPaje('b')">Famille B</button>
+        </div>
+        <div id="paje-fields-a"></div>
+        <div id="paje-fields-b" style="display:none"></div>
+        <div style="padding:10px 16px;font-size:11px;color:var(--dust);border-top:.5px solid var(--line);line-height:1.6">
+          ⚠ Panier repas : versé en dehors de Pajemploi, ne pas déclarer.
+        </div>
+      </div>
+
+      <!-- Solde CP -->
+      <div class="side-card" id="cp-card" style="display:none">
+        <div class="side-card-hdr">Congés payés</div>
+        <div style="padding:14px 16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:13px;color:var(--dust)">CP acquis</span>
+            <span style="font-size:13px;font-weight:500" id="cp-acquis">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+            <span style="font-size:13px;color:var(--dust)">CP pris</span>
+            <span style="font-size:13px;font-weight:500" id="cp-pris">—</span>
+          </div>
+          <div style="height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-bottom:8px">
+            <div id="cp-bar" style="height:100%;background:var(--sage);border-radius:3px;transition:width .4s"></div>
+          </div>
+          <div style="font-size:12px;color:var(--dust)">Solde : <strong id="cp-solde" style="color:var(--ink)">—</strong></div>
+        </div>
+      </div>
+
+      <!-- Validation -->
+      <div class="side-card">
+        <div class="side-card-hdr">Validation</div>
+        <div class="val-row">
+          <div>
+            <div class="val-label" id="val-a-label">Famille A</div>
+            <div class="val-sub" id="val-a-date">Non validé</div>
+          </div>
+          <button id="btn-val-a" class="btn-secondary" style="padding:7px 14px;font-size:12px" onclick="toggleValidation('A')">Valider</button>
+        </div>
+        <div class="val-row">
+          <div>
+            <div class="val-label">Famille B</div>
+            <div class="val-sub" id="val-b-date">Non validé</div>
+          </div>
+          <button id="btn-val-b" class="btn-secondary" style="padding:7px 14px;font-size:12px" onclick="toggleValidation('B')">Valider</button>
+        </div>
+      </div>
+
+    </div><!-- /sidebar -->
+
+  </div><!-- /mois-body -->
+</div>
+
+<!-- MODAL ÉVÉNEMENT -->
+<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-title">Ajouter un événement</h3>
+
+    <div class="evt-type-grid">
+      <button class="evt-type-btn" id="et-cp" onclick="selectEvtType('conge_paye',this)">
+        🏖 Congé payé
+      </button>
+      <button class="evt-type-btn" id="et-mal" onclick="selectEvtType('maladie_nounou',this)">
+        🤒 Maladie
+      </button>
+      <button class="evt-type-btn" id="et-abs-a" onclick="selectEvtType('absence_famille_a',this)">
+        🏠 Absence Fam. A
+      </button>
+      <button class="evt-type-btn" id="et-abs-b" onclick="selectEvtType('absence_famille_b',this)">
+        🏡 Absence Fam. B
+      </button>
+    </div>
+
+    <div class="two-col" style="margin-bottom:12px">
+      <div class="field" style="margin-bottom:0">
+        <label>Date début</label>
+        <input type="date" id="evt-debut">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>Date fin</label>
+        <input type="date" id="evt-fin">
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>Note <span class="opt">optionnel</span></label>
+      <input type="text" id="evt-note" placeholder="Ex. Semaine de vacances">
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModalDirect()">Annuler</button>
+      <button class="btn-primary" onclick="saveEvenement()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.rule-btn { padding:5px 10px; border:1.5px solid var(--line); border-radius:20px; font-size:11px; cursor:pointer; background:#fff; color:var(--dust); font-family:'DM Sans',sans-serif; transition:all .15s; }
+.rule-btn:hover { border-color:var(--dust); color:var(--ink); }
+.rule-btn.active { border-color:var(--sage); background:var(--sage-light); color:var(--sage); font-weight:500; }
+</style>
+
+<script type="module">
+import { requireLogin, gardes, mois as moisAPI, auth } from './js/api.js';
+requireLogin();
+
+// ─── PARAMS ───────────────────────────────────────────────────────
+const params   = new URLSearchParams(window.location.search);
+let gardeId    = params.get('garde');
+let annee      = parseInt(params.get('annee')) || new Date().getFullYear();
+let moisNum    = parseInt(params.get('mois'))  || (new Date().getMonth()+1);
+
+let gardeData  = null;
+let moisData   = null;
+let evenements = [];
+let snapshot   = null;
+let evtType    = null;
+
+const MOIS_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const FERIES_FR   = getFeriesFR(annee);
+
+// ─── INIT ─────────────────────────────────────────────────────────
+async function init() {
+  if (!gardeId) { window.location.href='/dashboard.html'; return; }
+  try {
+    gardeData = await gardes.get(gardeId);
+    document.getElementById('nav-garde-nom').textContent  = gardeData.garde.nom;
+    document.getElementById('lien-public-btn').href = `/public.html?token=${gardeData.garde.lien_partage_token}`;
+    await chargerMois();
+  } catch(e) {
+    console.error(e);
+    document.getElementById('narratif-text').textContent = 'Erreur : ' + e.message;
+  }
+}
+
+async function chargerMois() {
+  document.getElementById('nav-mois-label').textContent = `${MOIS_LABELS[moisNum-1]} ${annee}`;
+  document.getElementById('cal-title').textContent      = `${MOIS_LABELS[moisNum-1]} ${annee}`;
+
+  const res = await moisAPI.get(gardeId, annee, moisNum);
+  moisData   = res.mois;
+  evenements = res.evenements || [];
+
+  updateStatut();
+  renderCalendrier();
+  renderNarratif();
+
+  // Si snapshot existant, afficher
+  if (moisData.snapshot_calcul) {
+    snapshot = JSON.parse(moisData.snapshot_calcul);
+    afficherSnapshot();
+  }
+}
+
+// ─── CALENDRIER ───────────────────────────────────────────────────
+function renderCalendrier() {
+  const body   = document.getElementById('cal-body');
+  const jours  = getJoursOuvrables(annee, moisNum);
+  const semaines = groupParSemaine(jours);
+
+  body.innerHTML = semaines.map(sem => `
+    <div class="cal-grid">
+      ${sem.map(j => renderJour(j)).join('')}
+    </div>`).join('');
+}
+
+function renderJour(j) {
+  if (!j) return `<div class="jour-cell weekend" style="background:#f5f4f2"></div>`;
+
+  const dateStr  = j.toISOString().slice(0,10);
+  const isFerie  = FERIES_FR.includes(dateStr);
+  const isToday  = dateStr === new Date().toISOString().slice(0,10);
+  const evtsDuJour = evenements.filter(e => e.date_debut <= dateStr && e.date_fin >= dateStr);
+  const dateNum  = j.getDate();
+
+  const chips = evtsDuJour.map(e => {
+    const classes = { conge_paye:'evt-cp', maladie_nounou:'evt-mal', ferie:'evt-ferie', absence_famille_a:'evt-abs-a', absence_famille_b:'evt-abs-b' };
+    const labels  = { conge_paye:'CP', maladie_nounou:'Maladie', ferie:'Férié', absence_famille_a:'Abs. A', absence_famille_b:'Abs. B' };
+    return `<div class="evt-chip ${classes[e.type]||''}">${labels[e.type]||e.type}</div>`;
+  }).join('');
+
+  const ferieChip = isFerie ? `<div class="evt-chip evt-ferie">Férié</div>` : '';
+
+  return `
+    <div class="jour-cell${isFerie?' ferie':''}" onclick="ouvrirJour('${dateStr}')">
+      <div class="jour-date${isToday?' today':''}">
+        ${isToday ? `<span>${dateNum}</span>` : dateNum}
+      </div>
+      <div class="evt-chips">${ferieChip}${chips}</div>
+    </div>`;
+}
+
+function getJoursOuvrables(y, m) {
+  const jours = [];
+  const premier = new Date(y, m-1, 1);
+  const dernier = new Date(y, m, 0);
+  const jourSemPremi = premier.getDay(); // 0=dim, 1=lun…
+
+  // Rembourrer les jours avant le 1er (si mois commence milieu de semaine)
+  // On affiche seulement les semaines complètes contenant des jours du mois
+  const debut = new Date(premier);
+  // Aller au lundi de la semaine du 1er
+  debut.setDate(1 - ((jourSemPremi + 6) % 7));
+
+  const fin = new Date(dernier);
+  // Aller au dimanche de la semaine du dernier
+  const jourSemDern = dernier.getDay();
+  fin.setDate(dernier.getDate() + (7 - jourSemDern) % 7);
+
+  const cur = new Date(debut);
+  while (cur <= fin) {
+    const dow = cur.getDay();
+    if (dow >= 1 && dow <= 5) {
+      jours.push(cur.getMonth()+1 === m ? new Date(cur) : null);
+    }
+    cur.setDate(cur.getDate() + 1);
+    if (dow === 0) cur.setDate(cur.getDate()); // dimanche sauté
+  }
+  return jours;
+}
+
+function groupParSemaine(jours) {
+  const semaines = [];
+  for (let i=0; i<jours.length; i+=5) {
+    semaines.push(jours.slice(i, i+5));
+  }
+  return semaines;
+}
+
+// ─── NARRATIF ─────────────────────────────────────────────────────
+function renderNarratif() {
+  const cp   = evenements.filter(e=>e.type==='conge_paye');
+  const mal  = evenements.filter(e=>e.type==='maladie_nounou');
+  const absA = evenements.filter(e=>e.type==='absence_famille_a');
+  const absB = evenements.filter(e=>e.type==='absence_famille_b');
+  const ferie = FERIES_FR.filter(d => d.startsWith(`${annee}-${String(moisNum).padStart(2,'0')}`));
+
+  let html;
+  if (!cp.length && !mal.length && !ferie.length) {
+    html = `Aucun événement ce mois-ci. <strong>Le salaire mensualisé théorique s'applique.</strong>`;
+  } else {
+    const parts = [];
+    if (cp.length)   parts.push(`${cp.reduce((s,e)=>s+e.nb_jours,0)} jour${cp.reduce((s,e)=>s+e.nb_jours,0)>1?'s':''} de congés payés`);
+    if (mal.length)  parts.push(`${mal.reduce((s,e)=>s+e.nb_jours,0)} jour${mal.reduce((s,e)=>s+e.nb_jours,0)>1?'s':''} de maladie`);
+    if (ferie.length) parts.push(`${ferie.length} jour${ferie.length>1?'s':''} férié${ferie.length>1?'s':''}`);
+    if (absA.length)  parts.push(`absences Famille A`);
+    if (absB.length)  parts.push(`absences Famille B`);
+    html = `Ce mois-ci : ${parts.join(' · ')}. <strong>Calculez le mois pour voir l'impact sur le salaire.</strong>`;
+  }
+  document.getElementById('narratif-text').innerHTML = html;
+}
+
+// ─── NAVIGATION MOIS ──────────────────────────────────────────────
+window.navMois = function(dir) {
+  moisNum += dir;
+  if (moisNum > 12) { moisNum = 1; annee++; }
+  if (moisNum < 1)  { moisNum = 12; annee--; }
+  const url = new URL(window.location);
+  url.searchParams.set('annee', annee);
+  url.searchParams.set('mois', moisNum);
+  window.history.pushState({}, '', url);
+  chargerMois();
+};
+
+// ─── MODAL ÉVÉNEMENT ──────────────────────────────────────────────
+window.ouvrirJour = function(date) {
+  document.getElementById('evt-debut').value = date;
+  document.getElementById('evt-fin').value   = date;
+  document.getElementById('modal-bg').classList.add('open');
+};
+window.ajouterEvenement = function() {
+  document.getElementById('modal-bg').classList.add('open');
+};
+window.closeModal = function(e) {
+  if (e.target === document.getElementById('modal-bg')) closeModalDirect();
+};
+window.closeModalDirect = function() {
+  document.getElementById('modal-bg').classList.remove('open');
+  evtType = null;
+  document.querySelectorAll('.evt-type-btn').forEach(b=>b.classList.remove('selected'));
+};
+window.selectEvtType = function(type, btn) {
+  evtType = type;
+  document.querySelectorAll('.evt-type-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+};
+
+window.saveEvenement = async function() {
+  if (!evtType) return alert('Choisissez un type d\'événement.');
+  const debut  = document.getElementById('evt-debut').value;
+  const fin    = document.getElementById('evt-fin').value;
+  const note   = document.getElementById('evt-note').value;
+  if (!debut || !fin) return alert('Dates requises.');
+
+  // Calcul nb jours ouvrables
+  let nb = 0, cur = new Date(debut);
+  while (cur <= new Date(fin)) { const d=cur.getDay(); if(d>=1&&d<=5) nb++; cur.setDate(cur.getDate()+1); }
+
+  try {
+    await moisAPI.ajouterEvenement(gardeId, annee, moisNum, { type:evtType, dateDebut:debut, dateFin:fin, nbJours:nb, notes:note||null });
+    closeModalDirect();
+    chargerMois();
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
+
+// ─── CALCUL ───────────────────────────────────────────────────────
+window.calculerMois = async function() {
+  const btn = document.getElementById('btn-calculer');
+  btn.classList.add('btn-loading');
+  btn.innerHTML = '<span class="spinner"></span> Calcul…';
+
+  try {
+    const res = await moisAPI.calculer(gardeId, annee, moisNum);
+    snapshot = res.snapshot;
+    moisData = { ...moisData, ...res.mois };
+    afficherSnapshot(res);
+    renderNarratif();
+    btn.innerHTML = '✓ Recalculer';
+    btn.classList.remove('btn-loading');
+  } catch(e) {
+    btn.classList.remove('btn-loading');
+    btn.textContent = 'Calculer le mois';
+    alert('Erreur : ' + e.message);
+  }
+};
+
+function afficherSnapshot(res) {
+  const s = snapshot;
+  if (!s || !s.resultats) return;
+
+  document.getElementById('calc-card').style.display = '';
+  document.getElementById('paje-card').style.display = '';
+  document.getElementById('cp-card').style.display   = '';
+
+  const rA = s.resultats.find(r=>r.label==='A') || {};
+  const rB = s.resultats.find(r=>r.label==='B') || {};
+
+  const fams = gardeData?.familles || [];
+  const famA = fams.find(f=>f.label==='A');
+  if (famA) {
+    document.getElementById('calc-fam-a-nom').textContent = famA.nom_affiche || 'Famille A';
+    document.getElementById('paje-fam-label').textContent = famA.nom_affiche || 'Famille A';
+  }
+  const nounou = gardeData?.nounou;
+  if (nounou) document.getElementById('r-nounou-nom').textContent = `${nounou.prenom} ${nounou.nom}`;
+
+  // Calcul lignes
+  const modele = gardeData?.modele;
+  const nav    = modele ? modele.navigo_montant * 0.5 : 0;
+  const repA   = rA.virement - (rA.sal_net||0) - nav;
+  const repB   = rB.virement - (rB.sal_net||0) - nav;
+
+  set('r-sal-a', fmt(rA.sal_net||0));
+  set('r-nav-a', nav > 0 ? fmt(nav) : '—');
+  set('r-repas-a', repA > 0 ? fmt(repA) : '—');
+  set('r-vir-a', fmt(rA.virement||0));
+  set('r-sal-b', fmt(rB.sal_net||0));
+  set('r-nav-b', nav > 0 ? fmt(nav) : '—');
+  set('r-repas-b', repB > 0 ? fmt(repB) : '—');
+  set('r-vir-b', fmt(rB.virement||0));
+  set('r-total', fmt((rA.virement||0)+(rB.virement||0)));
+
+  const hSup = s.h_sup25_mens || 0;
+  document.getElementById('calc-badge').textContent = hSup > 0 ? `+${hSup}h sup` : 'Mois standard';
+
+  // Guide Pajemploi
+  renderPaje('a', rA.pajemploi);
+  renderPaje('b', rB.pajemploi);
+  showPaje('a');
+
+  // CP (approximation)
+  const cp = s.evenements?.cp_jours || 0;
+  const total = 25; // quota annuel typique
+  document.getElementById('cp-acquis').textContent = total + ' j';
+  document.getElementById('cp-pris').textContent   = cp + ' j';
+  document.getElementById('cp-solde').textContent  = (total-cp) + ' j restants';
+  document.getElementById('cp-bar').style.width    = Math.min(100, cp/total*100) + '%';
+
+  // Tableau écart
+  renderEcart();
+}
+
+function renderPaje(fam, paje) {
+  if (!paje) return;
+  const zone = document.getElementById('paje-fields-' + fam);
+  const fields = [
+    ['Heures normales',  paje.heuresNormales],
+    ['Heures sup 25%',   paje.heuresSup25 || '—'],
+    ['Heures sup 50%',   paje.heuresSup50 || '—'],
+    ['CP versés',        paje.congesPaisCeMois ? 'Oui' : 'Non'],
+    ['Taux horaire net', paje.tauxHoraireNet ? paje.tauxHoraireNet + ' €' : '—'],
+    ['Salaire net mois', paje.salaireNetMois ? fmt(paje.salaireNetMois) : '—'],
+    ['Frais transport',  paje.fraisTransport ? fmt(paje.fraisTransport) : '—'],
+  ];
+  zone.innerHTML = fields.map(([lbl, val]) => `
+    <div class="paje-field">
+      <span class="paje-field-label">${lbl}</span>
+      <span class="paje-field-val">
+        <strong>${val}</strong>
+        <button class="btn-copy-small" onclick="copyVal('${val}')">Copier</button>
+      </span>
+    </div>`).join('');
+}
+
+window.showPaje = function(fam) {
+  ['a','b'].forEach(f => {
+    document.getElementById('paje-fields-'+f).style.display = f===fam?'':'none';
+    document.getElementById('paje-btn-'+f).classList.toggle('active', f===fam);
+  });
+};
+
+window.copyVal = function(val) {
+  navigator.clipboard.writeText(String(val)).catch(()=>{});
+};
+
+function renderEcart() {
+  const cp   = evenements.filter(e=>e.type==='conge_paye').reduce((s,e)=>s+e.nb_jours,0);
+  const mal  = evenements.filter(e=>e.type==='maladie_nounou').reduce((s,e)=>s+e.nb_jours,0);
+  const absA = evenements.filter(e=>e.type==='absence_famille_a').reduce((s,e)=>s+e.nb_jours,0);
+  const absB = evenements.filter(e=>e.type==='absence_famille_b').reduce((s,e)=>s+e.nb_jours,0);
+
+  if (!cp && !mal && !absA && !absB) {
+    document.getElementById('ecart-card').style.display = 'none';
+    return;
+  }
+  document.getElementById('ecart-card').style.display = '';
+  const modele = gardeData?.modele;
+  const repas  = modele?.panier_repas || 0;
+  const repA   = gardeData?.familles?.find(f=>f.label==='A') ? 0.5 : 0.5;
+
+  const rows = [];
+  if (cp)  rows.push(['CP (' + cp + 'j)', 'Maintenu ✓', `−${fmt(repas*cp)} (repas)`, `−${fmt(repas*cp*0.5)}`, `−${fmt(repas*cp*0.5)}`]);
+  if (mal) rows.push(['Maladie (' + mal + 'j)', 'Déduit', `−${fmt(repas*mal)} (repas)`, 'Déduit', 'Déduit']);
+  if (absA) rows.push(['Absence Fam. A (' + absA + 'j)', 'Maintenu ✓', 'Maintenu ✓', '—', '—']);
+  if (absB) rows.push(['Absence Fam. B (' + absB + 'j)', 'Maintenu ✓', 'Maintenu ✓', '—', '—']);
+
+  document.getElementById('ecart-table').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr>
+        <th style="padding:6px 10px;text-align:left;background:var(--paper);border-bottom:.5px solid var(--line);color:var(--dust)">Événement</th>
+        <th style="padding:6px 10px;text-align:center;background:var(--paper);border-bottom:.5px solid var(--line);color:var(--dust)">Salaire</th>
+        <th style="padding:6px 10px;text-align:center;background:var(--paper);border-bottom:.5px solid var(--line);color:var(--dust)">Repas</th>
+        <th style="padding:6px 10px;text-align:center;background:var(--paper);border-bottom:.5px solid var(--line);color:var(--blue)">Fam. A</th>
+        <th style="padding:6px 10px;text-align:center;background:var(--paper);border-bottom:.5px solid var(--line);color:var(--sage)">Fam. B</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r=>`<tr>${r.map((c,i)=>`<td style="padding:6px 10px;border-bottom:.5px solid var(--line);text-align:${i===0?'left':'center'}">${c}</td>`).join('')}</tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ─── VALIDATION ───────────────────────────────────────────────────
+function updateStatut() {
+  if (!moisData) return;
+  const s = moisData.statut;
+  const badge = document.getElementById('statut-badge');
+  const classes = { en_cours:'sb-encours', valide_a:'sb-valide-a', valide_ab:'sb-valide-ab', declare:'sb-valide-ab' };
+  const labels  = { en_cours:'En cours', valide_a:'Validé A', valide_ab:'Validé ✓', declare:'Déclaré' };
+  badge.className = 'statut-badge ' + (classes[s]||'sb-encours');
+  badge.textContent = labels[s] || s;
+
+  // Boutons validation
+  const valA = moisData.valide_par_a;
+  const valB = moisData.valide_par_b;
+  const btnA = document.getElementById('btn-val-a');
+  const btnB = document.getElementById('btn-val-b');
+  btnA.textContent = valA ? 'Dévalider' : 'Valider';
+  btnA.style.background = valA ? 'var(--sage)' : '';
+  btnA.style.color = valA ? '#fff' : '';
+  btnA.style.borderColor = valA ? 'var(--sage)' : '';
+  document.getElementById('val-a-date').textContent = valA ? `Validé le ${new Date(moisData.valide_par_a_at).toLocaleDateString('fr')}` : 'Non validé';
+  btnB.textContent = valB ? 'Dévalider' : 'Valider';
+  btnB.style.background = valB ? 'var(--sage)' : '';
+  btnB.style.color = valB ? '#fff' : '';
+  btnB.style.borderColor = valB ? 'var(--sage)' : '';
+  document.getElementById('val-b-date').textContent = valB ? 'Validé' : 'Non validé';
+}
+
+window.toggleValidation = async function(fam) {
+  const field = fam === 'A' ? 'valide_par_a' : 'valide_par_b';
+  const isValide = moisData[field];
+  try {
+    const endpoint = isValide ? 'devalider' : 'valider';
+    const res = await fetch(`${API_BASE}/gardes/${gardeId}/mois/${annee}/${moisNum}/${endpoint}`, {
+      method:'POST', headers:{ 'Authorization':'Bearer '+localStorage.getItem('nl_token'), 'Content-Type':'application/json' }
+    });
+    const data = await res.json();
+    moisData = data.mois;
+    updateStatut();
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
+
+// ─── UTILS ────────────────────────────────────────────────────────
+const API_BASE = 'http://localhost:3000';
+function fmt(n) { return (Math.round(n*100)/100).toFixed(2) + ' €'; }
+function set(id, val) { const el=document.getElementById(id); if(el) el.textContent = val; }
+
+function getFeriesFR(y) {
+  // Jours fériés français fixes
+  const fixes = [`${y}-01-01`,`${y}-05-01`,`${y}-05-08`,`${y}-07-14`,`${y}-08-15`,`${y}-11-01`,`${y}-11-11`,`${y}-12-25`];
+  // Pâques (algorithme)
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;
+  const paques = new Date(y,month-1,day);
+  const lundi  = new Date(paques); lundi.setDate(paques.getDate()+1);
+  const ascen  = new Date(paques); ascen.setDate(paques.getDate()+39);
+  const pentec = new Date(paques); pentec.setDate(paques.getDate()+50);
+  const toISO  = d => d.toISOString().slice(0,10);
+  return [...fixes, toISO(lundi), toISO(ascen), toISO(pentec)];
+}
+
+init();
+</script>
+
+</body>
+</html>

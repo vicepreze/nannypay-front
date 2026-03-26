@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nounoulink — Connexion</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="login-shell">
+  <div class="login-box">
+
+    <a href="/" class="login-logo">nounoulink<em>.</em></a>
+    <p class="login-sub">Coordonnez votre garde partagée sereinement.</p>
+
+    <!-- Tabs connexion / inscription -->
+    <div class="tab-row">
+      <button class="tab-btn active" id="tab-login" onclick="showTab('login')">Se connecter</button>
+      <button class="tab-btn" id="tab-register" onclick="showTab('register')">Créer un compte</button>
+    </div>
+
+    <!-- Message d'erreur -->
+    <div class="error-box" id="error-box"></div>
+
+    <!-- Message info (session expirée, etc.) -->
+    <div id="info-msg" style="display:none" class="info-box"></div>
+
+    <!-- FORMULAIRE CONNEXION -->
+    <form id="form-login" onsubmit="handleLogin(event)">
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="vous@exemple.fr" required>
+      </div>
+      <div class="field">
+        <label for="login-pwd">Mot de passe</label>
+        <input type="password" id="login-pwd" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;justify-content:center" id="btn-login">
+        Se connecter
+      </button>
+    </form>
+
+    <!-- FORMULAIRE INSCRIPTION -->
+    <form id="form-register" style="display:none" onsubmit="handleRegister(event)">
+      <div class="two-col">
+        <div class="field">
+          <label for="reg-prenom">Prénom</label>
+          <input type="text" id="reg-prenom" placeholder="Marie">
+        </div>
+        <div class="field">
+          <label for="reg-nom">Nom</label>
+          <input type="text" id="reg-nom" placeholder="Martin">
+        </div>
+      </div>
+      <div class="field">
+        <label for="reg-email">Email</label>
+        <input type="email" id="reg-email" placeholder="vous@exemple.fr" required>
+      </div>
+      <div class="field">
+        <label for="reg-pwd">Mot de passe <span class="opt">(8 caractères min.)</span></label>
+        <input type="password" id="reg-pwd" placeholder="••••••••" minlength="8" required>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;justify-content:center" id="btn-register">
+        Créer mon compte
+      </button>
+    </form>
+
+  </div>
+</div>
+
+<script type="module">
+import { auth, getToken, getGardeId } from './js/api.js';
+
+// ─── Redirection si déjà connecté ────────────────────────────────
+if (getToken()) {
+  const gardeId = getGardeId();
+  window.location.href = gardeId ? '/dashboard.html' : '/onboarding-1.html';
+}
+
+// ─── Messages contextuels ─────────────────────────────────────────
+const params = new URLSearchParams(window.location.search);
+if (params.get('session') === 'expired') {
+  showInfo('Votre session a expiré. Reconnectez-vous.');
+}
+if (params.get('registered') === '1') {
+  showTab('login');
+  showInfo('Compte créé ! Connectez-vous pour commencer.');
+}
+
+// ─── Tabs ──────────────────────────────────────────────────────────
+window.showTab = function(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('form-login').style.display = isLogin ? '' : 'none';
+  document.getElementById('form-register').style.display = isLogin ? 'none' : '';
+  document.getElementById('tab-login').classList.toggle('active', isLogin);
+  document.getElementById('tab-register').classList.toggle('active', !isLogin);
+  clearError();
+};
+
+// ─── Connexion ─────────────────────────────────────────────────────
+window.handleLogin = async function(e) {
+  e.preventDefault();
+  clearError();
+  const btn = document.getElementById('btn-login');
+  setLoading(btn, true);
+
+  try {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-pwd').value;
+    await auth.login(email, password);
+    // Redirection selon l'état
+    const gardeId = getGardeId();
+    window.location.href = gardeId ? '/dashboard.html' : '/onboarding-1.html';
+  } catch (err) {
+    showError(err.message || 'Identifiants incorrects');
+    setLoading(btn, false);
+  }
+};
+
+// ─── Inscription ────────────────────────────────────────────────────
+window.handleRegister = async function(e) {
+  e.preventDefault();
+  clearError();
+  const btn = document.getElementById('btn-register');
+  setLoading(btn, true);
+
+  try {
+    const prenom = document.getElementById('reg-prenom').value;
+    const nom    = document.getElementById('reg-nom').value;
+    const email  = document.getElementById('reg-email').value;
+    const password = document.getElementById('reg-pwd').value;
+
+    await auth.register(email, password, prenom, nom);
+    // Connexion automatique après inscription
+    await auth.login(email, password);
+    window.location.href = '/onboarding-1.html';
+  } catch (err) {
+    showError(err.message || 'Erreur lors de la création du compte');
+    setLoading(btn, false);
+  }
+};
+
+// ─── Helpers UI ────────────────────────────────────────────────────
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function clearError() {
+  document.getElementById('error-box').classList.remove('visible');
+}
+function showInfo(msg) {
+  const el = document.getElementById('info-msg');
+  el.textContent = msg;
+  el.style.display = '';
+}
+function setLoading(btn, loading) {
+  btn.classList.toggle('btn-loading', loading);
+  btn.innerHTML = loading
+    ? '<span class="spinner"></span> Chargement…'
+    : btn.id === 'btn-login' ? 'Se connecter' : 'Créer mon compte';
+}
+</script>
+
+</body>
+</html>

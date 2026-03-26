@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nounoulink — Tableau de bord</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .dash-shell { min-height:100vh; background:var(--paper); }
+
+    /* ── TOP NAV ── */
+    .topnav { height:56px; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; padding:0 32px; gap:20px; }
+    .topnav-logo { font-family:'DM Serif Display',serif; font-size:18px; color:var(--ink); text-decoration:none; }
+    .topnav-logo em { color:var(--sage); font-style:italic; }
+    .topnav-spacer { flex:1; }
+    .topnav-user { font-size:13px; color:var(--dust); display:flex; align-items:center; gap:10px; }
+    .topnav-avatar { width:30px; height:30px; border-radius:50%; background:var(--sage-light); display:flex; align-items:center; justify-content:center; font-family:'DM Serif Display',serif; font-size:13px; color:var(--sage); }
+
+    /* ── LAYOUT ── */
+    .dash-body { max-width:900px; margin:0 auto; padding:40px 24px; }
+    .dash-welcome { margin-bottom:36px; }
+    .dash-welcome h1 { font-family:'DM Serif Display',serif; font-size:28px; color:var(--ink); margin-bottom:4px; }
+    .dash-welcome p  { font-size:14px; color:var(--dust); }
+
+    /* ── GARDE CARDS ── */
+    .garde-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:16px; margin-bottom:32px; }
+    .garde-card { background:#fff; border:1.5px solid var(--line); border-radius:var(--radius); overflow:hidden; cursor:pointer; transition:all .15s; text-decoration:none; display:block; }
+    .garde-card:hover { border-color:var(--sage-mid); box-shadow:0 4px 16px rgba(0,0,0,.06); transform:translateY(-2px); }
+    .garde-card-top { padding:18px 20px 14px; }
+    .garde-card-name { font-size:15px; font-weight:500; color:var(--ink); margin-bottom:4px; }
+    .garde-card-meta { font-size:12px; color:var(--dust); line-height:1.6; }
+    .garde-card-bottom { padding:10px 20px; background:var(--paper); border-top:.5px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+    .garde-card-mois { font-size:12px; color:var(--dust); }
+    .garde-card-mois strong { color:var(--ink); font-size:14px; }
+    .garde-card-status { font-size:11px; padding:2px 8px; border-radius:20px; }
+    .status-active { background:var(--sage-light); color:var(--sage); }
+    .status-pending { background:var(--warn-light); color:var(--warn); }
+
+    /* ── NOUVELLE GARDE ── */
+    .btn-new-garde { width:100%; padding:20px; border:2px dashed var(--line); border-radius:var(--radius); background:transparent; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--dust); display:flex; align-items:center; justify-content:center; gap:8px; transition:all .15s; }
+    .btn-new-garde:hover { border-color:var(--sage); color:var(--sage); background:var(--sage-light); }
+
+    /* ── MOIS EN COURS ── */
+    .mois-section { background:#fff; border:1.5px solid var(--line); border-radius:var(--radius); overflow:hidden; margin-bottom:24px; }
+    .mois-section-header { padding:14px 20px; border-bottom:.5px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+    .mois-section-title { font-size:14px; font-weight:500; }
+    .mois-list { }
+    .mois-item { padding:14px 20px; border-bottom:.5px solid var(--line); display:flex; align-items:center; gap:16px; cursor:pointer; transition:background .12s; text-decoration:none; }
+    .mois-item:last-child { border-bottom:none; }
+    .mois-item:hover { background:var(--paper); }
+    .mois-item-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .mois-item-info { flex:1; }
+    .mois-item-name { font-size:13px; font-weight:500; color:var(--ink); }
+    .mois-item-sub  { font-size:11px; color:var(--dust); margin-top:2px; }
+    .mois-item-amount { font-size:14px; font-weight:500; color:var(--ink); }
+    .mois-item-status { font-size:11px; padding:2px 8px; border-radius:20px; }
+
+    /* ── EMPTY STATE ── */
+    .empty-state { text-align:center; padding:60px 24px; }
+    .empty-state-icon { font-size:40px; margin-bottom:16px; }
+    .empty-state h2 { font-family:'DM Serif Display',serif; font-size:24px; margin-bottom:8px; }
+    .empty-state p { color:var(--dust); font-size:14px; max-width:360px; margin:0 auto 24px; line-height:1.6; }
+
+    /* ── LOADING ── */
+    .skeleton { background:linear-gradient(90deg,var(--line) 25%,#f0eeeb 50%,var(--line) 75%); background-size:200% 100%; animation:shimmer 1.2s infinite; border-radius:6px; }
+    @keyframes shimmer { to { background-position:-200% 0; } }
+  </style>
+</head>
+<body>
+
+<div class="dash-shell">
+
+  <!-- TOP NAV -->
+  <nav class="topnav">
+    <a href="/dashboard.html" class="topnav-logo">nounoulink<em>.</em></a>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-user">
+      <div class="topnav-avatar" id="nav-avatar">?</div>
+      <span id="nav-name">—</span>
+      <button class="btn-ghost" onclick="doLogout()" style="margin-left:8px">Déconnexion</button>
+    </div>
+  </nav>
+
+  <div class="dash-body">
+
+    <div class="dash-welcome">
+      <h1>Bonjour <span id="welcome-prenom">—</span> 👋</h1>
+      <p id="welcome-sub">Chargement de vos gardes…</p>
+    </div>
+
+    <!-- Alerte nouvelle garde activée -->
+    <div id="new-garde-banner" style="display:none" class="info-box" style="margin-bottom:20px">
+      🎉 Votre garde a été activée ! Voici votre tableau de bord.
+    </div>
+
+    <!-- Section mois en cours (chargé dynamiquement) -->
+    <div id="mois-section" style="display:none">
+      <div class="mois-section">
+        <div class="mois-section-header">
+          <span class="mois-section-title">Mois en cours</span>
+          <span id="mois-section-period" style="font-size:12px;color:var(--dust)">—</span>
+        </div>
+        <div class="mois-list" id="mois-list"></div>
+      </div>
+    </div>
+
+    <!-- Mes gardes -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <span style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.08em">Mes gardes</span>
+    </div>
+
+    <div class="garde-grid" id="garde-grid">
+      <!-- Skeleton loading -->
+      <div style="background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:20px">
+        <div class="skeleton" style="height:16px;width:70%;margin-bottom:10px"></div>
+        <div class="skeleton" style="height:12px;width:50%;margin-bottom:6px"></div>
+        <div class="skeleton" style="height:12px;width:40%"></div>
+      </div>
+    </div>
+
+    <button class="btn-new-garde" onclick="window.location.href='/onboarding-1.html'">
+      <span style="font-size:18px">+</span>
+      Créer une nouvelle garde partagée
+    </button>
+
+  </div>
+</div>
+
+<script type="module">
+import { requireLogin, auth, gardes, mois, draft } from './js/api.js';
+requireLogin();
+
+// ─── Banner nouvelle garde ─────────────────────────────────────────
+const params = new URLSearchParams(window.location.search);
+if (params.get('new') === '1') {
+  document.getElementById('new-garde-banner').style.display = 'block';
+}
+
+// ─── Chargement ───────────────────────────────────────────────────
+async function load() {
+  try {
+    const { user, gardes: mesGardes } = await auth.me();
+
+    // Nav + bienvenue
+    const initiale = (user.prenom || user.email)[0].toUpperCase();
+    document.getElementById('nav-avatar').textContent = initiale;
+    document.getElementById('nav-name').textContent   = user.prenom || user.email;
+    document.getElementById('welcome-prenom').textContent = user.prenom || 'là';
+    document.getElementById('welcome-sub').textContent = mesGardes.length === 0
+      ? 'Créez votre première garde partagée pour commencer.'
+      : `${mesGardes.length} garde${mesGardes.length > 1 ? 's' : ''} active${mesGardes.length > 1 ? 's' : ''}.`;
+
+    // Grille gardes
+    if (mesGardes.length === 0) {
+      document.getElementById('garde-grid').innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-state-icon">🏠</div>
+          <h2>Aucune garde pour l'instant</h2>
+          <p>Créez votre première garde partagée pour inviter la co-famille et la nounou.</p>
+        </div>`;
+      return;
+    }
+
+    // Rendre les gardes
+    const now = new Date();
+    const annee = now.getFullYear();
+    const moisNum = now.getMonth() + 1;
+
+    document.getElementById('garde-grid').innerHTML = mesGardes.map(g => `
+      <a class="garde-card" href="/mois.html?garde=${g.id}&annee=${annee}&mois=${moisNum}">
+        <div class="garde-card-top">
+          <div class="garde-card-name">${g.nom}</div>
+          <div class="garde-card-meta">
+            Depuis le ${formatDate(g.date_debut)}<br>
+            Mode : ${g.mode_calcul === 'mensualise' ? 'Mensualisation' : 'Réel des heures'}
+          </div>
+        </div>
+        <div class="garde-card-bottom">
+          <span class="garde-card-mois">Mois en cours → <strong>${moisLabel(annee, moisNum)}</strong></span>
+          <span class="garde-card-status status-active">Active</span>
+        </div>
+      </a>`).join('');
+
+    // Section mois en cours pour la première garde
+    if (mesGardes.length > 0) {
+      await chargerMoisEnCours(mesGardes, annee, moisNum);
+    }
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById('welcome-sub').textContent = 'Erreur de chargement.';
+    document.getElementById('garde-grid').innerHTML = `<div style="color:var(--red);font-size:13px">Erreur : ${err.message}</div>`;
+  }
+}
+
+async function chargerMoisEnCours(mesGardes, annee, moisNum) {
+  const section = document.getElementById('mois-section');
+  const list    = document.getElementById('mois-list');
+  document.getElementById('mois-section-period').textContent = moisLabel(annee, moisNum);
+
+  const items = await Promise.all(mesGardes.map(async g => {
+    try {
+      const res = await mois.calculer(g.id, annee, moisNum);
+      return { garde: g, res };
+    } catch { return { garde: g, res: null }; }
+  }));
+
+  const hasData = items.some(i => i.res);
+  if (!hasData) return;
+
+  section.style.display = '';
+  list.innerHTML = items.map(({ garde, res }) => {
+    if (!res) return '';
+    const virTotal = res.virement_total || 0;
+    const alerte   = res.alerte_heures_sup;
+    const statut   = res.mois?.statut || 'en_cours';
+    const dotColor = alerte === 'illégal' ? 'var(--red)' : alerte === 'surcharge' || alerte === 'sup' ? 'var(--warn)' : 'var(--sage)';
+    const statusLabel = { en_cours: 'En cours', valide_a: 'Validé A', valide_ab: 'Validé', declare: 'Déclaré' }[statut] || statut;
+    const statusClass = statut === 'valide_ab' || statut === 'declare' ? 'status-active' : 'status-pending';
+    return `
+      <a class="mois-item" href="/mois.html?garde=${garde.id}&annee=${annee}&mois=${moisNum}">
+        <div class="mois-item-dot" style="background:${dotColor}"></div>
+        <div class="mois-item-info">
+          <div class="mois-item-name">${garde.nom}</div>
+          <div class="mois-item-sub">${moisLabel(annee, moisNum)} · ${alerte === 'sup' ? `${res.snapshot?.h_sup25_mens || 0}h sup` : 'Aucune heure sup'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="mois-item-amount">${fmt(virTotal)}</span>
+          <span class="mois-item-status ${statusClass}">${statusLabel}</span>
+          <span style="color:var(--dust);font-size:12px">→</span>
+        </div>
+      </a>`;
+  }).join('');
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────
+function formatDate(d) {
+  if (!d) return '—';
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+function moisLabel(annee, moisNum) {
+  const labels = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  return `${labels[moisNum-1]} ${annee}`;
+}
+function fmt(n) { return (Math.round(n*100)/100).toFixed(2) + ' €'; }
+
+window.doLogout = function() { auth.logout(); };
+
+load();
+</script>
+
+</body>
+</html>
