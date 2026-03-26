@@ -15,7 +15,7 @@
     <div class="ob-steps">
       <div class="ob-step done"><div class="ob-step-num">✓</div><div><div class="ob-step-label">Votre garde</div><div class="ob-step-sub" id="side-garde">—</div></div></div>
       <div class="ob-step done"><div class="ob-step-num">✓</div><div><div class="ob-step-label">Votre nounou</div><div class="ob-step-sub" id="side-nounou">—</div></div></div>
-      <div class="ob-step active"><div class="ob-step-num">3</div><div><div class="ob-step-label">Les enfants</div><div class="ob-step-sub">Prénoxm, famille</div></div></div>
+      <div class="ob-step active"><div class="ob-step-num">3</div><div><div class="ob-step-label">Les enfants</div><div class="ob-step-sub">Prénom, famille</div></div></div>
       <div class="ob-step future"><div class="ob-step-num">4</div><div><div class="ob-step-label">Planning type</div><div class="ob-step-sub">Horaires par enfant</div></div></div>
       <div class="ob-step future"><div class="ob-step-num">5</div><div><div class="ob-step-label">Taux & aides</div><div class="ob-step-sub">Salaire, indemnités</div></div></div>
     </div>
@@ -239,14 +239,9 @@ window.handleNext = async function() {
       const res = await onboarding.ajouterEnfant(d.gardeId, { prenom: e.prenom, familleId: d.famAId });
       createdEnfants.push({ ...e, id: res.enfant.id, fam: 'a', familleId: d.famAId });
     }
-    // Créer les enfants côté B (seulement si famBId existe)
+    // Créer les enfants côté B — famBId toujours disponible (créé dès l'étape 1)
+    if (!d.famBId) return showError('Configuration incomplète : co-famille introuvable. Recommencez depuis l'étape 1.');
     for (const e of allB) {
-      if (!d.famBId) {
-        // Famille B pas encore inscrite — on stocke l'enfant localement sans le créer en base
-        // onboarding-4 filtrera les enfants sans ID pour construire les jours
-        createdEnfants.push({ ...e, id: null, pendingFamB: true, fam: 'b', familleId: null });
-        continue;
-      }
       const res = await onboarding.ajouterEnfant(d.gardeId, { prenom: e.prenom, familleId: d.famBId });
       createdEnfants.push({ ...e, id: res.enfant.id, fam: 'b', familleId: d.famBId });
     }
