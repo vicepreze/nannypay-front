@@ -166,7 +166,13 @@ const hSup = Math.max(0, (d.hTotSemaine||40) - 40);
 const cSal = d.chargesSalarialesPct || 0.2188;
 const cPat = d.chargesPatronalesPct || 0.447;
 
-const salTot = r2(tNet * hMens);
+const hSup25 = Math.min(hSup, 8);
+const hSup50 = Math.max(0, hSup - 8);
+const hSup25Mens = r2(hSup25 * 52/12);
+const hSup50Mens = r2(hSup50 * 52/12);
+const salBase = r2(tNet * hMens);
+const montantSup = r2(hSup25Mens * tNet * 1.25 + hSup50Mens * tNet * 1.50);
+const salTot = r2(salBase + montantSup);
 const salA = r2(salTot * repA), salB = r2(salTot * repB);
 const navA = r2((d.navigoMontant||0) * 0.5), navB = navA;
 const repasA = r2((d.panierRepas||0) * 20 * repA), repasB = r2((d.panierRepas||0) * 20 * repB);
