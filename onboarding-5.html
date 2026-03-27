@@ -330,7 +330,10 @@ window.calcRecap = function() {
 
   const navOn = document.getElementById('sw-nav').checked;
   const navTot = navOn ? parseFloat(document.getElementById('v-nav').value)||0 : 0;
-  const navA = r2(navTot * navTaux), navB = r2(navTot * (1 - navTaux));
+  const navPctA = (parseFloat(document.getElementById('nav-pct-a')?.value) || 50) / 100;
+  const navPctBLabel = document.getElementById('nav-pct-b-label');
+  if (navPctBLabel) navPctBLabel.textContent = Math.round((1-navPctA)*100);
+  const navA = r2(navTot * navPctA), navB = r2(navTot * (1 - navPctA));
 
   const repasOn = document.getElementById('sw-repas').checked;
   const repasJ  = repasOn ? parseFloat(document.getElementById('v-repas').value)||0 : 0;
@@ -357,10 +360,9 @@ window.calcRecap = function() {
 
   if (document.getElementById('sw-aides').checked) {
     const g = id => parseFloat(document.getElementById(id).value)||0;
-  let navTaux = 0.5; // 0.5 = 50% chaque famille, 1.0 = 100% famille A
-
+  // navTaux lu depuis l'input nav-pct-a
   window.setNavTaux = function(taux, btn) {
-    navTaux = taux;
+    // conservé pour compatibilité mais plus utilisé
     document.querySelectorAll('#nav-50,#nav-100').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const lbl = taux === 1 ? 'Navigo (100%)' : 'Navigo (50%)';
@@ -397,10 +399,9 @@ window.handleNext = async function() {
   if (!tauxBrut || tauxBrut < 12.51) return showError('Le taux horaire brut doit être au minimum 12,51 €.');
 
   const g = id => parseFloat(document.getElementById(id).value)||0;
-  let navTaux = 0.5; // 0.5 = 50% chaque famille, 1.0 = 100% famille A
-
+  // navTaux lu depuis l'input nav-pct-a
   window.setNavTaux = function(taux, btn) {
-    navTaux = taux;
+    // conservé pour compatibilité mais plus utilisé
     document.querySelectorAll('#nav-50,#nav-100').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const lbl = taux === 1 ? 'Navigo (100%)' : 'Navigo (50%)';
@@ -421,8 +422,8 @@ window.handleNext = async function() {
     chargesSalarialesPct: g('ch-sal') / 100,
     chargesPatronalesPct: g('ch-pat') / 100,
     navigoMontant:   document.getElementById('sw-nav').checked   ? g('v-nav')  : 0,
-    navigoTaux:      navTaux,
-    panierRepas:     document.getElementById('sw-repas').checked  ? g('v-repas'): 0,
+    navigoTaux:      (parseFloat(document.getElementById('nav-pct-a')?.value)||50)/100,
+    panierRepas:     document.getElementById('sw-repas').checked ? (parseFloat(document.getElementById('v-repas').value)||0) : 0,
     indemKm:         document.getElementById('sw-km').checked     ? g('v-km')   : 0,
     indemEntretien:  document.getElementById('sw-entr').checked   ? g('v-entr') : 0,
     repartitionCalculeeA:  d.repartitionA ?? 0.5,
