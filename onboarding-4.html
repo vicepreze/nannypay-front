@@ -129,13 +129,24 @@ const state = {};
 const enfants = d.enfants || [];
 
 enfants.forEach(e => {
-  state[e.tempId || e.id] = {};
-  JOURS.forEach((_, i) => {
-    state[e.tempId || e.id][i] = {
-      actif: true,
-      plages: [['08:45','18:00']],
-      repas: true,
-    };
+  const eid = e.tempId || e.id;
+  state[eid] = {};
+  JOURS.forEach((jour, i) => {
+    // Si des jours ont déjà été configurés (retour depuis étape 5), les restaurer
+    const jourDraft = d.jours && d.jours.find(j => j.enfantId === e.id && j.jourSemaine === jour);
+    if (jourDraft) {
+      state[eid][i] = {
+        actif: jourDraft.actif !== false,
+        plages: jourDraft.plages.map(p => [p.debut, p.fin]),
+        repas: jourDraft.repas !== false,
+      };
+    } else {
+      state[eid][i] = {
+        actif: true,
+        plages: [['08:45','18:00']],
+        repas: true,
+      };
+    }
   });
 });
 
