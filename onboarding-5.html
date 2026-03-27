@@ -137,9 +137,12 @@
             <div class="fr-name">Carte Navigo <span class="badge badge-opt">optionnel</span></div>
             <div class="fr-hint" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span>Abonnement total · déclaré Pajemploi</span>
-                <div class="mode-toggle" style="width:180px;flex-shrink:0">
-                  <button class="mode-btn active" id="nav-50" onclick="setNavTaux(0.5,this)">50% chaque famille<small>garde partagée</small></button>
-                  <button class="mode-btn" id="nav-100" onclick="setNavTaux(1,this)">100% Fam. A<small>accord spécifique</small></button>
+                <div style="display:flex;align-items:center;gap:4px;font-size:12px">
+                  Fam. A paie
+                  <input type="number" id="nav-pct-a" value="50" min="0" max="100" step="1"
+                    style="width:52px;padding:4px 6px;border:1.5px solid var(--line);border-radius:6px;font-size:12px;text-align:center;font-family:'DM Sans',sans-serif"
+                    oninput="document.getElementById('nav-pct-b-label').textContent=100-(parseInt(this.value)||50);calcRecap()">
+                  % · Fam. B paie <span id="nav-pct-b-label">50</span>%
                 </div>
               </div>
           </div>
@@ -324,8 +327,10 @@ window.calcRecap = function() {
   const montantSup25 = r2(hSup25Mens * tNet * 1.25);
   const montantSup50 = r2(hSup50Mens * tNet * 1.50);
   const montantSup = r2(montantSup25 + montantSup50);
+  // exoCot versée à la nounou mais séparément — ne fait pas partie du "salaire net"
+  // Elle est incluse dans le virement mais affichée séparément dans la vue mois
   const exoCot = r2((montantSup / (1 - cSal)) * 0.1112);
-  const salTot = r2(salBase + montantSup + exoCot);
+  const salTot = r2(salBase + montantSup); // salaire net = base + majoration sup (sans exo)
   const salA = r2(salTot * repA), salB = r2(salTot * repB);
 
   const navOn = document.getElementById('sw-nav').checked;
