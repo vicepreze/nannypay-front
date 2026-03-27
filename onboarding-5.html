@@ -17,7 +17,8 @@
     .fr-input.computed { background:var(--paper); color:var(--dust); border-color:var(--line); }
     .fr-unit { font-size:12px; color:var(--dust); white-space:nowrap; }
 
-    .expand-btn { width:100%; padding:10px 20px; background:var(--paper); border:none; border-top:.5px solid var(--line); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:12px; color:var(--dust); text-align:left; display:flex; align-items:center; justify-content:space-between; }
+    .expand-btn { width:100%; padding:10px 20px; background:var(--paper); border:none; border-top:.5px solid var(--line); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:12px; color:var(--dust); text-align:left; display:flex; align-items:center; justify-content:space-between; transition:color .15s; }
+    .expand-btn:hover { color:var(--ink); }
     .expand-btn .chevron { transition:transform .2s; font-size:10px; }
     .expand-btn.open .chevron { transform:rotate(180deg); }
     .expand-zone { display:none; padding:14px 20px; border-top:.5px solid var(--line); background:var(--paper); }
@@ -31,7 +32,11 @@
     .fah-dot { width:7px; height:7px; border-radius:50%; }
     .fam-aide-body { padding:10px 14px; }
     .aide-row { display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:.5px solid var(--line); font-size:12px; gap:8px; }
+    .aide-row:last-child { border-bottom:none; }
+    .aide-inp { width:76px; padding:5px 8px; border:1.5px solid var(--line); border-radius:6px; font-family:'DM Sans',sans-serif; font-size:12px; text-align:right; color:var(--ink); background:#fff; outline:none; }
+    .aide-inp:focus { border-color:var(--sage); box-shadow:0 0 0 2px var(--sage-light); }
 
+    /* Récap live */
     .recap-live { border:1.5px solid var(--sage-mid); border-radius:var(--radius); background:var(--sage-light); overflow:hidden; }
     .rl-header { padding:12px 18px; border-bottom:1px solid var(--sage-mid); display:flex; align-items:center; justify-content:space-between; }
     .rl-title { font-size:13px; font-weight:500; color:var(--sage); }
@@ -41,6 +46,7 @@
     .rl-line { display:flex; justify-content:space-between; font-size:12px; padding:2px 0; color:var(--dust); }
     .rl-line strong { color:var(--ink); }
     .rl-line.total { font-size:13px; font-weight:500; padding-top:6px; margin-top:4px; border-top:.5px solid var(--sage-mid); color:var(--ink); }
+    .rl-rac { font-size:11px; color:var(--sage); margin-top:4px; }
     .rl-total-box { background:#fff; margin:0 18px 14px; border-radius:8px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--sage-mid); }
     .rl-total-val { font-size:22px; font-weight:500; }
   </style>
@@ -48,6 +54,7 @@
 <body>
 
 <div class="ob-shell">
+
   <nav class="ob-side">
     <a href="/" class="ob-logo">nounoulink<em>.</em></a>
     <div class="ob-steps">
@@ -65,10 +72,11 @@
 
     <p class="ob-eyebrow">Étape 5 sur 5 — dernière étape</p>
     <h1 class="ob-headline">Taux, indemnités & aides</h1>
-    <p class="ob-subline">Ces données alimentent le calcul mensuel et le récapitulatif ci-dessous.</p>
+    <p class="ob-subline">Ces données alimentent le calcul mensuel et le guide Pajemploi. Les indemnités sont par nounou. Les aides CAF sont optionnelles.</p>
 
     <div class="error-box" id="error-box"></div>
 
+    <!-- Rémunération -->
     <div class="section-title">Rémunération</div>
     <div class="card" style="margin-bottom:16px">
       <div style="padding:16px 20px">
@@ -78,13 +86,14 @@
             <div class="fr-hint">Taux fixé au contrat de travail</div>
           </div>
           <div class="fr-right">
-            <input class="fr-input" type="number" id="taux-brut" value="12.51" step="0.01" min="12.51" oninput="window.onTauxChange()">
+            <input class="fr-input" type="number" id="taux-brut" value="12.51" step="0.01" min="12.51" oninput="onTauxChange()">
             <span class="fr-unit">€/h brut</span>
           </div>
         </div>
         <div class="field-row">
           <div class="fr-left">
-            <div class="fr-name">Taux horaire net</div>
+            <div class="fr-name">Taux horaire net <span class="badge badge-calc">calculé auto</span></div>
+            <div class="fr-hint">Champ Pajemploi « taux horaire net »</div>
           </div>
           <div class="fr-right">
             <input class="fr-input computed" type="number" id="taux-net" value="9.77" readonly>
@@ -92,67 +101,113 @@
           </div>
         </div>
       </div>
-      <button class="expand-btn" id="btn-charges" onclick="window.toggleExpand('charges')">
-        <span>Personnaliser les taux de charges <span class="badge badge-opt">Optionnel</span></span>
+      <button class="expand-btn" id="btn-charges" onclick="toggleExpand('charges')">
+        <span>Personnaliser les taux de charges <span class="badge badge-opt" style="margin-left:6px">Alsace-Moselle ou cas particulier</span></span>
         <span class="chevron">▼</span>
       </button>
       <div class="expand-zone" id="expand-charges">
-        <div class="field-row">
+        <div class="field-row" style="padding-top:0">
           <div class="fr-left"><div class="fr-name">Charges salariales</div><div class="fr-hint">Défaut 21,88%</div></div>
-          <div class="fr-right"><input class="fr-input" type="number" id="ch-sal" value="21.88" step="0.01" oninput="window.onTauxChange()"><span class="fr-unit">%</span></div>
+          <div class="fr-right"><input class="fr-input" type="number" id="ch-sal" value="21.88" step="0.01" oninput="onTauxChange()"><span class="fr-unit">%</span></div>
+        </div>
+        <div class="field-row">
+          <div class="fr-left"><div class="fr-name">Charges patronales</div><div class="fr-hint">Défaut 44,70%</div></div>
+          <div class="fr-right"><input class="fr-input" type="number" id="ch-pat" value="44.70" step="0.01" oninput="calcRecap()"><span class="fr-unit">%</span></div>
         </div>
       </div>
     </div>
 
-    <div class="section-title">Indemnités — <span id="nounou-prenom-label">la nounou</span></div>
+    <!-- Indemnités -->
+    <div class="section-title">Indemnités <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0;color:var(--dust)">— versées à <span id="nounou-prenom-label">la nounou</span>, par nounou</span></div>
     <div class="card" style="margin-bottom:16px">
       <div style="padding:0 20px">
         <div class="field-row">
-          <div class="fr-left"><div class="fr-name">Prime panier repas</div><div class="fr-hint">Par jour travaillé</div></div>
+          <div class="fr-left">
+            <div class="fr-name">Prime panier repas <span class="badge badge-opt">optionnel</span></div>
+            <div class="fr-hint">Versée au réel des jours travaillés · non déclarée Pajemploi</div>
+          </div>
           <div class="fr-right">
-            <label class="sw"><input type="checkbox" id="sw-repas" checked onchange="window.toggleInp('sw-repas','v-repas');window.calcRecap()"><span class="sw-tr"></span><span class="sw-th"></span></label>
-            <input class="fr-input" type="number" id="v-repas" value="6.00" oninput="window.calcRecap()">
+            <label class="sw"><input type="checkbox" id="sw-repas" checked onchange="toggleInp('sw-repas','v-repas');calcRecap()"><span class="sw-tr"></span><span class="sw-th"></span></label>
+            <input class="fr-input" type="number" id="v-repas" value="6.00" step="0.50" oninput="calcRecap()">
+            <span class="fr-unit">€/jour</span>
           </div>
         </div>
         <div class="field-row">
-          <div class="fr-left"><div class="fr-name">Carte Navigo</div><div class="fr-hint">Remboursement 50%</div></div>
+          <div class="fr-left">
+            <div class="fr-name">Carte Navigo <span class="badge badge-opt">optionnel</span></div>
+            <div class="fr-hint" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span>Abonnement total · déclaré Pajemploi</span>
+                <div class="mode-toggle" style="width:180px;flex-shrink:0">
+                  <button class="mode-btn active" id="nav-50" onclick="setNavTaux(0.5,this)">50% chaque famille<small>garde partagée</small></button>
+                  <button class="mode-btn" id="nav-100" onclick="setNavTaux(1,this)">100% Fam. A<small>accord spécifique</small></button>
+                </div>
+              </div>
+          </div>
           <div class="fr-right">
-            <label class="sw"><input type="checkbox" id="sw-nav" checked onchange="window.toggleInp('sw-nav','v-nav');window.calcRecap()"><span class="sw-tr"></span><span class="sw-th"></span></label>
-            <input class="fr-input" type="number" id="v-nav" value="88.80" oninput="window.calcRecap()">
+            <label class="sw"><input type="checkbox" id="sw-nav" checked onchange="toggleInp('sw-nav','v-nav');calcRecap()"><span class="sw-tr"></span><span class="sw-th"></span></label>
+            <input class="fr-input" type="number" id="v-nav" value="88.80" step="1" oninput="calcRecap()">
+            <span class="fr-unit">€/mois</span>
           </div>
         </div>
         <div class="field-row">
-          <div class="fr-left"><div class="fr-name">Indemnité kilométrique</div></div>
+          <div class="fr-left">
+            <div class="fr-name">Indemnité kilométrique <span class="badge badge-opt">optionnel</span></div>
+            <div class="fr-hint">Si elle utilise son véhicule pour les enfants</div>
+          </div>
           <div class="fr-right">
-            <label class="sw"><input type="checkbox" id="sw-km" onchange="window.toggleInp('sw-km','v-km');window.calcRecap()"><span class="sw-tr"></span><span class="sw-th"></span></label>
-            <input class="fr-input" type="number" id="v-km" value="0" disabled style="opacity:.35" oninput="window.calcRecap()">
+            <label class="sw"><input type="checkbox" id="sw-km" onchange="toggleInp('sw-km','v-km');calcRecap()"><span class="sw-tr"></span><span class="sw-th"></span></label>
+            <input class="fr-input" type="number" id="v-km" value="0" step="0.01" oninput="calcRecap()" disabled style="opacity:.35">
+            <span class="fr-unit">€/km</span>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="fr-left">
+            <div class="fr-name">Indemnité entretien <span class="badge badge-opt">optionnel</span></div>
+            <div class="fr-hint">Forfait mensuel · hors charges · répartie selon quote-part</div>
+          </div>
+          <div class="fr-right">
+            <label class="sw"><input type="checkbox" id="sw-entr" onchange="toggleInp('sw-entr','v-entr');calcRecap()"><span class="sw-tr"></span><span class="sw-th"></span></label>
+            <input class="fr-input" type="number" id="v-entr" value="0" step="1" oninput="calcRecap()" disabled style="opacity:.35">
+            <span class="fr-unit">€/mois</span>
           </div>
         </div>
       </div>
     </div>
 
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-      <div class="section-title" style="border:none; margin:0">Aides CAF</div>
-      <label class="sw"><input type="checkbox" id="sw-aides" onchange="window.toggleAides()"><span class="sw-tr"></span><span class="sw-th"></span></label>
+    <!-- Aides CAF -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
+      <div>
+        <div class="section-title" style="border:none;padding:0;margin:0;font-size:11px">Aides CAF</div>
+        <div style="font-size:11px;color:var(--dust);margin-top:2px">Optionnel — pour estimer votre reste à charge réel</div>
+      </div>
+      <label class="sw" style="margin-top:2px"><input type="checkbox" id="sw-aides" onchange="toggleAides()"><span class="sw-tr"></span><span class="sw-th"></span></label>
     </div>
 
-    <div id="aides-block" style="display:none; margin-bottom:16px">
+    <div id="aides-block" style="display:none;margin-bottom:16px">
+      <div class="info-box" style="margin-bottom:12px">Ces montants ne modifient pas le salaire de la nounou. Ils servent à calculer votre reste à charge après CMG et crédit d'impôt.</div>
       <div class="fam-aides">
         <div class="fam-aide-col a">
-          <div class="fah"><div class="fah-dot" style="background:var(--blue)"></div>Famille A</div>
+          <div class="fah"><div class="fah-dot" style="background:var(--blue)"></div><span id="fah-a">Famille A</span></div>
           <div class="fam-aide-body">
-            <div class="aide-row"><span>CMG rémunération</span><input class="fr-input" style="width:60px" type="number" id="cmgrem-a" value="0" oninput="window.calcRecap()"></div>
+            <div class="aide-row"><span>CMG cotisations</span><div style="display:flex;align-items:center;gap:4px"><input class="aide-inp" type="number" id="cmgcot-a" value="0" step="1" oninput="calcRecap()"><span style="font-size:11px;color:var(--dust)">€</span></div></div>
+            <div class="aide-row"><span>CMG rémunération</span><div style="display:flex;align-items:center;gap:4px"><input class="aide-inp" type="number" id="cmgrem-a" value="0" step="1" oninput="calcRecap()"><span style="font-size:11px;color:var(--dust)">€</span></div></div>
+            <div class="aide-row"><span>Abattement charges</span><div style="display:flex;align-items:center;gap:4px"><input class="aide-inp" type="number" id="abat-a" value="0" step="1" oninput="calcRecap()"><span style="font-size:11px;color:var(--dust)">€</span></div></div>
+            <div class="aide-row"><span>Aide ville</span><div style="display:flex;align-items:center;gap:4px"><input class="aide-inp" type="number" id="ville-a" value="0" step="1" oninput="calcRecap()"><span style="font-size:11px;color:var(--dust)">€</span></div></div>
           </div>
         </div>
         <div class="fam-aide-col b">
           <div class="fah"><div class="fah-dot" style="background:var(--sage)"></div>Famille B</div>
           <div class="fam-aide-body">
-            <div class="aide-row"><span>CMG rémunération</span><input class="fr-input" style="width:60px" type="number" id="cmgrem-b" value="0" oninput="window.calcRecap()"></div>
+            <div class="aide-row"><span>CMG cotisations</span><div style="display:flex;align-items:center;gap:4px"><input class="aide-inp" type="number" id="cmgcot-b" value="0" step="1" oninput="calcRecap()"><span style="font-size:11px;color:var(--dust)">€</span></div></div>
+            <div class="aide-row"><span>CMG rémunération</span><div style="display:flex;align-items:center;gap:4px"><input class="aide-inp" type="number" id="cmgrem-b" value="0" step="1" oninput="calcRecap()"><span style="font-size:11px;color:var(--dust)">€</span></div></div>
+            <div class="aide-row"><span>Abattement charges</span><div style="display:flex;align-items:center;gap:4px"><input class="aide-inp" type="number" id="abat-b" value="0" step="1" oninput="calcRecap()"><span style="font-size:11px;color:var(--dust)">€</span></div></div>
+            <div class="aide-row"><span>Aide ville</span><div style="display:flex;align-items:center;gap:4px"><input class="aide-inp" type="number" id="ville-b" value="0" step="1" oninput="calcRecap()"><span style="font-size:11px;color:var(--dust)">€</span></div></div>
           </div>
         </div>
       </div>
     </div>
 
+    <!-- Récap live -->
     <div class="section-title">Récapitulatif mensuel estimé</div>
     <div class="recap-live" style="margin-bottom:20px">
       <div class="rl-header">
@@ -162,134 +217,257 @@
       <div class="rl-fam">
         <div class="rl-fam-name"><span style="width:7px;height:7px;border-radius:50%;background:var(--blue);display:inline-block"></span>Famille A</div>
         <div class="rl-line"><span>Salaire net</span><strong id="rl-sal-a">—</strong></div>
-        <div class="rl-line"><span>Indemnités</span><strong id="rl-ind-a">—</strong></div>
-        <div class="rl-line total"><span>Virement total</span><strong id="rl-vir-a">—</strong></div>
+        <div class="rl-line"><span id="rl-nav-lbl-a">Navigo (50%)</span><strong id="rl-nav-a">—</strong></div>
+        <div class="rl-line"><span>Panier repas</span><strong id="rl-repas-a">—</strong></div>
+        <div class="rl-line total"><span>Virement à la nounou</span><strong id="rl-vir-a">—</strong></div>
+        <div id="rl-rac-a-zone" style="display:none">
+          <div class="rl-line" style="margin-top:6px;color:var(--sage)"><span>— CMG rémunération</span><span id="rl-cmgrem-a">—</span></div>
+          <div class="rl-line" style="color:var(--sage)"><span>— Crédit d'impôt estimé</span><span id="rl-ci-a">—</span></div>
+          <div class="rl-rac">Reste à charge : <strong id="rl-rac-a">—</strong></div>
+        </div>
       </div>
       <div class="rl-fam">
         <div class="rl-fam-name"><span style="width:7px;height:7px;border-radius:50%;background:var(--sage);display:inline-block"></span>Famille B</div>
         <div class="rl-line"><span>Salaire net</span><strong id="rl-sal-b">—</strong></div>
-        <div class="rl-line"><span>Indemnités</span><strong id="rl-ind-b">—</strong></div>
-        <div class="rl-line total"><span>Virement total</span><strong id="rl-vir-b">—</strong></div>
+        <div class="rl-line"><span id="rl-nav-lbl-a">Navigo (50%)</span><strong id="rl-nav-b">—</strong></div>
+        <div class="rl-line"><span>Panier repas</span><strong id="rl-repas-b">—</strong></div>
+        <div class="rl-line total"><span>Virement à la nounou</span><strong id="rl-vir-b">—</strong></div>
+        <div id="rl-rac-b-zone" style="display:none">
+          <div class="rl-line" style="margin-top:6px;color:var(--sage)"><span>— CMG rémunération</span><span id="rl-cmgrem-b">—</span></div>
+          <div class="rl-line" style="color:var(--sage)"><span>— Crédit d'impôt estimé</span><span id="rl-ci-b">—</span></div>
+          <div class="rl-rac">Reste à charge : <strong id="rl-rac-b">—</strong></div>
+        </div>
       </div>
       <div class="rl-total-box">
-        <div style="font-size:12px;color:var(--dust)">Virement total / mois</div>
+        <div>
+          <div style="font-size:12px;color:var(--dust)">Virement total / mois</div>
+          <div style="font-size:11px;color:var(--dust);margin-top:2px">Salaire net + navigo + panier repas</div>
+        </div>
         <div class="rl-total-val" id="rl-total">—</div>
       </div>
     </div>
 
     <div class="ob-actions">
       <button class="btn-ghost" onclick="window.location.href='/onboarding-4.html'">← Étape 4</button>
-      <button class="btn-primary" id="btn-next" onclick="window.handleNext()">Enregistrer le modèle →</button>
+      <button class="btn-primary" id="btn-next" onclick="handleNext()">Enregistrer le modèle →</button>
     </div>
   </main>
 </div>
 
 <script type="module">
 import { requireLogin, onboarding, draft } from './js/api.js';
+requireLogin();
 
-// --- FONCTIONS GLOBALES ---
+const d = draft.get();
+if (!d.gardeId) { window.location.href = '/onboarding-1.html'; }
 
-window.onTauxChange = function() {
-  const brut = parseFloat(document.getElementById('taux-brut').value) || 12.51;
-  const cSal = parseFloat(document.getElementById('ch-sal').value) / 100 || 0.2188;
-  const net = Math.round(brut * (1 - cSal) * 100) / 100;
-  document.getElementById('taux-net').value = net.toFixed(2);
-  window.calcRecap();
-};
+// Sidebar
+document.getElementById('side-garde').textContent    = d.nom || '—';
+document.getElementById('side-nounou').textContent   = [d.nounouPrenom,d.nounouNom].filter(Boolean).join(' ') || '—';
+document.getElementById('side-enfants').textContent  = (d.enfants||[]).map(e=>e.prenom).join(', ') || '—';
+document.getElementById('side-planning').textContent = d.hTotSemaine ? `${Math.round(d.hTotSemaine*10)/10}h/sem` : '—';
+document.getElementById('side-footer').textContent   = (d.nom||'—') + '\n' + ([d.nounouPrenom,d.nounouNom].filter(Boolean).join(' ')||'—');
+if (d.nounouPrenom) document.getElementById('nounou-prenom-label').textContent = d.nounouPrenom;
+document.getElementById('fah-a').textContent         = d.nomFamille || 'Famille A';
 
-window.calcRecap = function() {
-  const d = draft.get();
-  const tNet = parseFloat(document.getElementById('taux-net').value) || 9.77;
-  const repA = d.repartitionA ?? 0.5;
-  const repB = 1 - repA;
-  
-  const hMens = (d.hNormalesSemaine || 40) * 52 / 12;
-  const salTot = Math.round(tNet * hMens * 100) / 100;
-  
-  const salA = Math.round(salTot * repA * 100) / 100;
-  const salB = Math.round(salTot * repB * 100) / 100;
+// Helpers
+function r2(n) { return Math.round(n*100)/100; }
+function fmt(n) { return r2(n).toFixed(2) + ' €'; }
 
-  // Calcul indemnités
-  const navOn = document.getElementById('sw-nav').checked;
-  const navA = navOn ? (parseFloat(document.getElementById('v-nav').value) || 0) / 2 : 0;
-  
-  const repasOn = document.getElementById('sw-repas').checked;
-  const repasVal = parseFloat(document.getElementById('v-repas').value) || 0;
-  const repasA = repasOn ? repasVal * 20 * repA : 0;
-  const repasB = repasOn ? repasVal * 20 * repB : 0;
-
-  document.getElementById('rl-sal-a').textContent = salA.toFixed(2) + ' €';
-  document.getElementById('rl-sal-b').textContent = salB.toFixed(2) + ' €';
-  document.getElementById('rl-ind-a').textContent = (navA + repasA).toFixed(2) + ' €';
-  document.getElementById('rl-ind-b').textContent = (navA + repasB).toFixed(2) + ' €';
-  document.getElementById('rl-vir-a').textContent = (salA + navA + repasA).toFixed(2) + ' €';
-  document.getElementById('rl-vir-b').textContent = (salB + navA + repasB).toFixed(2) + ' €';
-  document.getElementById('rl-total').textContent = (salTot + (navOn ? navA*2 : 0) + (repasOn ? repasVal*20 : 0)).toFixed(2) + ' €';
-  
-  document.getElementById('rl-mode').textContent = `${Math.round((d.hTotSemaine || 40)*10)/10}h/sem · ${Math.round(repA*100)}/${Math.round(repB*100)}`;
-};
-
-window.toggleInp = function(swId, inpId) {
+function toggleInp(swId, inpId) {
   const on = document.getElementById(swId).checked;
   const inp = document.getElementById(inpId);
   inp.disabled = !on;
   inp.style.opacity = on ? '1' : '.35';
-};
+}
+window.toggleInp = toggleInp;
 
 window.toggleExpand = function(id) {
-  document.getElementById('expand-' + id).classList.toggle('open');
-  document.getElementById('btn-' + id).classList.toggle('open');
+  const btn  = document.getElementById('btn-' + id);
+  const zone = document.getElementById('expand-' + id);
+  const open = zone.classList.toggle('open');
+  btn.classList.toggle('open', open);
 };
 
 window.toggleAides = function() {
-  document.getElementById('aides-block').style.display = document.getElementById('sw-aides').checked ? 'block' : 'none';
+  const on = document.getElementById('sw-aides').checked;
+  document.getElementById('aides-block').style.display = on ? '' : 'none';
+  document.getElementById('rl-rac-a-zone').style.display = on ? '' : 'none';
+  document.getElementById('rl-rac-b-zone').style.display = on ? '' : 'none';
+  calcRecap();
 };
 
-window.handleNext = async function() {
-  const d = draft.get();
-  const btn = document.getElementById('btn-next');
-  btn.disabled = true;
-  btn.innerHTML = 'Enregistrement...';
+window.onTauxChange = function() {
+  const brut = parseFloat(document.getElementById('taux-brut').value) || 12.51;
+  const cSal = parseFloat(document.getElementById('ch-sal').value) / 100 || 0.2188;
+  document.getElementById('taux-net').value = r2(brut * (1 - cSal)).toFixed(2);
+  calcRecap();
+};
 
-  const payload = {
-    gardeId: d.gardeId,
-    dateEffet: d.dateDebut,
-    modeCalcul: d.modeCalcul || 'mensualise',
-    hNormalesSemaine: d.hNormalesSemaine || 40,
-    tauxBrut: parseFloat(document.getElementById('taux-brut').value),
-    tauxNet: parseFloat(document.getElementById('taux-net').value),
-    chargesSalarialesPct: parseFloat(document.getElementById('ch-sal').value) / 100,
-    navigoMontant: document.getElementById('sw-nav').checked ? parseFloat(document.getElementById('v-nav').value) : 0,
-    panierRepas: document.getElementById('sw-repas').checked ? parseFloat(document.getElementById('v-repas').value) : 0,
-    repartitionAppliqueA: d.repartitionA ?? 0.5,
-    jours: d.jours || []
+window.calcRecap = function() {
+  const tNet = parseFloat(document.getElementById('taux-net').value) || 9.77;
+  const cSal = parseFloat(document.getElementById('ch-sal').value) / 100 || 0.2188;
+  const cPat = parseFloat(document.getElementById('ch-pat').value) / 100 || 0.447;
+  const repA = d.repartitionA ?? 0.5;
+  const repB = 1 - repA;
+  const hMens = r2((d.hNormalesSemaine || 40) * 52 / 12);
+
+  // Heures sup depuis le draft (calculées à l'étape 4)
+  const hTotSem  = d.hTotSemaine || (d.hNormalesSemaine || 40);
+  const hSupSem  = Math.max(0, hTotSem - 40);
+  const hSup25Sem = Math.min(hSupSem, 8);
+  const hSup50Sem = Math.max(0, hSupSem - 8);
+  const hSup25Mens = r2(hSup25Sem * 52/12);
+  const hSup50Mens = r2(hSup50Sem * 52/12);
+
+  const salBase = r2(tNet * hMens);
+  const montantSup25 = r2(hSup25Mens * tNet * 1.25);
+  const montantSup50 = r2(hSup50Mens * tNet * 1.50);
+  const montantSup = r2(montantSup25 + montantSup50);
+  const exoCot = r2((montantSup / (1 - cSal)) * 0.1112);
+  const salTot = r2(salBase + montantSup + exoCot);
+  const salA = r2(salTot * repA), salB = r2(salTot * repB);
+
+  const navOn = document.getElementById('sw-nav').checked;
+  const navTot = navOn ? parseFloat(document.getElementById('v-nav').value)||0 : 0;
+  const navA = r2(navTot * navTaux), navB = r2(navTot * (1 - navTaux));
+
+  const repasOn = document.getElementById('sw-repas').checked;
+  const repasJ  = repasOn ? parseFloat(document.getElementById('v-repas').value)||0 : 0;
+  const repasA = r2(repasJ * 20 * repA), repasB = r2(repasJ * 20 * repB);
+
+  const virA = r2(salA + navA + repasA), virB = r2(salB + navB + repasB);
+  const virTot = r2(virA + virB);
+
+  document.getElementById('rl-sal-a').textContent   = fmt(salA);
+  document.getElementById('rl-sal-b').textContent   = fmt(salB);
+  document.getElementById('rl-nav-a').textContent   = navA > 0 ? fmt(navA) : '—';
+  document.getElementById('rl-nav-b').textContent   = navB > 0 ? fmt(navB) : '—';
+  document.getElementById('rl-repas-a').textContent = repasA > 0 ? fmt(repasA) : '—';
+  document.getElementById('rl-repas-b').textContent = repasB > 0 ? fmt(repasB) : '—';
+  document.getElementById('rl-vir-a').textContent   = fmt(virA);
+  document.getElementById('rl-vir-b').textContent   = fmt(virB);
+  document.getElementById('rl-total').textContent   = fmt(virTot);
+
+  const nEnfA = (d.enfants||[]).filter(e=>e.fam==='a').length || 1;
+  const nEnfB = (d.enfants||[]).filter(e=>e.fam==='b').length || 1;
+
+  document.getElementById('rl-mode').textContent =
+    `${r2(d.hTotSemaine||40)}h/sem · ${Math.round(repA*100)}/${Math.round(repB*100)} · mensualisation`;
+
+  if (document.getElementById('sw-aides').checked) {
+    const g = id => parseFloat(document.getElementById(id).value)||0;
+  let navTaux = 0.5; // 0.5 = 50% chaque famille, 1.0 = 100% famille A
+
+  window.setNavTaux = function(taux, btn) {
+    navTaux = taux;
+    document.querySelectorAll('#nav-50,#nav-100').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const lbl = taux === 1 ? 'Navigo (100%)' : 'Navigo (50%)';
+    const el1 = document.getElementById('rl-nav-lbl-a');
+    const el2 = document.getElementById('rl-nav-lbl-b');
+    if (el1) el1.textContent = taux === 1 ? 'Navigo (100%)' : 'Navigo (50%)';
+    if (el2) el2.textContent = taux === 1 ? 'Navigo (0%)' : 'Navigo (50%)';
+    calcRecap();
   };
-
-  try {
-    const res = await onboarding.creerModele(d.gardeId, payload);
-    draft.set({ modeleId: res.modele.id });
-    window.location.href = '/recap.html';
-  } catch (err) {
-    alert("Erreur serveur : " + err.message);
-    btn.disabled = false;
-    btn.innerHTML = 'Enregistrer le modèle →';
+    function calcRac(sal, nav, cmgcot, cmgrem, abat, ville, nEnf) {
+      const brut = r2(sal/(1-cSal));
+      const chSal = r2(brut*cSal), chPat = r2(brut*cPat);
+      const dep = r2(sal+chSal+chPat+nav-cmgcot-cmgrem-abat);
+      const plafond = (12000 + 1500*nEnf) / 12 / 2;
+      const ci = Math.min(r2(dep*0.5), plafond);
+      const urssaf = r2(chSal+chPat-abat-cmgcot);
+      return { ci, rac: r2((sal+nav)-cmgrem-ville+urssaf-ci), cmgrem };
+    }
+    const rA = calcRac(salA,navA,g('cmgcot-a'),g('cmgrem-a'),g('abat-a'),g('ville-a'),nEnfA);
+    const rB = calcRac(salB,navB,g('cmgcot-b'),g('cmgrem-b'),g('abat-b'),g('ville-b'),nEnfB);
+    document.getElementById('rl-cmgrem-a').textContent = '−' + fmt(rA.cmgrem);
+    document.getElementById('rl-ci-a').textContent     = '−' + fmt(rA.ci);
+    document.getElementById('rl-rac-a').textContent    = fmt(rA.rac);
+    document.getElementById('rl-cmgrem-b').textContent = '−' + fmt(rB.cmgrem);
+    document.getElementById('rl-ci-b').textContent     = '−' + fmt(rB.ci);
+    document.getElementById('rl-rac-b').textContent    = fmt(rB.rac);
   }
 };
 
-// --- INITIALISATION ---
-requireLogin();
-const d = draft.get();
+window.handleNext = async function() {
+  clearError();
+  const tauxBrut = parseFloat(document.getElementById('taux-brut').value);
+  const tauxNet  = parseFloat(document.getElementById('taux-net').value);
+  if (!tauxBrut || tauxBrut < 12.51) return showError('Le taux horaire brut doit être au minimum 12,51 €.');
 
-// Sidebar
-document.getElementById('side-garde').textContent = d.nom || '—';
-document.getElementById('side-nounou').textContent = [d.nounouPrenom, d.nounouNom].filter(Boolean).join(' ') || '—';
-document.getElementById('side-enfants').textContent = (d.enfants||[]).map(e=>e.prenom).join(', ') || '—';
-document.getElementById('side-planning').textContent = d.hTotSemaine ? `${Math.round(d.hTotSemaine*10)/10}h/sem` : '—';
-document.getElementById('side-footer').textContent = (d.nom || '—') + '\n' + ([d.nounouPrenom, d.nounouNom].filter(Boolean).join(' ') || '—');
+  const g = id => parseFloat(document.getElementById(id).value)||0;
+  let navTaux = 0.5; // 0.5 = 50% chaque famille, 1.0 = 100% famille A
 
-if (d.nounouPrenom) document.getElementById('nounou-prenom-label').textContent = d.nounouPrenom;
+  window.setNavTaux = function(taux, btn) {
+    navTaux = taux;
+    document.querySelectorAll('#nav-50,#nav-100').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const lbl = taux === 1 ? 'Navigo (100%)' : 'Navigo (50%)';
+    const el1 = document.getElementById('rl-nav-lbl-a');
+    const el2 = document.getElementById('rl-nav-lbl-b');
+    if (el1) el1.textContent = taux === 1 ? 'Navigo (100%)' : 'Navigo (50%)';
+    if (el2) el2.textContent = taux === 1 ? 'Navigo (0%)' : 'Navigo (50%)';
+    calcRecap();
+  };
+  const aidesOn = document.getElementById('sw-aides').checked;
 
-window.onTauxChange();
+  const payload = {
+    gardeId:          d.gardeId,
+    dateEffet:        d.dateDebut,
+    modeCalcul:       d.modeCalcul || 'mensualise',
+    hNormalesSemaine: d.hNormalesSemaine || 40,
+    tauxBrut, tauxNet,
+    chargesSalarialesPct: g('ch-sal') / 100,
+    chargesPatronalesPct: g('ch-pat') / 100,
+    navigoMontant:   document.getElementById('sw-nav').checked   ? g('v-nav')  : 0,
+    navigoTaux:      navTaux,
+    panierRepas:     document.getElementById('sw-repas').checked  ? g('v-repas'): 0,
+    indemKm:         document.getElementById('sw-km').checked     ? g('v-km')   : 0,
+    indemEntretien:  document.getElementById('sw-entr').checked   ? g('v-entr') : 0,
+    repartitionCalculeeA:  d.repartitionA ?? 0.5,
+    repartitionAppliqueA:  d.repartitionA ?? 0.5,
+    jours: d.jours || [],
+  };
+
+  const aides = aidesOn ? {
+    a: { cmgCotisations: g('cmgcot-a'), cmgRemuneration: g('cmgrem-a'), abattementCharges: g('abat-a'), aideVille: g('ville-a') },
+    b: { cmgCotisations: g('cmgcot-b'), cmgRemuneration: g('cmgrem-b'), abattementCharges: g('abat-b'), aideVille: g('ville-b') },
+  } : null;
+
+  const btn = document.getElementById('btn-next');
+  btn.classList.add('btn-loading');
+  btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+
+  try {
+    const res = await onboarding.creerModele(d.gardeId, payload);
+    draft.set({ modeleId: res.modele.id, tauxBrut, tauxNet, aides, ...payload });
+    window.location.href = '/recap.html';
+  } catch (err) {
+    showError(err.message || 'Erreur lors de l\'enregistrement');
+    btn.classList.remove('btn-loading');
+    btn.textContent = 'Enregistrer le modèle →';
+  }
+};
+
+function showError(msg) { const e=document.getElementById('error-box'); e.textContent=msg; e.classList.add('visible'); }
+function clearError() { document.getElementById('error-box').classList.remove('visible'); }
+
+// Init — pré-remplir depuis le draft si déjà configuré
+if (d.tauxBrut) {
+  document.getElementById('taux-brut').value = d.tauxBrut;
+}
+if (d.navigoMontant != null) {
+  const navOn = d.navigoMontant > 0;
+  document.getElementById('sw-nav').checked = navOn;
+  if (navOn) document.getElementById('v-nav').value = d.navigoMontant;
+  toggleInp('sw-nav','v-nav');
+}
+if (d.panierRepas != null && d.panierRepas > 0) {
+  document.getElementById('sw-repas').checked = true;
+  document.getElementById('v-repas').value = d.panierRepas;
+}
+onTauxChange();
 </script>
 
 </body>
