@@ -14,9 +14,17 @@
     .planning-header .ph-total { font-size:12px; color:var(--dust); }
     .planning-header .ph-total strong { font-size:14px; color:var(--ink); }
 
-    .jours-grid { display:grid; grid-template-columns:repeat(5,1fr); }
+    .jours-grid-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .jours-grid { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); min-width:650px; }
     .jour-col { border-right:.5px solid var(--line); }
     .jour-col:last-child { border-right:none; }
+
+    /* Copier/Coller */
+    .btn-copier { width:100%; font-size:9px; color:var(--dust); background:none; border:1px dashed var(--line); border-radius:4px; cursor:pointer; padding:3px 4px; font-family:'DM Sans',sans-serif; margin-top:4px; transition:all .15s; }
+    .btn-copier:hover { border-color:var(--sage); color:var(--sage); }
+    .btn-copier.source { border-color:var(--blue); color:var(--blue); background:var(--blue-light); font-weight:500; }
+    .btn-coller { width:100%; font-size:9px; color:#fff; background:var(--sage); border:none; border-radius:4px; cursor:pointer; padding:3px 4px; font-family:'DM Sans',sans-serif; margin-top:4px; transition:opacity .15s; }
+    .btn-coller:hover { opacity:.85; }
     .jour-hdr { padding:8px 4px; text-align:center; font-size:10px; font-weight:500; color:var(--dust); text-transform:uppercase; letter-spacing:.06em; background:var(--paper); border-bottom:.5px solid var(--line); }
     .jour-body { padding:6px; min-height:88px; display:flex; flex-direction:column; gap:4px; }
     .jour-body.inactive { background:var(--paper); opacity:.5; }
@@ -168,7 +176,7 @@ function renderAll() {
         </div>
         <div class="ph-total">Total semaine : <strong id="total-${eid}">0h</strong></div>
       </div>
-      <div class="jours-grid" id="grid-${eid}"></div>
+      <div class="jours-grid-wrap"><div class="jours-grid" id="grid-${eid}"></div></div>
       <div style="padding:8px 18px 12px;display:flex;align-items:center;gap:8px">
         <input type="checkbox" id="repas-global-${eid}" checked
           style="accent-color:var(--${fam==='a'?'blue':'sage'});width:13px;height:13px;cursor:pointer"
@@ -198,6 +206,8 @@ function renderGrid(eid, fam) {
         + `<button class="btn-add-plage" onclick="addPlage('${eid}',${i})">+ plage</button>`
         + `<div class="repas-row"><input type="checkbox" id="repas-${eid}-${i}" ${s.repas?'checked':''} onchange="updateRepas('${eid}',${i},this.checked)"><label for="repas-${eid}-${i}">Repas</label></div>`
       : '';
+    const isSource  = copySource?.eid === eid && copySource?.jour === i;
+    const canPaste  = copySource && copySource.eid === eid && copySource.jour !== i;
     return `
       <div class="jour-col">
         <div class="jour-hdr">${JOURS_LABELS[i]}</div>
@@ -210,10 +220,42 @@ function renderGrid(eid, fam) {
             </label>
           </div>
           ${plagesHTML}
+          ${canPaste
+            ? `<button class="btn-coller" onclick="collerJour('${eid}',${i})">⬇ Coller ici</button>`
+            : `<button class="btn-copier ${isSource?'source':''}" onclick="copierJour('${eid}',${i},this)">${isSource?'✕ Annuler':'⎘ Copier'}</button>`
+          }
         </div>
       </div>`;
   }).join('');
 }
+
+// ─── COPIER / COLLER ─────────────────────────────────────────────────────────
+let copySource = null; // { eid, jour }
+
+window.copierJour = function(eid, jour, btn) {
+  if (copySource?.eid === eid && copySource?.jour === jour) {
+    copySource = null; // annuler
+  } else {
+    copySource = { eid, jour };
+  }
+  const fam = enfants.find(e=>(e.tempId||e.id)===eid)?.fam || 'a';
+  renderGrid(eid, fam);
+};
+
+window.collerJour = function(eid, jourCible) {
+  if (!copySource || copySource.eid !== eid) return;
+  const src = state[eid][copySource.jour];
+  // Copier plages (deep copy) et activer le jour cible
+  state[eid][jourCible] = {
+    actif:  true, // activer automatiquement
+    plages: src.plages.map(p => [...p]),
+    repas:  src.repas,
+  };
+  copySource = null;
+  const fam = enfants.find(e=>(e.tempId||e.id)===eid)?.fam || 'a';
+  renderGrid(eid, fam);
+  updateSynthese();
+};
 
 // ─── INTERACTIONS ──────────────────────────────────────────────────────────────
 
