@@ -56,6 +56,13 @@
 
     .btn-mois { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; background: var(--sage); color: #fff; text-decoration: none; font-size: 13px; font-weight: 500; margin-top: 4px; }
     .btn-mois:hover { opacity: .9; }
+    .cp-bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin: 8px 0; }
+    .cp-fill { height: 100%; background: var(--sage); border-radius: 4px; transition: width .4s; }
+    .mode-toggle-cp { display: flex; gap: 8px; margin-bottom: 14px; }
+    .mode-btn-cp { flex: 1; padding: 10px; border: 1.5px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; text-align: center; transition: all .15s; }
+    .mode-btn-cp.active { border-color: var(--sage); background: var(--sage-light); color: var(--sage); font-weight: 500; }
+    .cp-panel { display: none; }
+    .cp-panel.active { display: block; }
   </style>
 </head>
 <body>
@@ -97,6 +104,52 @@
     <div class="info-row"><span class="info-label">Taux horaire net</span><span id="cfg-taux">—</span></div>
     <div class="info-row"><span class="info-label">Heures / semaine</span><span id="cfg-heures">—</span></div>
     <div class="info-row"><span class="info-label">Répartition</span><span id="cfg-rep">—</span></div>
+  </div>
+
+  <!-- Nounou & Congés payés -->
+  <div class="section" id="section-nounou">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div class="section-title" style="margin-bottom:0">Nounou & Congés payés</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="copierLienNounou()" style="padding:6px 12px;border-radius:6px;border:1.5px solid var(--line);background:#fff;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif">🔗 Lien mensuel</button>
+        <button onclick="ouvrirModalCP()" style="padding:6px 12px;border-radius:6px;border:1.5px solid var(--line);background:#fff;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif">⚙️ Config CP</button>
+      </div>
+    </div>
+
+    <!-- Identité nounou -->
+    <div id="nounou-identite" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:.5px solid var(--line);margin-bottom:14px">
+      <div id="nounou-avatar" style="width:40px;height:40px;border-radius:50%;background:#fff3e0;color:#e65100;display:flex;align-items:center;justify-content:center;font-weight:500;font-size:16px">?</div>
+      <div>
+        <div id="nounou-nom" style="font-size:14px;font-weight:500">—</div>
+        <div id="nounou-email" style="font-size:12px;color:var(--dust)">—</div>
+      </div>
+    </div>
+
+    <!-- Solde CP -->
+    <div id="cp-zone">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+        <div style="text-align:center;padding:12px;background:var(--paper);border-radius:8px">
+          <div style="font-size:20px;font-weight:500" id="cp-acquis">—</div>
+          <div style="font-size:11px;color:var(--dust);margin-top:2px">Acquis</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--paper);border-radius:8px">
+          <div style="font-size:20px;font-weight:500" id="cp-pris">—</div>
+          <div style="font-size:11px;color:var(--dust);margin-top:2px">Pris</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--sage-light);border-radius:8px">
+          <div style="font-size:20px;font-weight:500;color:var(--sage)" id="cp-solde">—</div>
+          <div style="font-size:11px;color:var(--dust);margin-top:2px">Restants</div>
+        </div>
+      </div>
+      <div class="cp-bar"><div class="cp-fill" id="cp-bar-fill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Dernier mois -->
+    <div id="dernier-mois-zone" style="margin-top:14px;border-top:.5px solid var(--line);padding-top:14px;display:none">
+      <div style="font-size:12px;font-weight:500;color:var(--dust);margin-bottom:10px" id="dernier-mois-label">Dernier mois calculé</div>
+      <div id="dernier-mois-contenu"></div>
+      <a id="lien-mois-nounou" href="#" style="font-size:12px;color:var(--sage);display:inline-flex;align-items:center;gap:4px;margin-top:8px;text-decoration:none">Voir le mois complet →</a>
+    </div>
   </div>
 </div>
 
@@ -156,7 +209,7 @@
 </div>
 
 <script type="module">
-import { requireLogin, gardes, API_BASE } from './js/api.js';
+import { requireLogin, gardes, cp, API_BASE } from './js/api.js';
 requireLogin();
 
 const params  = new URLSearchParams(location.search);
@@ -167,12 +220,151 @@ let gardeData     = null;
 let hasValidated  = false;
 let familles      = [];
 
+// ── CP CONFIG ─────────────────────────────────────────────────────────────
+let cpMode = 'par_mois';
+
+window.setCPMode = function(mode, btn) {
+  cpMode = mode;
+  document.querySelectorAll('.mode-btn-cp').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('cp-panel-mois').classList.toggle('active', mode === 'par_mois');
+  document.getElementById('cp-panel-an').classList.toggle('active',   mode === 'par_an');
+  previewCP();
+};
+
+function previewCP() {
+  const dateDebut = document.getElementById('cp-date-debut').value;
+  if (!dateDebut) { document.getElementById('cp-preview').textContent = 'Renseignez la date de début.'; return; }
+  const [y,m,d] = dateDebut.split('-').map(Number);
+  const debut = new Date(y, m-1, d);
+  const moisEcoules = Math.max(0, (new Date().getFullYear()-debut.getFullYear())*12 + (new Date().getMonth()-debut.getMonth()));
+  let acquis;
+  if (cpMode === 'par_mois') {
+    const j = parseFloat(document.getElementById('cp-jours-par-mois').value) || 2.5;
+    acquis = Math.round(j * moisEcoules * 10) / 10;
+  } else {
+    const j = parseFloat(document.getElementById('cp-jours-par-an').value) || 25;
+    acquis = Math.round((j/12) * moisEcoules * 10) / 10;
+  }
+  const pris = parseInt(document.getElementById('cp-jours-consommes').value) || 0;
+  document.getElementById('cp-preview').textContent =
+    `${moisEcoules} mois écoulés → ${acquis} jours acquis − ${pris} pris = ${Math.round((acquis-pris)*10)/10} restants`;
+}
+
+window.ouvrirModalCP = function() {
+  document.getElementById('cp-modal-bg').style.display = 'flex';
+  // Date de début par défaut : 1er juin de l'année en cours (période CP standard)
+  if (!document.getElementById('cp-date-debut').value) {
+    document.getElementById('cp-date-debut').value = new Date().getFullYear() + '-06-01';
+  }
+  previewCP();
+};
+
+window.fermerModalCP = function() {
+  document.getElementById('cp-modal-bg').style.display = 'none';
+};
+
+window.sauvegarderCP = async function() {
+  const dateDebut = document.getElementById('cp-date-debut').value;
+  if (!dateDebut) return alert('La date de début est requise.');
+  try {
+    const res = await cp.configurer(gardeId, {
+      mode:             cpMode,
+      joursParMois:     parseFloat(document.getElementById('cp-jours-par-mois').value) || 2.5,
+      joursParAn:       parseFloat(document.getElementById('cp-jours-par-an').value) || 25,
+      dateDebutAnnee:   dateDebut,
+      joursConsommes:   parseInt(document.getElementById('cp-jours-consommes').value) || 0,
+    });
+    afficherCP(res.solde);
+    fermerModalCP();
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
+
+// Ajouter listeners pour la preview en temps réel
+document.addEventListener('DOMContentLoaded', () => {
+  ['cp-jours-par-mois','cp-jours-par-an','cp-date-debut','cp-jours-consommes']
+    .forEach(id => document.getElementById(id)?.addEventListener('input', previewCP));
+});
+
+function afficherCP(solde) {
+  if (!solde) return;
+  const acquis = solde.acquis || 0, pris = solde.pris || 0, reste = solde.solde || (acquis-pris);
+  document.getElementById('cp-acquis').textContent = acquis + ' j';
+  document.getElementById('cp-pris').textContent   = pris + ' j';
+  document.getElementById('cp-solde').textContent  = reste + ' j';
+  const pct = acquis > 0 ? Math.min(100, pris/acquis*100) : 0;
+  document.getElementById('cp-bar-fill').style.width = pct + '%';
+}
+
+window.copierLienNounou = function() {
+  const token = gardeData?.lien_partage_token;
+  if (!token) { alert('Lien non disponible pour cette garde.'); return; }
+  const lien = `${location.origin}/public.html?token=${token}`;
+  navigator.clipboard?.writeText(lien).then(() => alert('Lien copié !'))
+    .catch(() => prompt('Copiez ce lien :', lien));
+};
+
+function afficherNounou(nounou, solde, dernierMois) {
+  if (!nounou) {
+    document.getElementById('nounou-nom').textContent = 'Nounou non configurée';
+    document.getElementById('nounou-email').textContent = 'Complétez la configuration pour ajouter la nounou';
+    return;
+  }
+  const initiale = ((nounou.prenom||'')[0]||'?').toUpperCase();
+  document.getElementById('nounou-avatar').textContent = initiale;
+  document.getElementById('nounou-nom').textContent   = `${nounou.prenom} ${nounou.nom}`;
+  document.getElementById('nounou-email').textContent = nounou.email || 'Email non renseigné';
+  afficherCP(solde);
+
+  // Dernier mois
+  if (dernierMois) {
+    const zone = document.getElementById('dernier-mois-zone');
+    zone.style.display = '';
+    const MOIS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    document.getElementById('dernier-mois-label').textContent =
+      `Dernier mois calculé — ${MOIS[dernierMois.mois-1]} ${dernierMois.annee}`;
+
+    let snap = null;
+    try { snap = dernierMois.snapshot_calcul ? JSON.parse(dernierMois.snapshot_calcul) : null; } catch(e) {}
+    if (snap?.resultats) {
+      const virTotal = snap.resultats.reduce((s,r) => s+(r.virement||0), 0);
+      document.getElementById('dernier-mois-contenu').innerHTML =
+        snap.resultats.map(r => `
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
+            <span style="color:var(--dust)">Famille ${r.label}</span>
+            <span style="font-weight:500">${(r.virement||0).toFixed(2)} €</span>
+          </div>`).join('') +
+        `<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:.5px solid var(--line);font-size:14px;font-weight:500;margin-top:4px">
+          <span>Total nounou</span><span style="color:var(--sage)">${virTotal.toFixed(2)} €</span>
+        </div>`;
+    }
+    const now = new Date();
+    document.getElementById('lien-mois-nounou').href =
+      `/mois.html?garde=${gardeId}&annee=${dernierMois.annee}&mois=${dernierMois.mois}`;
+  }
+}
+
+async function chargerCP() {
+  try {
+    const data = await cp.get(gardeId);
+    afficherCP(data.solde);
+  } catch(e) { console.warn('CP non disponible:', e.message); }
+}
+
 async function charger() {
   try {
     gardeData = await gardes.get(gardeId);
     hasValidated = gardeData.hasValidatedMois || false;
     familles = gardeData.familles || [];
     afficher();
+
+    // Charger données nounou + CP
+    const dernierMoisRes = await fetch(`${API_BASE}/gardes/${gardeId}/mois`, {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('nl_token') }
+    }).then(r => r.json()).catch(() => ({ mois: [] }));
+    const dernierMois = (dernierMoisRes.mois || []).find(m => m.snapshot_calcul);
+    afficherNounou(gardeData.nounou, null, dernierMois);
+    await chargerCP();
   } catch(e) {
     alert('Erreur chargement : ' + e.message);
     location.href = '/dashboard.html';
@@ -309,5 +501,39 @@ window.sauvegarder = async function() {
 
 charger();
 </script>
+<!-- MODAL CONFIG CP -->
+<div id="cp-modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px;width:min(440px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.15)">
+    <h3 style="margin:0 0 16px;font-size:17px;font-weight:500">Configurer les congés payés</h3>
+    <div class="mode-toggle-cp">
+      <button class="mode-btn-cp active" id="cp-btn-mois" onclick="setCPMode('par_mois',this)">📅 Par mois<br><small style="font-weight:400;font-size:11px">ex. 2,5 j/mois</small></button>
+      <button class="mode-btn-cp" id="cp-btn-an" onclick="setCPMode('par_an',this)">📆 Par an<br><small style="font-weight:400;font-size:11px">ex. 25 j/an</small></button>
+    </div>
+    <div class="cp-panel active" id="cp-panel-mois">
+      <label style="font-size:12px;color:var(--dust);display:block;margin-bottom:4px">Jours acquis par mois</label>
+      <input type="number" id="cp-jours-par-mois" value="2.5" step="0.5" min="0" style="width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;margin-bottom:12px">
+    </div>
+    <div class="cp-panel" id="cp-panel-an">
+      <label style="font-size:12px;color:var(--dust);display:block;margin-bottom:4px">Jours acquis par an</label>
+      <input type="number" id="cp-jours-par-an" value="25" step="1" min="0" style="width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;margin-bottom:12px">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <label style="font-size:12px;color:var(--dust);display:block;margin-bottom:4px">Début d'année CP</label>
+        <input type="date" id="cp-date-debut" style="width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--dust);display:block;margin-bottom:4px">Jours déjà pris</label>
+        <input type="number" id="cp-jours-consommes" value="0" min="0" style="width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box">
+      </div>
+    </div>
+    <div id="cp-preview" style="background:var(--sage-light);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;color:var(--sage)">—</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="fermerModalCP()" style="padding:9px 18px;border-radius:8px;border:1.5px solid var(--line);background:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Annuler</button>
+      <button onclick="sauvegarderCP()" style="padding:9px 20px;border-radius:8px;border:none;background:var(--sage);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
