@@ -277,18 +277,9 @@
     <h3 id="modal-title">Ajouter un événement</h3>
 
     <div class="evt-type-grid">
-      <button class="evt-type-btn" id="et-cp" onclick="selectEvtType('conge_paye',this)">
-        🏖 Congé payé
-      </button>
-      <button class="evt-type-btn" id="et-mal" onclick="selectEvtType('maladie_nounou',this)">
-        🤒 Maladie
-      </button>
-      <button class="evt-type-btn" id="et-abs-a" onclick="selectEvtType('absence_famille_a',this)">
-        🏠 Absence Fam. A
-      </button>
-      <button class="evt-type-btn" id="et-abs-b" onclick="selectEvtType('absence_famille_b',this)">
-        🏡 Absence Fam. B
-      </button>
+      <button class="evt-type-btn" id="et-cp"  onclick="selectEvtType('conge_paye',this)">🏖 Congé payé</button>
+      <button class="evt-type-btn" id="et-mal" onclick="selectEvtType('maladie_nounou',this)">🤒 Maladie</button>
+      <button class="evt-type-btn" id="et-css" onclick="selectEvtType('conge_sans_solde',this)">📋 Congé sans solde</button>
     </div>
 
     <div class="two-col" style="margin-bottom:12px">
@@ -308,6 +299,7 @@
 
     <div class="modal-btns">
       <button class="btn-secondary" onclick="closeModalDirect()">Annuler</button>
+      <button class="btn-danger" id="btn-del-evt" style="display:none" onclick="">Supprimer</button>
       <button class="btn-primary" onclick="saveEvenement()">Ajouter</button>
     </div>
   </div>
@@ -317,6 +309,9 @@
 .rule-btn { padding:5px 10px; border:1.5px solid var(--line); border-radius:20px; font-size:11px; cursor:pointer; background:#fff; color:var(--dust); font-family:'DM Sans',sans-serif; transition:all .15s; }
 .rule-btn:hover { border-color:var(--dust); color:var(--ink); }
 .rule-btn.active { border-color:var(--sage); background:var(--sage-light); color:var(--sage); font-weight:500; }
+.btn-danger { padding:8px 16px; border-radius:8px; border:1.5px solid #e74c3c; background:#fff; color:#e74c3c; font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif; }
+.btn-danger:hover { background:#fdf2f2; }
+.evt-css { background:#f5e6ff; border-left:3px solid #9b59b6; color:#6c3483; }
 </style>
 
 <script type="module">
@@ -386,15 +381,19 @@ function renderCalendrier() {
 function renderJour(j) {
   if (!j) return `<div class="jour-cell weekend" style="background:#f5f4f2"></div>`;
 
-  const dateStr  = j.toISOString().slice(0,10);
+  // Format sans UTC pour éviter le décalage timezone UTC+1/+2
+  const yy = j.getFullYear(), mm = String(j.getMonth()+1).padStart(2,'0'), dd = String(j.getDate()).padStart(2,'0');
+  const dateStr  = `${yy}-${mm}-${dd}`;
   const isFerie  = FERIES_FR.includes(dateStr);
-  const isToday  = dateStr === new Date().toISOString().slice(0,10);
+  const now_ = new Date();
+  const todayStr = `${now_.getFullYear()}-${String(now_.getMonth()+1).padStart(2,'0')}-${String(now_.getDate()).padStart(2,'0')}`;
+  const isToday  = dateStr === todayStr;
   const evtsDuJour = evenements.filter(e => e.date_debut <= dateStr && e.date_fin >= dateStr);
   const dateNum  = j.getDate();
 
   const chips = evtsDuJour.map(e => {
-    const classes = { conge_paye:'evt-cp', maladie_nounou:'evt-mal', ferie:'evt-ferie', absence_famille_a:'evt-abs-a', absence_famille_b:'evt-abs-b' };
-    const labels  = { conge_paye:'CP', maladie_nounou:'Maladie', ferie:'Férié', absence_famille_a:'Abs. A', absence_famille_b:'Abs. B' };
+    const classes = { conge_paye:'evt-cp', maladie_nounou:'evt-mal', ferie:'evt-ferie', conge_sans_solde:'evt-css', absence_famille_a:'evt-abs-a', absence_famille_b:'evt-abs-b' };
+    const labels  = { conge_paye:'CP', maladie_nounou:'Maladie', ferie:'Férié', conge_sans_solde:'CSS', absence_famille_a:'Abs. A', absence_famille_b:'Abs. B' };
     return `<div class="evt-chip ${classes[e.type]||''}" style="gap:4px">
       <span>${labels[e.type]||e.type}</span>
       <span onclick="event.stopPropagation();supprimerEvt('${e.id}')"
@@ -488,8 +487,40 @@ window.navMois = function(dir) {
 
 // ─── MODAL ÉVÉNEMENT ──────────────────────────────────────────────
 window.ouvrirJour = function(date) {
-  document.getElementById('evt-debut').value = date;
-  document.getElementById('evt-fin').value   = date;
+  // Chercher un événement existant sur ce jour
+  const existant = evenements.find(e => e.date_debut <= date && e.date_fin >= date);
+  const titre = document.getElementById('modal-title');
+  const btnSave = document.querySelector('#modal-bg .btn-primary');
+  const btnDel  = document.getElementById('btn-del-evt');
+
+  if (existant) {
+    // Mode consultation/suppression
+    titre.textContent = 'Événement existant';
+    btnSave.style.display = 'none';
+    btnDel.style.display = '';
+    btnDel.onclick = () => supprimerEvt(existant.id);
+    // Pré-remplir les champs en lecture
+    const labels = { conge_paye:'Congé payé', maladie_nounou:'Maladie',
+                     conge_sans_solde:'Congé sans solde',
+                     absence_famille_a:'Absence Fam. A', absence_famille_b:'Absence Fam. B' };
+    selectEvtType(existant.type, document.getElementById(
+      existant.type === 'conge_paye' ? 'et-cp' :
+      existant.type === 'maladie_nounou' ? 'et-mal' : 'et-css'
+    ));
+    document.getElementById('evt-debut').value = existant.date_debut;
+    document.getElementById('evt-fin').value   = existant.date_fin;
+    document.getElementById('evt-note').value  = existant.notes || '';
+  } else {
+    // Mode ajout
+    titre.textContent = 'Ajouter un événement';
+    btnSave.style.display = '';
+    btnDel.style.display = 'none';
+    evtType = null;
+    document.querySelectorAll('.evt-type-btn').forEach(b=>b.classList.remove('selected'));
+    document.getElementById('evt-debut').value = date;
+    document.getElementById('evt-fin').value   = date;
+    document.getElementById('evt-note').value  = '';
+  }
   document.getElementById('modal-bg').classList.add('open');
 };
 window.ajouterEvenement = function() {
@@ -531,6 +562,7 @@ window.saveEvenement = async function() {
   const conflit = evenements.find(e => !(e.date_fin < debut || e.date_debut > fin));
   if (conflit) {
     const labels = { conge_paye:'Congé payé', maladie_nounou:'Maladie', ferie:'Férié',
+                     conge_sans_solde:'Congé sans solde',
                      absence_famille_a:'Absence Fam. A', absence_famille_b:'Absence Fam. B' };
     return alert(`Conflit avec "${labels[conflit.type]||conflit.type}" (${conflit.date_debut} → ${conflit.date_fin}).\nSupprimez-le d'abord.`);
   }
