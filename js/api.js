@@ -4,7 +4,7 @@
  * Changer API_BASE suffit pour pointer vers prod ou local.
  */
 
-const API_BASE = 'https://nannypay-back-production.up.railway.app'
+const API_BASE = 'http://localhost:3000'; // ← mettre l'URL Railway en prod
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
@@ -83,6 +83,9 @@ export const mois = {
   },
   async ajouterEvenement(gardeId, annee, moisNum, evt) {
     return call('POST', `/gardes/${gardeId}/mois/${annee}/${moisNum}/evenements`, evt);
+  },
+  async supprimerEvenement(gardeId, annee, moisNum, evtId) {
+    return call('DELETE', `/gardes/${gardeId}/mois/${annee}/${moisNum}/evenements/${evtId}`);
   },
 };
 
