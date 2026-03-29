@@ -338,8 +338,8 @@ async function init() {
   if (!gardeId) { window.location.href='/dashboard.html'; return; }
   try {
     gardeData = await gardes.get(gardeId);
-    document.getElementById('nav-garde-nom').textContent  = gardeData.garde.nom;
-    document.getElementById('lien-public-btn').href = `/public.html?token=${gardeData.garde.lien_partage_token}`;
+    document.getElementById('nav-garde-nom').textContent  = gardeData.nom || gardeData.garde?.nom;
+    document.getElementById('lien-public-btn').href = `/public.html?token=${gardeData.lien_partage_token || gardeData.garde?.lien_partage_token}`;
     await chargerMois();
   } catch(e) {
     console.error(e);
