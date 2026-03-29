@@ -1,0 +1,224 @@
+[CONTEXT.md](https://github.com/user-attachments/files/26335197/CONTEXT.md)
+# NOUNOULINK — Contexte projet pour Claude Code
+
+> Lis ce fichier EN ENTIER avant de toucher quoi que ce soit.
+> Il contient les règles métier, l'architecture, les bugs connus et le chemin critique.
+
+---
+
+## 1. Vue d'ensemble
+
+**nounoulink** (aussi appelé nannypay) est un SaaS B2C de coordination de garde d'enfants à domicile partagée entre deux familles (A et B) et une nounou.
+
+**Promesse centrale** : espace de vérité partagé entre 3 parties — les deux familles et la nounou voient les mêmes chiffres, en temps réel, avant que quiconque déclare quoi que ce soit sur Pajemploi.
+
+**URLs production** :
+- Frontend : `https://pajemploi-facile.org` (Netlify, repo GitHub `vicepreze/nannypay-front`)
+- Backend : `https://nannypay-back-production.up.railway.app` (Railway, repo GitHub `vicepreze/nannypay-back`)
+
+---
+
+## 2. Stack technique
+
+### Backend (`nannypay-back`)
+- Node.js 22 **sans framework** (HTTP natif)
+- SQLite natif (`--experimental-sqlite`)
+- JWT maison (pas de bibliothèque externe)
+- Fichiers clés :
+  - `src/server.js` — point d'entrée
+  - `src/api/router.js` — routeur HTTP + CORS
+  - `src/api/routes.js` — toutes les routes API
+  - `src/api/auth.js` — middleware JWT
+  - `src/db/schema.sql` — schéma SQLite
+  - `src/db/connection.js` — connexion + migrations
+  - `src/db/repositories.js` — toutes les requêtes SQL
+  - `src/engine/salaire.js` — moteur de calcul salaire
+  - `src/engine/planning.js` — moteur planning
+  - `src/engine/time.js` — utilitaires temps
+  - `src/engine/index.js` — exports moteur
+
+### Frontend (`nannypay-front`)
+- HTML/CSS/JS pur (pas de framework)
+- `js/api.js` — client API centralisé, **toujours utiliser ses méthodes** plutôt que fetch direct
+- `css/style.css` — variables CSS globales (--sage, --blue, --ink, --dust, --line, --paper, --red, --warn)
+- Pages : `index.html`, `dashboard.html`, `garde.html`, `mois.html`, `public.html`, `onboarding-1.html` à `onboarding-5.html`, `recap.html`
+
+---
+
+## 3. Architecture des données (tables clés)
+
+```
+gardes (entité racine)
+  ├── familles (label A ou B, utilisateur_id nullable)
+  ├── nounous (une par garde, utilisateur_id nullable)
+  ├── enfants (via famille_id → famille → garde)
+  ├── modeles_planning (planning type semaine)
+  │   ├── jours_modele (par enfant × jour semaine)
+  │   └── plages_horaires (heure_debut, heure_fin — PAS debut/fin)
+  ├── mois (annee + mois, avec snapshot_calcul JSON)
+  │   ├── evenements (type, date_debut, date_fin, nb_jours)
+  │   └── overrides_horaires
+  └── soldes_cp (acquis, pris)
+```
+
+**Champs importants à ne pas confondre** :
+- Plages horaires : `heure_debut` / `heure_fin` (pas `debut` / `fin`)
+- Familles : `nom_affiche`, `email_contact` (pas `nom`, `email`)
+- Gardes : `lien_partage_token` (pour le lien public), `invitation_token_b` (pour inviter famille B)
+- Mois : `snapshot_calcul` (JSON stringifié, peut être null)
+
+---
+
+## 4. Règles métier critiques
+
+### Formule Cour de cassation (déduction maladie/CP)
+```
+A = salaire mensuel complet d'une famille (base + heures sup majorées)
+B = heures potentielles du mois (calculées jour par jour depuis les plages réelles)
+C = heures d'absence réelles (événements maladie/CP couvrant les jours du mois)
+
+Retenue = A × (C / B)
+Salaire du mois = A - Retenue
+```
+
+**IMPORTANT** : quand cette formule s'applique, `hSup25` et `hSup50` sont mis à 0 dans le moteur pour éviter le double comptage (les heures sup sont déjà dans A).
+
+### Heures supplémentaires
+- Seuil 1 : > 40h/sem → +25% (appelé hSup25)
+- Seuil 2 : > 48h/sem → +50% (appelé hSup50)
+
+### Répartition
+- Quote-part famille A = `repartition_appliquee_a` (ex. 0.5 = 50%)
+- Quote-part famille B = `1 - repartition_appliquee_a`
+- Navigo toujours 50/50, indépendamment de la quote-part
+
+### Panier repas
+- `panierRepas × joursTravailles × quotePart`
+- Jours travaillés = jours ouvrables du mois - jours maladie - jours CP
+
+### CP par mois
+- `joursParMois × moisEcoulés` (accumulation progressive)
+
+### CP par an
+- Quota fixe annuel — disponible en totalité dès le début du cycle, **pas de proratisation**
+
+---
+
+## 5. API — routes disponibles
+
+### Auth
+- `POST /auth/register` — créer un compte
+- `POST /auth/login` — connexion
+- `GET /auth/me` — profil + gardes
+
+### Gardes
+- `GET /gardes` — liste des gardes de l'utilisateur
+- `POST /gardes` — créer une garde
+- `GET /gardes/:id` — détail complet (garde + familles + nounou + enfants + modele + hasValidatedMois)
+- `PUT /gardes/:id` — modifier (restriction si mois validé : seuls nom/emails modifiables)
+- `POST /gardes/:id/archiver` — archiver (Famille A seulement)
+- `POST /gardes/:id/desarchiver` — désarchiver
+
+### Enfants
+- `POST /gardes/:id/enfants` — ajouter un enfant
+- `PUT /gardes/:id/enfants/:enfantId` — modifier (champs : prenom, date_naissance, actif)
+
+### Modèle planning
+- `POST /gardes/:id/modele` — créer/remplacer le modèle
+- `GET /gardes/:id/modele` — lire le modèle actif
+
+### Mois
+- `GET /gardes/:id/mois` — liste des 12 derniers mois
+- `GET /gardes/:id/mois/:annee/:mois` — détail d'un mois
+- `POST /gardes/:id/mois/:annee/:mois/calculer` — calculer (formule Cour de cassation)
+- `POST /gardes/:id/mois/:annee/:mois/valider` — valider (famille A ou B)
+- `POST /gardes/:id/mois/:annee/:mois/devalider` — dévalider
+
+### Événements
+- `POST /gardes/:id/mois/:annee/:mois/evenements` — ajouter
+- `DELETE /gardes/:id/mois/:annee/:mois/evenements/:evtId` — supprimer
+
+### Congés payés
+- `GET /gardes/:id/cp` — solde + config CP
+- `POST /gardes/:id/cp/configurer` — configurer (mode, joursParMois, joursParAn, dateDebutAnnee, joursConsommes)
+
+### Lien public
+- `GET /public/:token` — vue publique (sans auth)
+
+---
+
+## 6. Conventions de code
+
+### Backend
+- Toujours wrapper `findOuCreer()` dans un try/catch → retourner 422 si pas de modèle actif
+- Ne jamais retourner `findComplet()` directement — spreader `complet.garde` et ajouter `familles`, `nounou`, `enfants`, `modele` explicitement
+- Toujours échapper les apostrophes dans les strings JS : `l\'onboarding` pas `l'onboarding`
+
+### Frontend
+- Toujours utiliser les méthodes de `js/api.js` (jamais de fetch direct avec localhost:3000)
+- `API_BASE` est exporté depuis `js/api.js` pour les fetch directs exceptionnels
+- Ne jamais utiliser `toISOString()` pour afficher des dates → utiliser `getFullYear/getMonth/getDate` (bug timezone UTC+1/+2)
+- Ne jamais déclarer deux fois la même variable `const` dans le même scope
+- Éviter les backticks imbriqués dans les template literals → utiliser la concaténation `+` à la place
+
+### Avant tout commit
+```bash
+# Vérifier la syntaxe JS de chaque fichier HTML modifié :
+node --check fichier.js
+# Pour les scripts dans HTML, extraire et tester :
+node --check script_extrait.mjs
+
+# Vérifier que toutes les méthodes repo appelées dans routes.js existent :
+# grep les appels repo.methode() et vérifier leur présence dans repositories.js
+```
+
+---
+
+## 7. État du déploiement
+
+### Variables Railway (nannypay-back)
+- `JWT_SECRET` — secret JWT
+- `PORT=8080`
+- `DB_PATH=/app/data/nounoulink.db`
+- Volume `nannypay-data` (1GB) monté sur `/app/data` — SQLite persiste entre déploiements
+
+### Tests moteur
+- 45/45 tests passent — **ne pas casser les tests**
+- Commande : `node --experimental-sqlite run-tests.mjs`
+
+---
+
+## 8. Chemin critique MVP (priorités)
+
+### P0 — Bloquant pour le use case central
+1. **Invitation Famille B** — `invitation_token_b` existe en base, il manque la page `/rejoindre.html` et le flow d'onboarding simplifié pour la Famille B
+2. **Onboarding Famille B** — quand elle clique le lien, créer un compte et rejoindre la garde en une étape
+
+### P1 — Important pour la promesse produit
+3. **Validation à 3** — aujourd'hui seules les 2 familles valident. La nounou devrait aussi valider via le lien public
+4. **Déduction CP automatique** — les CP pris ne sont pas déduits automatiquement depuis les événements `conge_paye` des mois calculés (déduction manuelle pour l'instant)
+
+### P2 — Différable
+5. **Email de notification** — remplacé par lien manuel pour le MVP
+6. **Fusion garde.html + mois.html** — UX meilleure mais risque de régression élevé, à faire en V2
+
+---
+
+## 9. Bugs connus / à ne pas recasser
+
+- **Timezone** : ne jamais utiliser `toISOString()` pour formater des dates affichées → décalage +1 jour en UTC+1/+2
+- **findComplet spread** : `gardeRepo.findComplet()` retourne `{garde, familles, nounou, enfants, modele}` — toujours spreader `...complet.garde` explicitement
+- **Heures sup double comptage** : quand la formule Cour de cassation s'applique, mettre `hSup25=0` et `hSup50=0` après calcul
+- **nom_affiche famille** : le champ s'appelle `nom_affiche` (pas `nom`) dans la table familles
+- **Plages horaires** : les champs s'appellent `heure_debut` et `heure_fin` (pas `debut`/`fin`)
+
+---
+
+## 10. Bugs ouverts ce jour (29 mars 2026)
+
+- [ ] Modification noms des familles dans `garde.html` ne fonctionne pas — `familleRepo.updateNom()` existe mais le flow frontend/backend à vérifier
+- [ ] Modification nom de la nounou depuis `garde.html` — pas encore implémenté dans la modale Modifier
+
+---
+
+*Dernière mise à jour : 29 mars 2026 — session Claude.ai*
