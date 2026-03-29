@@ -33,6 +33,10 @@
     .garde-card-mois { font-size:12px; color:var(--dust); }
     .garde-card-mois strong { color:var(--ink); font-size:14px; }
     .garde-card-status { font-size:11px; padding:2px 8px; border-radius:20px; }
+    .garde-card-status.status-archivee { background:#f5f5f5; color:#757575; }
+    .filter-bar { display:flex; gap:8px; margin-bottom:16px; }
+    .filter-btn { padding:5px 14px; border-radius:20px; border:1.5px solid var(--line); background:#fff; font-size:12px; cursor:pointer; font-family:'DM Sans',sans-serif; color:var(--dust); transition:all .15s; }
+    .filter-btn.active { border-color:var(--sage); background:var(--sage-light); color:var(--sage); font-weight:500; }
     .status-active { background:var(--sage-light); color:var(--sage); }
     .status-pending { background:var(--warn-light); color:var(--warn); }
 
@@ -109,7 +113,12 @@
       <span style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.08em">Mes gardes</span>
     </div>
 
-    <div class="garde-grid" id="garde-grid">
+    <div class="filter-bar">
+        <button class="filter-btn active" id="filter-active" onclick="setFilter('active',this)">Actives</button>
+        <button class="filter-btn" id="filter-archivee" onclick="setFilter('archivee',this)">Archivées</button>
+        <button class="filter-btn" id="filter-all" onclick="setFilter('all',this)">Toutes</button>
+      </div>
+      <div class="garde-grid" id="garde-grid">
       <!-- Skeleton loading -->
       <div style="background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:20px">
         <div class="skeleton" style="height:16px;width:70%;margin-bottom:10px"></div>
@@ -165,21 +174,10 @@ async function load() {
     const now = new Date();
     const annee = now.getFullYear();
     const moisNum = now.getMonth() + 1;
-
-    document.getElementById('garde-grid').innerHTML = mesGardes.map(g => `
-      <a class="garde-card" href="/mois.html?garde=${g.id}&annee=${annee}&mois=${moisNum}">
-        <div class="garde-card-top">
-          <div class="garde-card-name">${g.nom}</div>
-          <div class="garde-card-meta">
-            Depuis le ${formatDate(g.date_debut)}<br>
-            Mode : ${g.mode_calcul === 'mensualise' ? 'Mensualisation' : 'Réel des heures'}
-          </div>
-        </div>
-        <div class="garde-card-bottom">
-          <span class="garde-card-mois">Mois en cours → <strong>${moisLabel(annee, moisNum)}</strong></span>
-          <span class="garde-card-status status-active">Active</span>
-        </div>
-      </a>`).join('');
+    window._allGardes = mesGardes;
+    window._annee = annee;
+    window._moisNum = moisNum;
+    renderGardes(mesGardes, annee, moisNum);
 
     // Section mois en cours pour la première garde
     if (mesGardes.length > 0) {
@@ -192,6 +190,45 @@ async function load() {
     document.getElementById('garde-grid').innerHTML = `<div style="color:var(--red);font-size:13px">Erreur : ${err.message}</div>`;
   }
 }
+
+function renderGardes(mesGardes, annee, moisNum) {
+  const filtre = window._filtre || 'active';
+  const filtrees = mesGardes.filter(g => {
+    if (filtre === 'active')   return g.statut !== 'archivee';
+    if (filtre === 'archivee') return g.statut === 'archivee';
+    return true;
+  });
+  if (filtrees.length === 0) {
+    document.getElementById('garde-grid').innerHTML = `<div class="empty-state" style="grid-column:1/-1;padding:40px 20px;text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">${filtre === 'archivee' ? '📦' : '🏠'}</div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:6px">${filtre === 'archivee' ? 'Aucune garde archivée' : 'Aucune garde active'}</div>
+    </div>`;
+    return;
+  }
+  document.getElementById('garde-grid').innerHTML = filtrees.map(g => {
+    const isArchivee = g.statut === 'archivee';
+    return `<a class="garde-card" href="/garde.html?id=${g.id}" style="${isArchivee ? 'opacity:.65' : ''}">
+      <div class="garde-card-top">
+        <div class="garde-card-name">${g.nom}</div>
+        <div class="garde-card-meta">
+          Depuis le ${formatDate(g.date_debut)}<br>
+          Mode : ${g.mode_calcul === 'mensualise' ? 'Mensualisation' : 'Réel des heures'}
+        </div>
+      </div>
+      <div class="garde-card-bottom">
+        <span class="garde-card-mois">Mois en cours → <strong>${moisLabel(annee, moisNum)}</strong></span>
+        <span class="garde-card-status ${isArchivee ? 'status-archivee' : 'status-active'}">${isArchivee ? 'Archivée' : 'Active'}</span>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+window.setFilter = function(filtre, btn) {
+  window._filtre = filtre;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGardes(window._allGardes, window._annee, window._moisNum);
+};
 
 async function chargerMoisEnCours(mesGardes, annee, moisNum) {
   const section = document.getElementById('mois-section');
