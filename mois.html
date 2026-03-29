@@ -543,9 +543,8 @@ window.selectEvtType = function(type, btn) {
 window.supprimerEvt = async function(evtId) {
   if (!confirm('Supprimer cet événement ?')) return;
   try {
-    await fetch(`${API_BASE}/gardes/${gardeId}/mois/${annee}/${moisNum}/evenements/${evtId}`, {
-      method:'DELETE', headers:{ 'Authorization':'Bearer '+localStorage.getItem('nl_token') }
-    });
+    await moisAPI.supprimerEvenement(gardeId, annee, moisNum, evtId);
+    closeModalDirect();
     chargerMois();
   } catch(e) { alert('Erreur : ' + e.message); }
 };
