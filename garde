@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nounoulink — Détail garde</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { background: var(--paper); font-family: 'DM Sans', sans-serif; }
+    .page { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+    .back { font-size: 13px; color: var(--dust); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-bottom: 24px; }
+    .back:hover { color: var(--ink); }
+
+    .garde-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; gap: 16px; }
+    .garde-title { font-size: 26px; font-weight: 500; margin: 0 0 4px; }
+    .garde-meta { font-size: 13px; color: var(--dust); }
+    .badge-statut { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+    .badge-active   { background: #e8f5e9; color: #2e7d32; }
+    .badge-archivee { background: #f5f5f5; color: #757575; }
+
+    .actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .btn-edit    { padding: 8px 16px; border-radius: 8px; border: 1.5px solid var(--line); background: #fff; font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+    .btn-edit:hover { border-color: var(--sage); color: var(--sage); }
+    .btn-archive { padding: 8px 16px; border-radius: 8px; border: 1.5px solid var(--line); background: #fff; font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; color: var(--dust); }
+    .btn-archive:hover { border-color: #e74c3c; color: #e74c3c; }
+
+    .section { background: #fff; border: 1.5px solid var(--line); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+    .section-title { font-size: 11px; font-weight: 500; color: var(--dust); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: .5px solid var(--line); font-size: 14px; }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: var(--dust); font-size: 13px; }
+
+    .parties-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .partie-card { border: 1.5px solid var(--line); border-radius: 10px; padding: 14px; }
+    .partie-initiales { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 14px; margin-bottom: 8px; }
+    .partie-nom { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+    .partie-sub { font-size: 12px; color: var(--dust); }
+    .partie-badge { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 10px; font-size: 10px; }
+    .badge-prop { background: #e8f5e9; color: #2e7d32; }
+    .badge-invite { background: #fff3e0; color: #e65100; }
+
+    /* MODAL ÉDITION */
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; align-items: center; justify-content: center; }
+    .modal-bg.open { display: flex; }
+    .modal { background: #fff; border-radius: 12px; padding: 28px; width: min(480px, 92vw); max-height: 90vh; overflow-y: auto; }
+    .modal h3 { margin: 0 0 20px; font-size: 17px; }
+    .modal .field { margin-bottom: 14px; }
+    .modal label { font-size: 12px; color: var(--dust); display: block; margin-bottom: 4px; }
+    .modal input { width: 100%; padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; box-sizing: border-box; }
+    .modal input:focus { outline: none; border-color: var(--sage); }
+    .modal input:disabled { background: var(--paper); color: var(--dust); cursor: not-allowed; }
+    .modal-restriction { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #795548; margin-bottom: 16px; }
+    .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+    .btn-cancel { padding: 9px 18px; border-radius: 8px; border: 1.5px solid var(--line); background: #fff; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; }
+    .btn-save { padding: 9px 20px; border-radius: 8px; border: none; background: var(--sage); color: #fff; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; }
+
+    .btn-mois { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; background: var(--sage); color: #fff; text-decoration: none; font-size: 13px; font-weight: 500; margin-top: 4px; }
+    .btn-mois:hover { opacity: .9; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <a href="/dashboard.html" class="back">← Retour au dashboard</a>
+
+  <div class="garde-header">
+    <div>
+      <h1 class="garde-title" id="garde-nom">—</h1>
+      <div class="garde-meta" id="garde-meta">—</div>
+      <span class="badge-statut badge-active" id="garde-badge" style="margin-top:6px">Active</span>
+    </div>
+    <div class="actions">
+      <button class="btn-edit" onclick="ouvrirModal()">✏️ Modifier</button>
+      <button class="btn-archive" id="btn-archive" onclick="toggleArchive()">Archiver</button>
+    </div>
+  </div>
+
+  <!-- Accès mois en cours -->
+  <div class="section" style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:14px;font-weight:500">Mois en cours</div>
+      <div style="font-size:12px;color:var(--dust)" id="mois-label">—</div>
+    </div>
+    <a id="lien-mois" href="#" class="btn-mois">Ouvrir →</a>
+  </div>
+
+  <!-- Parties -->
+  <div class="section">
+    <div class="section-title">Les trois parties</div>
+    <div class="parties-grid" id="parties-grid">—</div>
+  </div>
+
+  <!-- Configuration -->
+  <div class="section">
+    <div class="section-title">Configuration</div>
+    <div class="info-row"><span class="info-label">Mode de calcul</span><span id="cfg-mode">—</span></div>
+    <div class="info-row"><span class="info-label">Date de début</span><span id="cfg-debut">—</span></div>
+    <div class="info-row"><span class="info-label">Taux horaire net</span><span id="cfg-taux">—</span></div>
+    <div class="info-row"><span class="info-label">Heures / semaine</span><span id="cfg-heures">—</span></div>
+    <div class="info-row"><span class="info-label">Répartition</span><span id="cfg-rep">—</span></div>
+  </div>
+</div>
+
+<!-- MODAL ÉDITION -->
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)fermerModal()">
+  <div class="modal">
+    <h3 id="modal-title">Modifier la garde</h3>
+    <div class="modal-restriction" id="modal-restriction" style="display:none">
+      ⚠ Un mois a déjà été validé. Seuls le nom et les contacts sont modifiables.
+    </div>
+
+    <div class="field">
+      <label>Nom de la garde</label>
+      <input type="text" id="edit-nom">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field">
+        <label>Nom Famille A</label>
+        <input type="text" id="edit-nom-a">
+      </div>
+      <div class="field">
+        <label>Email Famille A</label>
+        <input type="email" id="edit-email-a">
+      </div>
+      <div class="field">
+        <label>Nom Famille B</label>
+        <input type="text" id="edit-nom-b">
+      </div>
+      <div class="field">
+        <label>Email Famille B</label>
+        <input type="email" id="edit-email-b">
+      </div>
+    </div>
+
+    <div id="edit-avance" style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px">
+      <div style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Paramètres avancés</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field">
+          <label>Mode de calcul</label>
+          <select id="edit-mode" style="width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px">
+            <option value="mensualise">Mensualisation</option>
+            <option value="reel">Réel des heures</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Date de début</label>
+          <input type="date" id="edit-debut">
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="fermerModal()">Annuler</button>
+      <button class="btn-save" onclick="sauvegarder()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireLogin, gardes, API_BASE } from './js/api.js';
+requireLogin();
+
+const params  = new URLSearchParams(location.search);
+const gardeId = params.get('id');
+if (!gardeId) location.href = '/dashboard.html';
+
+let gardeData     = null;
+let hasValidated  = false;
+let familles      = [];
+
+async function charger() {
+  try {
+    gardeData = await gardes.get(gardeId);
+    hasValidated = gardeData.hasValidatedMois || false;
+    familles = gardeData.familles || [];
+    afficher();
+  } catch(e) {
+    alert('Erreur chargement : ' + e.message);
+    location.href = '/dashboard.html';
+  }
+}
+
+function afficher() {
+  const g = gardeData;
+  document.getElementById('garde-nom').textContent  = g.nom;
+  document.getElementById('garde-meta').textContent = `Depuis le ${fmt_date(g.date_debut)} · Mode : ${g.mode_calcul === 'mensualise' ? 'Mensualisation' : 'Réel'}`;
+
+  const badge = document.getElementById('garde-badge');
+  const isArchivee = g.statut === 'archivee';
+  badge.textContent = isArchivee ? 'Archivée' : 'Active';
+  badge.className   = 'badge-statut ' + (isArchivee ? 'badge-archivee' : 'badge-active');
+  document.getElementById('btn-archive').textContent = isArchivee ? '♻ Désarchiver' : 'Archiver';
+
+  // Mois en cours
+  const now = new Date();
+  const moisNum = now.getMonth() + 1;
+  const annee   = now.getFullYear();
+  const MOIS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  document.getElementById('mois-label').textContent = `${MOIS[moisNum-1]} ${annee}`;
+  document.getElementById('lien-mois').href = `/mois.html?garde=${gardeId}&annee=${annee}&mois=${moisNum}`;
+
+  // Parties
+  const famA = familles.find(f => f.label === 'A');
+  const famB = familles.find(f => f.label === 'B');
+  const nounou = g.nounou;
+  document.getElementById('parties-grid').innerHTML = `
+    ${partieCard(famA?.nom_affiche || 'Famille A', 'Famille A', famA?.statut_acces === 'proprietaire' ? 'Propriétaire' : 'Invitée', '#1565c0', '#e3f2fd', 'prop')}
+    ${partieCard(famB?.nom_affiche || 'Famille B', 'Co-famille', famB?.utilisateur_id ? 'Active' : 'Pas encore invitée', '#2e7d32', '#e8f5e9', famB?.utilisateur_id ? 'prop' : 'invite')}
+    ${partieCard(nounou ? `${nounou.prenom} ${nounou.nom}` : '—', 'Nounou', 'Garde à domicile', '#e65100', '#fff3e0', 'prop')}
+  `;
+
+  // Config
+  const modele = g.modele;
+  document.getElementById('cfg-mode').textContent   = g.mode_calcul === 'mensualise' ? 'Mensualisation' : 'Réel des heures';
+  document.getElementById('cfg-debut').textContent  = fmt_date(g.date_debut);
+  document.getElementById('cfg-taux').textContent   = modele ? modele.taux_horaire_net + ' €/h net' : '—';
+  document.getElementById('cfg-heures').textContent = modele ? modele.h_normales_semaine + 'h/sem' : '—';
+  const repA = modele ? Math.round((modele.repartition_appliquee_a || 0.5) * 100) : 50;
+  document.getElementById('cfg-rep').textContent    = `Famille A ${repA}% · Famille B ${100-repA}%`;
+}
+
+function partieCard(nom, role, statut, couleur, bg, type) {
+  return `<div class="partie-card">
+    <div class="partie-initiales" style="background:${bg};color:${couleur}">${(nom||'?')[0].toUpperCase()}</div>
+    <div class="partie-nom">${nom}</div>
+    <div class="partie-sub">${role}</div>
+    <span class="partie-badge ${type === 'prop' ? 'badge-prop' : 'badge-invite'}">${statut}</span>
+  </div>`;
+}
+
+function fmt_date(d) {
+  if (!d) return '—';
+  const [y,m,j] = d.split('-');
+  return `${j}/${m}/${y}`;
+}
+
+// ── ARCHIVER ──────────────────────────────────────────────────────────────
+window.toggleArchive = async function() {
+  const isArchivee = gardeData.statut === 'archivee';
+  const msg = isArchivee
+    ? 'Désarchiver cette garde ?'
+    : 'Archiver cette garde ? Elle n\'apparaîtra plus sur le dashboard par défaut.';
+  if (!confirm(msg)) return;
+  try {
+    const endpoint = isArchivee ? 'desarchiver' : 'archiver';
+    const res = await fetch(`${API_BASE}/gardes/${gardeId}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('nl_token') }
+    });
+    const data = await res.json();
+    gardeData = { ...gardeData, statut: data.garde.statut };
+    afficher();
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
+
+// ── MODAL ÉDITION ─────────────────────────────────────────────────────────
+window.ouvrirModal = function() {
+  const g = gardeData;
+  const famA = familles.find(f => f.label === 'A');
+  const famB = familles.find(f => f.label === 'B');
+
+  document.getElementById('edit-nom').value     = g.nom || '';
+  document.getElementById('edit-nom-a').value   = famA?.nom_affiche || '';
+  document.getElementById('edit-email-a').value = famA?.email_contact || '';
+  document.getElementById('edit-nom-b').value   = famB?.nom_affiche || '';
+  document.getElementById('edit-email-b').value = famB?.email_contact || '';
+  document.getElementById('edit-debut').value   = g.date_debut || '';
+  document.getElementById('edit-mode').value    = g.mode_calcul || 'mensualise';
+
+  // Restriction si mois validé
+  document.getElementById('modal-restriction').style.display = hasValidated ? '' : 'none';
+  document.getElementById('edit-avance').style.display = hasValidated ? 'none' : '';
+  document.getElementById('edit-debut').disabled   = hasValidated;
+  document.getElementById('edit-mode').disabled    = hasValidated;
+
+  document.getElementById('modal-bg').classList.add('open');
+};
+
+window.fermerModal = function() {
+  document.getElementById('modal-bg').classList.remove('open');
+};
+
+window.sauvegarder = async function() {
+  const body = {
+    nom:         document.getElementById('edit-nom').value.trim(),
+    nomFamilleA: document.getElementById('edit-nom-a').value.trim(),
+    emailFamilleA: document.getElementById('edit-email-a').value.trim(),
+    nomFamilleB: document.getElementById('edit-nom-b').value.trim(),
+    emailFamilleB: document.getElementById('edit-email-b').value.trim(),
+  };
+  if (!hasValidated) {
+    body.date_debut  = document.getElementById('edit-debut').value;
+    body.mode_calcul = document.getElementById('edit-mode').value;
+  }
+  if (!body.nom) return alert('Le nom est requis.');
+
+  try {
+    const res = await fetch(`${API_BASE}/gardes/${gardeId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('nl_token'), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) return alert(data.error);
+    await charger();
+    fermerModal();
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
+
+
+charger();
+</script>
+</body>
+</html>
