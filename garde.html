@@ -556,16 +556,6 @@ window.ouvrirModal = function() {
   document.getElementById('edit-debut').value   = g.date_debut || '';
   document.getElementById('edit-mode').value    = g.mode_calcul || 'mensualise';
 
-  // Prénoms des enfants
-  const enfantsModal = gardeData.enfants || [];
-  document.getElementById('edit-enfants-list').innerHTML = enfants.map(e => `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <div style="font-size:12px;color:var(--dust);width:70px;flex-shrink:0">Famille ${(e.fam||'').toUpperCase()}</div>
-      <input type="text" data-enfant-id="${e.id}" value="${e.prenom || ''}"
-        placeholder="Prénom"
-        style="flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px">
-    </div>`).join('');
-
   // Restriction si mois validé
   document.getElementById('modal-restriction').style.display = hasValidated ? '' : 'none';
   document.getElementById('edit-avance').style.display = hasValidated ? 'none' : '';
@@ -573,10 +563,10 @@ window.ouvrirModal = function() {
   document.getElementById('edit-mode').disabled    = hasValidated;
 
   // Bug 4 : remplir la liste des enfants modifiables
-  const enfants = gardeData.enfants || [];
-  document.getElementById('edit-enfants-list').innerHTML = enfants.length === 0
+  const enfantsEdit = gardeData.enfants || [];
+  document.getElementById('edit-enfants-list').innerHTML = enfantsEdit.length === 0
     ? '<span style="font-size:12px;color:var(--dust)">Aucun enfant</span>'
-    : enfants.map(e => `
+    : enfantsEdit.map(e => `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <input type="text" data-enfant-id="${e.id}" value="${e.prenom}"
             placeholder="Prénom"
