@@ -386,20 +386,21 @@ function renderCalendrier() {
 function renderJour(j) {
   if (!j) return `<div class="jour-cell weekend" style="background:#f5f4f2"></div>`;
 
-  // Format YYYY-MM-DD sans conversion UTC (évite décalage timezone UTC+1/+2)
-  const yy = j.getFullYear(), mm = String(j.getMonth()+1).padStart(2,'0'), dd = String(j.getDate()).padStart(2,'0');
-  const dateStr = `${yy}-${mm}-${dd}`;
-  const now_ = new Date();
-  const todayStr = `${now_.getFullYear()}-${String(now_.getMonth()+1).padStart(2,'0')}-${String(now_.getDate()).padStart(2,'0')}`;
+  const dateStr  = j.toISOString().slice(0,10);
   const isFerie  = FERIES_FR.includes(dateStr);
-  const isToday  = dateStr === todayStr;
+  const isToday  = dateStr === new Date().toISOString().slice(0,10);
   const evtsDuJour = evenements.filter(e => e.date_debut <= dateStr && e.date_fin >= dateStr);
   const dateNum  = j.getDate();
 
   const chips = evtsDuJour.map(e => {
     const classes = { conge_paye:'evt-cp', maladie_nounou:'evt-mal', ferie:'evt-ferie', absence_famille_a:'evt-abs-a', absence_famille_b:'evt-abs-b' };
     const labels  = { conge_paye:'CP', maladie_nounou:'Maladie', ferie:'Férié', absence_famille_a:'Abs. A', absence_famille_b:'Abs. B' };
-    return `<div class="evt-chip ${classes[e.type]||''}">${labels[e.type]||e.type}</div>`;
+    return `<div class="evt-chip ${classes[e.type]||''}" style="gap:4px">
+      <span>${labels[e.type]||e.type}</span>
+      <span onclick="event.stopPropagation();supprimerEvt('${e.id}')"
+            style="cursor:pointer;opacity:.5;font-size:8px;line-height:1;padding:0 1px;flex-shrink:0"
+            title="Supprimer">✕</span>
+    </div>`;
   }).join('');
 
   const ferieChip = isFerie ? `<div class="evt-chip evt-ferie">Férié</div>` : '';
@@ -487,13 +488,6 @@ window.navMois = function(dir) {
 
 // ─── MODAL ÉVÉNEMENT ──────────────────────────────────────────────
 window.ouvrirJour = function(date) {
-  // Vérifier si ce jour a déjà un événement
-  const existant = evenements.find(e => e.date_debut <= date && e.date_fin >= date);
-  if (existant) {
-    const labels = { conge_paye:'Congé payé', maladie_nounou:'Maladie', ferie:'Férié',
-                     absence_famille_a:'Absence Fam. A', absence_famille_b:'Absence Fam. B' };
-    if (!confirm(`Ce jour a déjà un événement (${labels[existant.type]||existant.type}).\nAjouter quand même ?`)) return;
-  }
   document.getElementById('evt-debut').value = date;
   document.getElementById('evt-fin').value   = date;
   document.getElementById('modal-bg').classList.add('open');
@@ -531,6 +525,15 @@ window.saveEvenement = async function() {
   const fin    = document.getElementById('evt-fin').value;
   const note   = document.getElementById('evt-note').value;
   if (!debut || !fin) return alert('Dates requises.');
+  if (debut > fin) return alert('La date de fin doit être après la date de début.');
+
+  // Bloquer si chevauchement avec un événement existant
+  const conflit = evenements.find(e => !(e.date_fin < debut || e.date_debut > fin));
+  if (conflit) {
+    const labels = { conge_paye:'Congé payé', maladie_nounou:'Maladie', ferie:'Férié',
+                     absence_famille_a:'Absence Fam. A', absence_famille_b:'Absence Fam. B' };
+    return alert(`Conflit avec "${labels[conflit.type]||conflit.type}" (${conflit.date_debut} → ${conflit.date_fin}).\nSupprimez-le d'abord.`);
+  }
 
   // Calcul nb jours ouvrables
   let nb = 0, cur = new Date(debut);
@@ -586,9 +589,9 @@ function afficherSnapshot(res) {
 
   // Calcul lignes
   const modele = gardeData?.modele;
-  const nav    = modele ? modele.navigo_montant * 0.5 : 0;
-  const repA   = rA.virement - (rA.sal_net||0) - nav;
-  const repB   = rB.virement - (rB.sal_net||0) - nav;
+  const nav    = rA.navigo ?? (modele ? modele.navigo_montant * 0.5 : 0);
+  const repA   = rA.panier_repas ?? (rA.virement - (rA.sal_net||0) - (rA.exo_cotisations||0) - nav);
+  const repB   = rB.panier_repas ?? (rB.virement - (rB.sal_net||0) - (rB.exo_cotisations||0) - nav);
 
   set('r-sal-a', fmt(rA.sal_net||0));
   set('r-nav-a', nav > 0 ? fmt(nav) : '—');
