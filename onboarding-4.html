@@ -21,7 +21,7 @@
     .planning-card.fam-a { border-top: 3px solid var(--blue); }
     .planning-card.fam-b { border-top: 3px solid var(--sage); }
     .jours-grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .jours-grid { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); }
+    .jours-grid { display: grid; grid-template-columns: repeat(5, minmax(210px, 1fr)); }
     .jour-col { border-right:.5px solid var(--line); }
     .jour-col:last-child { border-right:none; }
 
@@ -32,16 +32,16 @@
     .btn-coller { width:100%; font-size:9px; color:#fff; background:var(--sage); border:none; border-radius:4px; cursor:pointer; padding:3px 4px; font-family:'DM Sans',sans-serif; margin-top:4px; transition:opacity .15s; }
     .btn-coller:hover { opacity:.85; }
     .jour-hdr { padding:8px 4px; text-align:center; font-size:10px; font-weight:500; color:var(--dust); text-transform:uppercase; letter-spacing:.06em; background:var(--paper); border-bottom:.5px solid var(--line); }
-    .jour-body { padding:6px; min-height:88px; display:flex; flex-direction:column; gap:4px; }
+    .jour-body { padding:8px; min-height:88px; display:flex; flex-direction:column; gap:4px; }
     .jour-body.inactive { background:var(--paper); opacity:.5; }
 
     .jour-toggle-row { display:flex; justify-content:center; margin-bottom:4px; }
 
-    .plage { display:flex; align-items:center; gap:2px; border-radius:6px; padding:3px 4px; font-size:10px; }
+    .plage { display:flex; align-items:center; gap:4px; border-radius:6px; padding:5px 6px; font-size:13px; }
     .plage.a { background:var(--blue-light); }
     .plage.b { background:var(--sage-light); }
-    .plage input[type=time] { width:48px; border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:10px; color:var(--ink); outline:none; padding:1px; }
-    .plage-sep { color:var(--dust); font-size:9px; }
+    .plage input[type=time] { width:90px; border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:13px; color:var(--ink); outline:none; padding:2px; }
+    .plage-sep { color:var(--dust); font-size:12px; }
     .plage-del { font-size:9px; color:var(--dust); cursor:pointer; padding:0 2px; opacity:0; transition:opacity .15s; flex-shrink:0; border:none; background:none; }
     .plage:hover .plage-del { opacity:1; }
 
