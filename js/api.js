@@ -91,6 +91,15 @@ export const mois = {
 
 // ─── LIEN PUBLIC ──────────────────────────────────────────────────────────────
 
+export const cp = {
+  async get(gardeId) {
+    return call('GET', `/gardes/${gardeId}/cp`);
+  },
+  async configurer(gardeId, data) {
+    return call('POST', `/gardes/${gardeId}/cp/configurer`, data);
+  },
+};
+
 export const public_ = {
   async get(token) {
     return callPublic('GET', `/public/${token}`);
