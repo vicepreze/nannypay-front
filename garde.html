@@ -96,6 +96,18 @@
     <div class="parties-grid" id="parties-grid">—</div>
   </div>
 
+  <!-- Enfants -->
+  <div class="section" id="section-enfants">
+    <div class="section-title">Enfants</div>
+    <div id="enfants-list">—</div>
+  </div>
+
+  <!-- Enfants -->
+  <div class="section" id="section-enfants" style="display:none">
+    <div class="section-title">Enfants</div>
+    <div id="enfants-list"></div>
+  </div>
+
   <!-- Configuration -->
   <div class="section">
     <div class="section-title">Configuration</div>
@@ -184,6 +196,16 @@
       </div>
     </div>
 
+    <div style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px;margin-bottom:4px">
+      <div style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Enfants</div>
+      <div id="edit-enfants-list"></div>
+    </div>
+
+    <div id="edit-enfants-section" style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px">
+      <div style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Prénoms des enfants</div>
+      <div id="edit-enfants-list"></div>
+    </div>
+
     <div id="edit-avance" style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px">
       <div style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Paramètres avancés</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -243,12 +265,14 @@ function previewCP() {
     const j = parseFloat(document.getElementById('cp-jours-par-mois').value) || 2.5;
     acquis = Math.round(j * moisEcoules * 10) / 10;
   } else {
-    const j = parseFloat(document.getElementById('cp-jours-par-an').value) || 25;
-    acquis = Math.round((j/12) * moisEcoules * 10) / 10;
+    // Quota fixe annuel — disponible en totalité dès le début du cycle
+    acquis = parseFloat(document.getElementById('cp-jours-par-an').value) || 25;
   }
   const pris = parseInt(document.getElementById('cp-jours-consommes').value) || 0;
-  document.getElementById('cp-preview').textContent =
-    `${moisEcoules} mois écoulés → ${acquis} jours acquis − ${pris} pris = ${Math.round((acquis-pris)*10)/10} restants`;
+  const preview = cpMode === 'par_mois'
+    ? `${moisEcoules} mois écoulés → ${acquis} j acquis − ${pris} pris = ${Math.round((acquis-pris)*10)/10} restants`
+    : `Quota annuel fixe : ${acquis} j disponibles − ${pris} pris = ${Math.round((acquis-pris)*10)/10} restants`;
+  document.getElementById('cp-preview').textContent = preview;
 }
 
 window.ouvrirModalCP = function() {
@@ -285,6 +309,42 @@ document.addEventListener('DOMContentLoaded', () => {
   ['cp-jours-par-mois','cp-jours-par-an','cp-date-debut','cp-jours-consommes']
     .forEach(id => document.getElementById(id)?.addEventListener('input', previewCP));
 });
+
+function afficherEnfants(enfants, modele) {
+  if (!enfants || !enfants.length) return;
+  const section = document.getElementById('section-enfants');
+  section.style.display = '';
+  const jours = modele?.jours || [];
+
+  // Calculer h/sem par enfant depuis les jours du modèle
+  function hSemEnfant(enfantId) {
+    const joursEnf = jours.filter(j => j.enfant_id === enfantId && j.actif);
+    if (!joursEnf.length) return null;
+    let total = 0;
+    joursEnf.forEach(j => {
+      (j.plages || []).forEach(p => {
+        const [h1,m1] = (p.debut || p.heure_debut || '0:0').split(':').map(Number);
+        const [h2,m2] = (p.fin   || p.heure_fin  || '0:0').split(':').map(Number);
+        total += Math.max(0, (h2*60+m2 - h1*60-m1)/60);
+      });
+    });
+    return Math.round(total * 10) / 10;
+  }
+
+  document.getElementById('enfants-list').innerHTML = enfants.map(e => {
+    const h = hSemEnfant(e.id);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--line)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:30px;height:30px;border-radius:50%;background:var(--${e.fam==='a'?'blue':'sage'}-light);color:var(--${e.fam==='a'?'blue':'sage'});display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500">${(e.prenom||'?')[0].toUpperCase()}</div>
+        <div>
+          <div style="font-size:14px;font-weight:500">${e.prenom}</div>
+          <div style="font-size:11px;color:var(--dust)">Famille ${(e.fam||'').toUpperCase()}</div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--dust)">${h !== null ? h + 'h/sem' : '—'}</div>
+    </div>`;
+  }).join('');
+}
 
 function afficherCP(solde) {
   if (!solde) return;
@@ -390,6 +450,9 @@ function afficher() {
   document.getElementById('mois-label').textContent = `${MOIS[moisNum-1]} ${annee}`;
   document.getElementById('lien-mois').href = `/mois.html?garde=${gardeId}&annee=${annee}&mois=${moisNum}`;
 
+  // Enfants
+  afficherEnfants(gardeData.enfants || [], gardeData.modele);
+
   // Parties
   const famA = familles.find(f => f.label === 'A');
   const famB = familles.find(f => f.label === 'B');
@@ -404,10 +467,40 @@ function afficher() {
   const modele = g.modele;
   document.getElementById('cfg-mode').textContent   = g.mode_calcul === 'mensualise' ? 'Mensualisation' : 'Réel des heures';
   document.getElementById('cfg-debut').textContent  = fmt_date(g.date_debut);
-  document.getElementById('cfg-taux').textContent   = modele ? modele.taux_horaire_net + ' €/h net' : '—';
-  document.getElementById('cfg-heures').textContent = modele ? modele.h_normales_semaine + 'h/sem' : '—';
+  // Bug 5 : modele peut être null si onboarding incomplet — afficher — dans ce cas
+  document.getElementById('cfg-taux').textContent   = modele?.taux_horaire_net != null ? modele.taux_horaire_net + ' €/h net' : '—';
+  document.getElementById('cfg-heures').textContent = modele?.h_normales_semaine != null ? modele.h_normales_semaine + 'h/sem' : '—';
   const repA = modele ? Math.round((modele.repartition_appliquee_a || 0.5) * 100) : 50;
   document.getElementById('cfg-rep').textContent    = `Famille A ${repA}% · Famille B ${100-repA}%`;
+
+  // Bug 3 : afficher enfants + heures/semaine par enfant
+  const enfants = g.enfants || [];
+  const enfantsEl = document.getElementById('enfants-list');
+  if (enfants.length === 0) {
+    enfantsEl.innerHTML = '<span style="font-size:13px;color:var(--dust)">Aucun enfant configuré</span>';
+  } else {
+    // Calculer heures/sem par enfant depuis les jours du modèle
+    const jours = modele?.jours || [];
+    enfantsEl.innerHTML = enfants.map(e => {
+      const toMin = t => { const [h,m] = (t||'0:0').split(':').map(Number); return h*60+m; };
+      const hSem = jours
+        .filter(j => j.enfant_id === e.id && j.actif !== 0)
+        .reduce((s, j) => {
+          const hJour = (j.plages || []).reduce((ps, p) =>
+            ps + Math.max(0, (toMin(p.heure_fin) - toMin(p.heure_debut)) / 60), 0);
+          return s + hJour;
+        }, 0);
+      const hSemDisplay = hSem > 0 ? (Math.round(hSem * 10) / 10) + 'h/sem' : '—';
+      const famLabel = familles.find(f => f.id === e.famille_id)?.label || '?';
+      return \`<div class="info-row">
+        <span style="font-size:13px">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:\${famLabel==='A'?'var(--blue)':'var(--sage)'};margin-right:6px"></span>
+          \${e.prenom} <span style="font-size:11px;color:var(--dust)">· Famille \${famLabel}</span>
+        </span>
+        <span style="font-size:13px;color:var(--dust)">\${hSem > 0 ? hSem+'h/sem' : '—'}</span>
+      </div>\`;
+    }).join('');
+  }
 }
 
 function partieCard(nom, role, statut, couleur, bg, type) {
@@ -458,11 +551,33 @@ window.ouvrirModal = function() {
   document.getElementById('edit-debut').value   = g.date_debut || '';
   document.getElementById('edit-mode').value    = g.mode_calcul || 'mensualise';
 
+  // Prénoms des enfants
+  const enfants = gardeData.enfants || [];
+  document.getElementById('edit-enfants-list').innerHTML = enfants.map(e => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="font-size:12px;color:var(--dust);width:70px;flex-shrink:0">Famille ${(e.fam||'').toUpperCase()}</div>
+      <input type="text" data-enfant-id="${e.id}" value="${e.prenom || ''}"
+        placeholder="Prénom"
+        style="flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px">
+    </div>`).join('');
+
   // Restriction si mois validé
   document.getElementById('modal-restriction').style.display = hasValidated ? '' : 'none';
   document.getElementById('edit-avance').style.display = hasValidated ? 'none' : '';
   document.getElementById('edit-debut').disabled   = hasValidated;
   document.getElementById('edit-mode').disabled    = hasValidated;
+
+  // Bug 4 : remplir la liste des enfants modifiables
+  const enfants = gardeData.enfants || [];
+  document.getElementById('edit-enfants-list').innerHTML = enfants.length === 0
+    ? '<span style="font-size:12px;color:var(--dust)">Aucun enfant</span>'
+    : enfants.map(e => `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <input type="text" data-enfant-id="${e.id}" value="${e.prenom}"
+            placeholder="Prénom"
+            style="flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px">
+          <span style="font-size:11px;color:var(--dust);flex-shrink:0">Fam. ${familles.find(f=>f.id===e.famille_id)?.label||'?'}</span>
+        </div>`).join('');
 
   document.getElementById('modal-bg').classList.add('open');
 };
@@ -485,6 +600,18 @@ window.sauvegarder = async function() {
   }
   if (!body.nom) return alert('Le nom est requis.');
 
+  // Bug 4 : sauvegarder les prénoms des enfants modifiés
+  const enfantInputs = [...document.querySelectorAll('#edit-enfants-list input[data-enfant-id]')];
+  for (const inp of enfantInputs) {
+    const prenom = inp.value.trim();
+    const enfantId = inp.dataset.enfantId;
+    if (prenom) await fetch(`${API_BASE}/gardes/${gardeId}/enfants/${enfantId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('nl_token'), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prenom }),
+    }).catch(() => {});
+  }
+
   try {
     const res = await fetch(`${API_BASE}/gardes/${gardeId}`, {
       method: 'PUT',
@@ -493,6 +620,20 @@ window.sauvegarder = async function() {
     });
     const data = await res.json();
     if (data.error) return alert(data.error);
+
+    // Sauvegarder les prénoms des enfants
+    const inputs = document.querySelectorAll('#edit-enfants-list input[data-enfant-id]');
+    await Promise.all([...inputs].map(async input => {
+      const enfantId = input.dataset.enfantId;
+      const prenom   = input.value.trim();
+      if (!prenom) return;
+      await fetch(`${API_BASE}/gardes/${gardeId}/enfants/${enfantId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('nl_token'), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prenom }),
+      });
+    }));
+
     await charger();
     fermerModal();
   } catch(e) { alert('Erreur : ' + e.message); }
