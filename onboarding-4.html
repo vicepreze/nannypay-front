@@ -14,8 +14,22 @@
     .planning-header .ph-total { font-size:12px; color:var(--dust); }
     .planning-header .ph-total strong { font-size:14px; color:var(--ink); }
 
-    .jours-grid-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-    .jours-grid { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); min-width:650px; }
+    /* Grille pleine largeur — sort du max-width de ob-main */
+    .planning-zone-full {
+      margin-left: calc(-52px);
+      margin-right: calc(-52px);
+      padding-left: 52px;
+      padding-right: 52px;
+    }
+    .planning-card { margin-left: -52px; margin-right: -52px; border-radius: 0; border-left: none; border-right: none; }
+    .planning-card.fam-a { border-top: 3px solid var(--blue); }
+    .planning-card.fam-b { border-top: 3px solid var(--sage); }
+    .jours-grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .jours-grid { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); }
+    @media (max-width: 700px) {
+      .planning-card { margin-left: -20px; margin-right: -20px; }
+      .planning-zone-full { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
+    }
     .jour-col { border-right:.5px solid var(--line); }
     .jour-col:last-child { border-right:none; }
 
@@ -206,8 +220,6 @@ function renderGrid(eid, fam) {
         + `<button class="btn-add-plage" onclick="addPlage('${eid}',${i})">+ plage</button>`
         + `<div class="repas-row"><input type="checkbox" id="repas-${eid}-${i}" ${s.repas?'checked':''} onchange="updateRepas('${eid}',${i},this.checked)"><label for="repas-${eid}-${i}">Repas</label></div>`
       : '';
-    const isSource  = copySource?.eid === eid && copySource?.jour === i;
-    const canPaste  = copySource && copySource.eid === eid && copySource.jour !== i;
     return `
       <div class="jour-col">
         <div class="jour-hdr">${JOURS_LABELS[i]}</div>
@@ -220,41 +232,84 @@ function renderGrid(eid, fam) {
             </label>
           </div>
           ${plagesHTML}
-          ${canPaste
-            ? `<button class="btn-coller" onclick="collerJour('${eid}',${i})">⬇ Coller ici</button>`
-            : `<button class="btn-copier ${isSource?'source':''}" onclick="copierJour('${eid}',${i},this)">${isSource?'✕ Annuler':'⎘ Copier'}</button>`
-          }
+          <button class="btn-copier" onclick="copierJour('${eid}',${i})">⎘ Copier</button>
         </div>
       </div>`;
   }).join('');
 }
 
-// ─── COPIER / COLLER ─────────────────────────────────────────────────────────
-let copySource = null; // { eid, jour }
+// ─── COPIER / COLLER — MODAL ─────────────────────────────────────────────────
+let copySource = null; // { eid, jourIdx }
 
-window.copierJour = function(eid, jour, btn) {
-  if (copySource?.eid === eid && copySource?.jour === jour) {
-    copySource = null; // annuler
-  } else {
-    copySource = { eid, jour };
-  }
-  const fam = enfants.find(e=>(e.tempId||e.id)===eid)?.fam || 'a';
-  renderGrid(eid, fam);
+window.copierJour = function(eid, jourIdx) {
+  copySource = { eid, jourIdx };
+  const LABELS = ['Lun','Mar','Mer','Jeu','Ven'];
+
+  // Titre
+  document.getElementById('copy-modal-title').textContent =
+    'Copier les horaires de ' + ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'][jourIdx];
+
+  // Jours cibles — aucun pré-coché, source désactivé
+  const joursGrid = document.getElementById('copy-jours-grid');
+  joursGrid.innerHTML = LABELS.map((lbl, i) => `
+    <label style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:${i===jourIdx?'default':'pointer'}">
+      <input type="checkbox" data-jour="${i}" ${i===jourIdx?'disabled style="opacity:.3"':''}
+        style="width:16px;height:16px;accent-color:var(--sage);cursor:pointer">
+      <span style="font-size:11px;color:var(--dust)">${lbl}</span>
+    </label>`).join('');
+
+  // Enfants — tous pré-cochés
+  const enfantsGrid = document.getElementById('copy-enfants-grid');
+  enfantsGrid.innerHTML = enfants.map(e => `
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 8px;border-radius:6px;border:1px solid var(--line)">
+      <input type="checkbox" data-eid="${e.tempId||e.id}" checked
+        style="width:14px;height:14px;accent-color:var(--sage);cursor:pointer">
+      <span style="font-size:13px">${e.prenom}</span>
+      <span style="font-size:11px;color:var(--dust);margin-left:auto">Famille ${e.fam.toUpperCase()}</span>
+    </label>`).join('');
+
+  // Afficher la modal
+  const bg = document.getElementById('copy-modal-bg');
+  bg.style.display = 'flex';
 };
 
-window.collerJour = function(eid, jourCible) {
-  if (!copySource || copySource.eid !== eid) return;
-  const src = state[eid][copySource.jour];
-  // Copier plages (deep copy) et activer le jour cible
-  state[eid][jourCible] = {
-    actif:  true, // activer automatiquement
-    plages: src.plages.map(p => [...p]),
-    repas:  src.repas,
-  };
+window.closeCopyModal = function() {
+  document.getElementById('copy-modal-bg').style.display = 'none';
   copySource = null;
-  const fam = enfants.find(e=>(e.tempId||e.id)===eid)?.fam || 'a';
-  renderGrid(eid, fam);
+};
+
+window.appliquerCopie = function() {
+  if (!copySource) return;
+  const { eid: srcEid, jourIdx: srcJour } = copySource;
+
+  // Jours cibles cochés
+  const joursCibles = [...document.querySelectorAll('#copy-jours-grid input:checked')]
+    .map(el => parseInt(el.dataset.jour));
+  if (!joursCibles.length) { alert('Cochez au moins un jour cible.'); return; }
+
+  // Enfants cibles cochés
+  const enfantsCibles = [...document.querySelectorAll('#copy-enfants-grid input:checked')]
+    .map(el => el.dataset.eid);
+  if (!enfantsCibles.length) { alert('Cochez au moins un enfant.'); return; }
+
+  // Appliquer la copie
+  enfantsCibles.forEach(eid => {
+    // Source : utiliser l'eid source si l'enfant a un état, sinon l'eid cible
+    const srcState = state[srcEid]?.[srcJour];
+    if (!srcState) return;
+    joursCibles.forEach(jourCible => {
+      state[eid][jourCible] = {
+        actif:  true,
+        plages: srcState.plages.map(p => [...p]),
+        repas:  srcState.repas,
+      };
+    });
+    const fam = enfants.find(e=>(e.tempId||e.id)===eid)?.fam || 'a';
+    renderGrid(eid, fam);
+  });
+
   updateSynthese();
+  closeCopyModal();
 };
 
 // ─── INTERACTIONS ──────────────────────────────────────────────────────────────
@@ -421,6 +476,28 @@ function clearError() { document.getElementById('error-box').classList.remove('v
 // Init
 renderAll();
 </script>
+
+<!-- MODAL COPIER HORAIRES -->
+<div id="copy-modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:center;justify-content:center">
+  <div id="copy-modal" style="background:#fff;border-radius:12px;padding:24px;width:min(400px,90vw);box-shadow:0 8px 32px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto">
+    <h3 id="copy-modal-title" style="margin:0 0 16px;font-size:16px;font-weight:500">Copier les horaires</h3>
+
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Jours cibles</div>
+      <div id="copy-jours-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px"></div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Appliquer à</div>
+      <div id="copy-enfants-grid" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeCopyModal()" style="padding:8px 16px;border-radius:8px;border:1.5px solid var(--line);background:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Annuler</button>
+      <button onclick="appliquerCopie()" style="padding:8px 20px;border-radius:8px;border:none;background:var(--sage);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Appliquer</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
