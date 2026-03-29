@@ -4,7 +4,7 @@
  * Changer API_BASE suffit pour pointer vers prod ou local.
  */
 
-const API_BASE = 'https://nannypay-back-production.up.railway.app';
+export const API_BASE = 'https://nannypay-back-production.up.railway.app';
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
