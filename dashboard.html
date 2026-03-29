@@ -200,8 +200,11 @@ async function chargerMoisEnCours(mesGardes, annee, moisNum) {
 
   const items = await Promise.all(mesGardes.map(async g => {
     try {
-      const res = await mois.calculer(g.id, annee, moisNum);
-      return { garde: g, res };
+      // Lire le dernier snapshot sans recalculer — le recalcul se fait dans mois.html
+      const res = await mois.get(g.id, annee, moisNum);
+      // snapshot_calcul est dans res.mois.snapshot_calcul (JSON string)
+      const snap = res?.mois?.snapshot_calcul ? JSON.parse(res.mois.snapshot_calcul) : null;
+      return { garde: g, res: snap };
     } catch { return { garde: g, res: null }; }
   }));
 
@@ -211,9 +214,9 @@ async function chargerMoisEnCours(mesGardes, annee, moisNum) {
   section.style.display = '';
   list.innerHTML = items.map(({ garde, res }) => {
     if (!res) return '';
-    const virTotal = res.virement_total || 0;
-    const alerte   = res.alerte_heures_sup;
-    const statut   = res.mois?.statut || 'en_cours';
+    const virTotal = res?.resultats?.reduce((s, r) => s + (r.virement||0), 0) || 0;
+    const alerte   = res?.h_sup25_mens > 0 ? 'sup' : null;
+    const statut   = 'en_cours'; // statut lu depuis le mois séparément si besoin
     const dotColor = alerte === 'illégal' ? 'var(--red)' : alerte === 'surcharge' || alerte === 'sup' ? 'var(--warn)' : 'var(--sage)';
     const statusLabel = { en_cours: 'En cours', valide_a: 'Validé A', valide_ab: 'Validé', declare: 'Déclaré' }[statut] || statut;
     const statusClass = statut === 'valide_ab' || statut === 'declare' ? 'status-active' : 'status-pending';
@@ -222,7 +225,7 @@ async function chargerMoisEnCours(mesGardes, annee, moisNum) {
         <div class="mois-item-dot" style="background:${dotColor}"></div>
         <div class="mois-item-info">
           <div class="mois-item-name">${garde.nom}</div>
-          <div class="mois-item-sub">${moisLabel(annee, moisNum)} · ${alerte === 'sup' ? `${res.snapshot?.h_sup25_mens || 0}h sup` : 'Aucune heure sup'}</div>
+          <div class="mois-item-sub">${moisLabel(annee, moisNum)} · ${alerte === 'sup' ? `${res?.h_sup25_mens || 0}h sup` : 'Aucune heure sup'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
           <span class="mois-item-amount">${fmt(virTotal)}</span>
