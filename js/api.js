@@ -4,7 +4,7 @@
  * Changer API_BASE suffit pour pointer vers prod ou local.
  */
 
-const API_BASE = 'http://localhost:3000'; // ← mettre l'URL Railway en prod
+const API_BASE = 'https://nannypay-back-production.up.railway.app';
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
