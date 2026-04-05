@@ -5,6 +5,156 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>nounoulink — Connexion</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ── OVERRIDE LOGIN SHELL ────────────────────────────────────── */
+    .login-shell {
+      min-height: auto;
+      padding: 64px 24px 48px;
+      align-items: flex-start;
+    }
+
+    /* ── DEMO SECTION ─────────────────────────────────────────────── */
+    .demo-shell {
+      max-width: 980px;
+      margin: 0 auto 64px;
+      padding: 0 24px;
+    }
+    .demo-divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 48px 0 32px;
+      color: var(--dust);
+      font-size: 13px;
+    }
+    .demo-divider::before, .demo-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
+    .demo-title { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+    .demo-sub { font-size: 13px; color: var(--dust); margin-bottom: 20px; }
+
+    /* Config bar */
+    .demo-config {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .demo-toggle-group {
+      display: flex;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .demo-toggle-btn {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--dust);
+      transition: all .15s;
+    }
+    .demo-toggle-btn.active { background: var(--sage); color: #fff; font-weight: 500; }
+
+    .demo-taux-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--dust);
+      margin-left: auto;
+    }
+    .demo-taux-field input {
+      width: 68px;
+      padding: 8px 10px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      outline: none;
+    }
+    .demo-taux-field input:focus { border-color: var(--sage); }
+
+    .demo-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .demo-tag {
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .demo-tag-a { background: var(--blue-light); color: var(--blue); }
+    .demo-tag-b { background: var(--sage-light); color: var(--sage); }
+
+    /* Body layout */
+    .demo-body {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 768px) { .demo-body { grid-template-columns: 1fr; } }
+
+    /* Calendar */
+    .d-cal-card { background:#fff; border:1.5px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+    .d-cal-header { padding:14px 20px; border-bottom:.5px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+    .d-cal-title { font-size:15px; font-weight:500; }
+    .d-cal-grid { display:grid; grid-template-columns:repeat(5,1fr); }
+    .d-col-hdr { padding:8px 6px; text-align:center; font-size:10px; font-weight:500; color:var(--dust); text-transform:uppercase; letter-spacing:.06em; background:var(--paper); border-bottom:.5px solid var(--line); border-right:.5px solid var(--line); }
+    .d-col-hdr:last-child { border-right:none; }
+    .d-jour { border-right:.5px solid var(--line); border-bottom:.5px solid var(--line); min-height:70px; padding:6px; cursor:pointer; transition:background .1s; }
+    .d-jour:hover { background:var(--sage-light); }
+    .d-jour.autre-mois { background:var(--paper); opacity:.35; cursor:default; pointer-events:none; }
+    .d-jour-date { font-size:11px; font-weight:500; color:var(--dust); margin-bottom:3px; }
+    .d-jour-date.today { background:var(--sage); color:#fff; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; }
+    .d-chip { font-size:9px; padding:2px 5px; border-radius:4px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .d-chip-cp  { background:#dbeafe; color:#1e40af; }
+    .d-chip-mal { background:#fee2e2; color:#991b1b; }
+
+    /* Sidebar cards */
+    .d-card { background:#fff; border:1.5px solid var(--line); border-radius:var(--radius); overflow:hidden; margin-bottom:14px; }
+    .d-card-hdr { padding:11px 16px; border-bottom:.5px solid var(--line); font-size:11px; font-weight:500; color:var(--dust); text-transform:uppercase; letter-spacing:.06em; display:flex; align-items:center; justify-content:space-between; }
+    .d-line { display:flex; justify-content:space-between; font-size:13px; padding:7px 16px; border-bottom:.5px solid var(--line); }
+    .d-line:last-child { border-bottom:none; }
+    .d-line.d-total { font-weight:500; background:var(--paper); font-size:14px; }
+    .d-line .muted { color:var(--dust); font-size:12px; }
+    .d-paje-row { display:flex; align-items:center; justify-content:space-between; padding:7px 16px; border-bottom:.5px solid var(--line); font-size:12px; }
+    .d-paje-row:last-child { border-bottom:none; }
+    .d-paje-label { color:var(--dust); }
+    .d-paje-val { font-weight:500; font-family:'DM Mono',monospace; font-size:13px; }
+
+    /* Pajemploi toggle */
+    .d-rule-btn { padding:4px 10px; border:1.5px solid var(--line); border-radius:20px; font-size:11px; cursor:pointer; background:#fff; color:var(--dust); font-family:'DM Sans',sans-serif; transition:all .15s; }
+    .d-rule-btn.active { border-color:var(--sage); background:var(--sage-light); color:var(--sage); font-weight:500; }
+
+    /* Events list */
+    .d-evt-item { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; border-bottom:.5px solid var(--line); font-size:12px; gap:8px; }
+    .d-evt-item:last-child { border-bottom:none; }
+    .d-evt-del { background:none; border:none; color:var(--dust); cursor:pointer; font-size:16px; line-height:1; padding:2px 4px; border-radius:4px; }
+    .d-evt-del:hover { color:var(--red); background:var(--red-light); }
+
+    /* Modal */
+    .d-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; align-items:center; justify-content:center; }
+    .d-modal-bg.open { display:flex; }
+    .d-modal { background:#fff; border-radius:12px; padding:24px; width:min(360px,90vw); box-shadow:0 8px 32px rgba(0,0,0,.14); box-sizing:border-box; }
+    .d-modal h3 { font-size:16px; font-weight:500; margin-bottom:16px; }
+    .d-modal-btns { display:flex; gap:8px; margin-top:20px; justify-content:flex-end; }
+    .d-evt-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+    .d-evt-type-btn { padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:13px; text-align:center; background:#fff; transition:all .15s; }
+    .d-evt-type-btn.selected { border-color:var(--sage); background:var(--sage-light); color:var(--sage); font-weight:500; }
+    .d-date-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:4px; }
+    .d-date-row label { font-size:12px; color:var(--dust); display:block; margin-bottom:4px; }
+    .d-date-row input { width:100%; padding:8px 10px; border:1.5px solid var(--line); border-radius:8px; font-family:'DM Sans',sans-serif; font-size:13px; box-sizing:border-box; outline:none; }
+    .d-date-row input:focus { border-color:var(--sage); }
+  </style>
 </head>
 <body>
 
@@ -66,50 +216,154 @@
       </button>
     </form>
 
+    <div style="margin-top:20px;text-align:center;font-size:12px;color:var(--dust)">
+      <a href="#demo-section" style="color:var(--sage);text-decoration:none">↓ Essayer la simulation sans compte</a>
+    </div>
+
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION DÉMO                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="demo-shell" id="demo-section">
+
+  <div class="demo-divider">Simulateur — aucun compte requis</div>
+
+  <div class="demo-title">Calculez le salaire de votre garde partagée</div>
+  <div class="demo-sub">Jouez avec les paramètres et visualisez les résultats en temps réel · données sauvegardées localement</div>
+
+  <!-- Config -->
+  <div class="demo-config">
+    <div class="demo-toggle-group">
+      <button class="demo-toggle-btn active" id="btn-2e" onclick="setNbEnfants(2)">2 enfants</button>
+      <button class="demo-toggle-btn" id="btn-3e" onclick="setNbEnfants(3)">3 enfants</button>
+    </div>
+    <div class="demo-tags" id="demo-tags"></div>
+    <div class="demo-taux-field">
+      <span>Taux horaire net</span>
+      <input type="number" id="demo-taux" min="5" max="50" step="0.5">
+      <span>€/h</span>
+    </div>
+  </div>
+
+  <div class="demo-body">
+
+    <!-- Calendrier -->
+    <div>
+      <div class="d-cal-card">
+        <div class="d-cal-header">
+          <div class="d-cal-title" id="demo-cal-title">—</div>
+          <button class="btn-secondary" style="padding:6px 14px;font-size:12px" onclick="ouvrirModalEvt(null)">+ Événement</button>
+        </div>
+        <div class="d-cal-grid">
+          <div class="d-col-hdr">Lun</div>
+          <div class="d-col-hdr">Mar</div>
+          <div class="d-col-hdr">Mer</div>
+          <div class="d-col-hdr">Jeu</div>
+          <div class="d-col-hdr">Ven</div>
+        </div>
+        <div id="demo-cal-body"></div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div>
+
+      <!-- Salaires -->
+      <div class="d-card">
+        <div class="d-card-hdr">Salaire à verser</div>
+        <div style="padding:8px 16px 2px;font-size:11px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:.05em">Famille A</div>
+        <div class="d-line"><span class="muted">Base (173h)</span><span id="d-base-a">—</span></div>
+        <div class="d-line"><span class="muted">Heures sup +25% (35h)</span><span id="d-sup-a">—</span></div>
+        <div class="d-line d-total"><span>Total à verser</span><strong id="d-total-a">—</strong></div>
+        <div style="padding:8px 16px 2px;font-size:11px;font-weight:500;color:var(--sage);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Famille B</div>
+        <div class="d-line"><span class="muted">Base (173h)</span><span id="d-base-b">—</span></div>
+        <div class="d-line"><span class="muted">Heures sup +25% (35h)</span><span id="d-sup-b">—</span></div>
+        <div class="d-line d-total"><span>Total à verser</span><strong id="d-total-b">—</strong></div>
+      </div>
+
+      <!-- Pajemploi -->
+      <div class="d-card">
+        <div class="d-card-hdr">
+          <span>Guide Pajemploi</span>
+          <div style="display:flex;gap:6px">
+            <button class="d-rule-btn active" id="paje-btn-a" onclick="showPaje('a')">Fam. A</button>
+            <button class="d-rule-btn" id="paje-btn-b" onclick="showPaje('b')">Fam. B</button>
+          </div>
+        </div>
+        <div id="paje-fields-a"></div>
+        <div id="paje-fields-b" style="display:none"></div>
+      </div>
+
+      <!-- Événements -->
+      <div class="d-card" id="d-evt-card" style="display:none">
+        <div class="d-card-hdr">Événements du mois</div>
+        <div id="d-evt-list"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ÉVÉNEMENT -->
+<div class="d-modal-bg" id="demo-modal-bg" onclick="if(event.target===this)fermerModalEvt()">
+  <div class="d-modal">
+    <h3>Ajouter un événement</h3>
+    <div class="d-evt-type-grid">
+      <button class="d-evt-type-btn" id="det-cp" onclick="selectEvtType('conge_paye',this)">🏖 Congé payé</button>
+      <button class="d-evt-type-btn" id="det-mal" onclick="selectEvtType('maladie_nounou',this)">🤒 Maladie</button>
+    </div>
+    <div class="d-date-row">
+      <div>
+        <label>Date début</label>
+        <input type="date" id="demo-evt-debut">
+      </div>
+      <div>
+        <label>Date fin</label>
+        <input type="date" id="demo-evt-fin">
+      </div>
+    </div>
+    <div class="d-modal-btns">
+      <button class="btn-secondary" style="padding:8px 16px;font-size:13px" onclick="fermerModalEvt()">Annuler</button>
+      <button class="btn-primary" style="padding:8px 18px;font-size:13px" onclick="ajouterEvt()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SCRIPTS AUTH (module)                                           -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 <script type="module">
 import { auth, getToken, getGardeId } from './js/api.js';
 
-// ─── Redirection si déjà connecté ────────────────────────────────
 if (getToken()) {
   const gardeId = getGardeId();
   window.location.href = gardeId ? '/dashboard.html' : '/onboarding-1.html';
 }
 
-// ─── Messages contextuels ─────────────────────────────────────────
 const params = new URLSearchParams(window.location.search);
-if (params.get('session') === 'expired') {
-  showInfo('Votre session a expiré. Reconnectez-vous.');
-}
-if (params.get('registered') === '1') {
-  showTab('login');
-  showInfo('Compte créé ! Connectez-vous pour commencer.');
-}
+if (params.get('session') === 'expired') showInfo('Votre session a expiré. Reconnectez-vous.');
+if (params.get('registered') === '1') { showTab('login'); showInfo('Compte créé ! Connectez-vous pour commencer.'); }
 
-// ─── Tabs ──────────────────────────────────────────────────────────
 window.showTab = function(tab) {
   const isLogin = tab === 'login';
-  document.getElementById('form-login').style.display = isLogin ? '' : 'none';
+  document.getElementById('form-login').style.display    = isLogin ? '' : 'none';
   document.getElementById('form-register').style.display = isLogin ? 'none' : '';
   document.getElementById('tab-login').classList.toggle('active', isLogin);
   document.getElementById('tab-register').classList.toggle('active', !isLogin);
   clearError();
 };
 
-// ─── Connexion ─────────────────────────────────────────────────────
 window.handleLogin = async function(e) {
   e.preventDefault();
   clearError();
   const btn = document.getElementById('btn-login');
   setLoading(btn, true);
-
   try {
-    const email = document.getElementById('login-email').value;
+    const email    = document.getElementById('login-email').value;
     const password = document.getElementById('login-pwd').value;
     await auth.login(email, password);
-    // Redirection selon l'état
     const gardeId = getGardeId();
     window.location.href = gardeId ? '/dashboard.html' : '/onboarding-1.html';
   } catch (err) {
@@ -118,21 +372,17 @@ window.handleLogin = async function(e) {
   }
 };
 
-// ─── Inscription ────────────────────────────────────────────────────
 window.handleRegister = async function(e) {
   e.preventDefault();
   clearError();
   const btn = document.getElementById('btn-register');
   setLoading(btn, true);
-
   try {
-    const prenom = document.getElementById('reg-prenom').value;
-    const nom    = document.getElementById('reg-nom').value;
-    const email  = document.getElementById('reg-email').value;
+    const prenom   = document.getElementById('reg-prenom').value;
+    const nom      = document.getElementById('reg-nom').value;
+    const email    = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-pwd').value;
-
     await auth.register(email, password, prenom, nom);
-    // Connexion automatique après inscription
     await auth.login(email, password);
     window.location.href = '/onboarding-1.html';
   } catch (err) {
@@ -141,15 +391,12 @@ window.handleRegister = async function(e) {
   }
 };
 
-// ─── Helpers UI ────────────────────────────────────────────────────
 function showError(msg) {
   const el = document.getElementById('error-box');
   el.textContent = msg;
   el.classList.add('visible');
 }
-function clearError() {
-  document.getElementById('error-box').classList.remove('visible');
-}
+function clearError() { document.getElementById('error-box').classList.remove('visible'); }
 function showInfo(msg) {
   const el = document.getElementById('info-msg');
   el.textContent = msg;
@@ -158,9 +405,304 @@ function showInfo(msg) {
 function setLoading(btn, loading) {
   btn.classList.toggle('btn-loading', loading);
   btn.innerHTML = loading
-    ? '<span class="spinner"></span> Chargement…'
-    : btn.id === 'btn-login' ? 'Se connecter' : 'Créer mon compte';
+    ? '<span class="spinner"></span> Chargement\u2026'
+    : btn.id === 'btn-login' ? 'Se connecter' : 'Cr\u00e9er mon compte';
 }
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SCRIPT DÉMO (non-module, pas de dépendances externes)           -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<script>
+// ── CONSTANTES ────────────────────────────────────────────────────
+var H_NORM_SEM  = 40;
+var H_SUP25_SEM = 8;   // 48h - 40h
+var H_NORM_MENS  = Math.round(H_NORM_SEM  * 52 / 12 * 10) / 10; // 173.3
+var H_SUP25_MENS = Math.round(H_SUP25_SEM * 52 / 12 * 10) / 10; // 34.7
+var H_PAR_JOUR   = 48 / 5; // 9.6h par jour ouvrable
+
+var SCENARIOS = {
+  2: {
+    enfants: [{ prenom: 'Emma', fam: 'A' }, { prenom: 'Lucas', fam: 'B' }],
+    qp: { A: 0.5, B: 0.5 }
+  },
+  3: {
+    enfants: [{ prenom: 'Emma', fam: 'A' }, { prenom: 'Chlo\u00e9', fam: 'A' }, { prenom: 'Lucas', fam: 'B' }],
+    qp: { A: 2/3, B: 1/3 }
+  }
+};
+
+var MOIS_LONGS  = ['Janvier','F\u00e9vrier','Mars','Avril','Mai','Juin','Juillet','Ao\u00fbt','Septembre','Octobre','Novembre','D\u00e9cembre'];
+var MOIS_COURTS = ['Jan','F\u00e9v','Mar','Avr','Mai','Jun','Jul','Ao\u00fb','Sep','Oct','Nov','D\u00e9c'];
+
+// ── STATE ─────────────────────────────────────────────────────────
+var demoState = {
+  nbEnfants:  parseInt(localStorage.getItem('demo_enfants') || '2'),
+  taux:       parseFloat(localStorage.getItem('demo_taux') || '11'),
+  evenements: JSON.parse(localStorage.getItem('demo_evenements') || '[]'),
+  annee:      new Date().getFullYear(),
+  mois:       new Date().getMonth() + 1
+};
+var selectedEvtType = null;
+
+// ── INIT ──────────────────────────────────────────────────────────
+document.getElementById('demo-taux').value = demoState.taux;
+if (demoState.nbEnfants === 3) {
+  document.getElementById('btn-2e').classList.remove('active');
+  document.getElementById('btn-3e').classList.add('active');
+}
+document.getElementById('demo-taux').addEventListener('input', function() {
+  demoState.taux = parseFloat(this.value) || 11;
+  localStorage.setItem('demo_taux', String(demoState.taux));
+  recalculer();
+});
+
+function setNbEnfants(n) {
+  demoState.nbEnfants = n;
+  localStorage.setItem('demo_enfants', String(n));
+  document.getElementById('btn-2e').classList.toggle('active', n === 2);
+  document.getElementById('btn-3e').classList.toggle('active', n === 3);
+  recalculer();
+}
+window.setNbEnfants = setNbEnfants;
+
+// ── HELPERS DATE ──────────────────────────────────────────────────
+function joursOuvrablesMois(annee, mois) {
+  var nb = 0;
+  var cur = new Date(annee, mois - 1, 1);
+  var fin = new Date(annee, mois, 0);
+  while (cur <= fin) {
+    var d = cur.getDay();
+    if (d >= 1 && d <= 5) nb++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return nb;
+}
+
+function joursOuvrablesIntersect(debut, fin, annee, mois) {
+  var parts1 = debut.split('-');
+  var parts2 = fin.split('-');
+  var debutDate = new Date(parseInt(parts1[0]), parseInt(parts1[1]) - 1, parseInt(parts1[2]));
+  var finDate   = new Date(parseInt(parts2[0]), parseInt(parts2[1]) - 1, parseInt(parts2[2]));
+  var debutMois = new Date(annee, mois - 1, 1);
+  var finMois   = new Date(annee, mois, 0);
+  var start = debutDate > debutMois ? debutDate : debutMois;
+  var end   = finDate   < finMois   ? finDate   : finMois;
+  var nb = 0;
+  var cur = new Date(start);
+  while (cur <= end) {
+    var d = cur.getDay();
+    if (d >= 1 && d <= 5) nb++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return nb;
+}
+
+function dateToStr(d) {
+  return d.getFullYear() + '-' +
+    ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+    ('0' + d.getDate()).slice(-2);
+}
+
+// ── CALCUL ────────────────────────────────────────────────────────
+function recalculer() {
+  var scenario = SCENARIOS[demoState.nbEnfants];
+  var taux     = demoState.taux;
+  var annee    = demoState.annee;
+  var mois     = demoState.mois;
+
+  var joursOuv = joursOuvrablesMois(annee, mois);
+  var joursAbs = 0;
+  for (var i = 0; i < demoState.evenements.length; i++) {
+    joursAbs += joursOuvrablesIntersect(demoState.evenements[i].debut, demoState.evenements[i].fin, annee, mois);
+  }
+  var joursTrav  = Math.max(0, joursOuv - joursAbs);
+  var ratio      = joursOuv > 0 ? joursTrav / joursOuv : 1;
+
+  var fams = ['A', 'B'];
+  for (var j = 0; j < fams.length; j++) {
+    var fam = fams[j];
+    var qp  = scenario.qp[fam];
+    var f   = fam.toLowerCase();
+
+    // Salaire complet mensuel
+    var baseCompl = H_NORM_MENS  * qp * taux;
+    var supCompl  = H_SUP25_MENS * qp * taux * 1.25;
+
+    // Applique le ratio (formule Cour de cassation simplifiée)
+    var baseNet = Math.round(baseCompl * ratio * 100) / 100;
+    var supNet  = Math.round(supCompl  * ratio * 100) / 100;
+    var total   = Math.round((baseNet + supNet) * 100) / 100;
+
+    document.getElementById('d-base-' + f).textContent = baseNet.toFixed(2) + ' \u20ac';
+    document.getElementById('d-sup-'  + f).textContent = supNet.toFixed(2)  + ' \u20ac';
+    document.getElementById('d-total-' + f).textContent = total.toFixed(2)  + ' \u20ac';
+
+    // Pajemploi
+    var hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
+    var hSup25 = Math.round(H_SUP25_MENS * qp * ratio);
+    var pajeHtml = '<div class="d-paje-row"><span class="d-paje-label">Heures normales</span><span class="d-paje-val">' + hNorm + ' h</span></div>'
+      + '<div class="d-paje-row"><span class="d-paje-label">Heures sup +25%</span><span class="d-paje-val">' + hSup25 + ' h</span></div>'
+      + '<div class="d-paje-row"><span class="d-paje-label">Taux horaire net</span><span class="d-paje-val">' + taux.toFixed(2) + ' \u20ac</span></div>'
+      + '<div class="d-paje-row"><span class="d-paje-label">Salaire net total</span><span class="d-paje-val">' + total.toFixed(2) + ' \u20ac</span></div>';
+    document.getElementById('paje-fields-' + f).innerHTML = pajeHtml;
+  }
+
+  // Tags enfants
+  var tagsHtml = '';
+  var enfants  = scenario.enfants;
+  for (var k = 0; k < enfants.length; k++) {
+    tagsHtml += '<span class="demo-tag demo-tag-' + enfants[k].fam.toLowerCase() + '">'
+      + enfants[k].prenom + ' \u00b7 Fam. ' + enfants[k].fam + '</span>';
+  }
+  document.getElementById('demo-tags').innerHTML = tagsHtml;
+
+  renderCalendrier();
+  renderEvenements();
+}
+
+// ── CALENDRIER ────────────────────────────────────────────────────
+function renderCalendrier() {
+  var a = demoState.annee;
+  var m = demoState.mois;
+  document.getElementById('demo-cal-title').textContent = MOIS_LONGS[m - 1] + ' ' + a;
+
+  // Premier lundi de la grille
+  var premier = new Date(a, m - 1, 1);
+  var dow0    = premier.getDay();
+  var offset  = dow0 === 0 ? 6 : dow0 - 1;
+  var lundi   = new Date(a, m - 1, 1 - offset);
+
+  // Dernier jour du mois → vendredi de cette semaine
+  var dernier     = new Date(a, m, 0);
+  var dowDernier  = dernier.getDay();
+  var vendredi    = new Date(dernier);
+  if (dowDernier >= 1 && dowDernier <= 4) vendredi.setDate(dernier.getDate() + (5 - dowDernier));
+  else if (dowDernier === 6) vendredi.setDate(dernier.getDate() - 1);
+  else if (dowDernier === 0) vendredi.setDate(dernier.getDate() - 2);
+
+  var today = new Date();
+  var html  = '';
+  var cur   = new Date(lundi);
+
+  while (cur <= vendredi) {
+    var dow = cur.getDay();
+    if (dow >= 1 && dow <= 5) {
+      var isCurMois = cur.getMonth() === m - 1;
+      var isToday   = cur.getFullYear() === today.getFullYear()
+                   && cur.getMonth()    === today.getMonth()
+                   && cur.getDate()     === today.getDate();
+      var ds = dateToStr(cur);
+
+      var chipsHtml = '';
+      for (var i = 0; i < demoState.evenements.length; i++) {
+        var evt = demoState.evenements[i];
+        if (evt.debut <= ds && evt.fin >= ds) {
+          var cls   = evt.type === 'conge_paye' ? 'd-chip-cp' : 'd-chip-mal';
+          var label = evt.type === 'conge_paye' ? 'CP' : 'Mal.';
+          chipsHtml += '<div class="d-chip ' + cls + '">' + label + '</div>';
+        }
+      }
+
+      var dateLabel = isToday
+        ? '<div class="d-jour-date today">' + cur.getDate() + '</div>'
+        : '<div class="d-jour-date">' + cur.getDate() + '</div>';
+
+      var cellClass = 'd-jour' + (!isCurMois ? ' autre-mois' : '');
+      var onclick   = isCurMois ? ' onclick="ouvrirModalEvt(\'' + ds + '\')"' : '';
+      html += '<div class="' + cellClass + '"' + onclick + '>' + dateLabel + chipsHtml + '</div>';
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  document.getElementById('demo-cal-body').innerHTML = '<div class="d-cal-grid">' + html + '</div>';
+}
+
+// ── ÉVÉNEMENTS ────────────────────────────────────────────────────
+function renderEvenements() {
+  var card = document.getElementById('d-evt-card');
+  var list = document.getElementById('d-evt-list');
+  if (demoState.evenements.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  var html = '';
+  for (var i = 0; i < demoState.evenements.length; i++) {
+    var evt   = demoState.evenements[i];
+    var label = evt.type === 'conge_paye' ? '\ud83c\udfd6 Cong\u00e9 pay\u00e9' : '\ud83e\udd12 Maladie';
+    var cls   = evt.type === 'conge_paye' ? 'd-chip-cp' : 'd-chip-mal';
+    var p1    = evt.debut.split('-');
+    var p2    = evt.fin.split('-');
+    var d1    = parseInt(p1[2]);
+    var d2    = parseInt(p2[2]);
+    var m1    = parseInt(p1[1]);
+    var m2    = parseInt(p2[1]);
+    var dateLabel = (d1 === d2 && m1 === m2)
+      ? d1 + ' ' + MOIS_COURTS[m1 - 1]
+      : d1 + ' ' + MOIS_COURTS[m1 - 1] + ' \u2192 ' + d2 + ' ' + MOIS_COURTS[m2 - 1];
+    html += '<div class="d-evt-item">'
+      + '<span class="d-chip ' + cls + '" style="font-size:11px">' + label + '</span>'
+      + '<span style="color:var(--dust);flex:1;text-align:right;margin-right:8px">' + dateLabel + '</span>'
+      + '<button class="d-evt-del" onclick="supprimerEvt(' + i + ')">\u00d7</button>'
+      + '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function supprimerEvt(i) {
+  demoState.evenements.splice(i, 1);
+  localStorage.setItem('demo_evenements', JSON.stringify(demoState.evenements));
+  recalculer();
+}
+window.supprimerEvt = supprimerEvt;
+
+// ── MODAL ─────────────────────────────────────────────────────────
+function ouvrirModalEvt(dateStr) {
+  selectedEvtType = null;
+  document.getElementById('det-cp').classList.remove('selected');
+  document.getElementById('det-mal').classList.remove('selected');
+  document.getElementById('demo-evt-debut').value = dateStr || '';
+  document.getElementById('demo-evt-fin').value   = dateStr || '';
+  document.getElementById('demo-modal-bg').classList.add('open');
+}
+window.ouvrirModalEvt = ouvrirModalEvt;
+
+function fermerModalEvt() {
+  document.getElementById('demo-modal-bg').classList.remove('open');
+}
+window.fermerModalEvt = fermerModalEvt;
+
+function selectEvtType(type, btn) {
+  selectedEvtType = type;
+  document.getElementById('det-cp').classList.remove('selected');
+  document.getElementById('det-mal').classList.remove('selected');
+  btn.classList.add('selected');
+}
+window.selectEvtType = selectEvtType;
+
+function ajouterEvt() {
+  if (!selectedEvtType) { alert('Choisissez un type d\'événement.'); return; }
+  var debut = document.getElementById('demo-evt-debut').value;
+  var fin   = document.getElementById('demo-evt-fin').value;
+  if (!debut || !fin) { alert('Les deux dates sont requises.'); return; }
+  if (fin < debut)    { alert('La date de fin doit \u00eatre apr\u00e8s la date de d\u00e9but.'); return; }
+  demoState.evenements.push({ type: selectedEvtType, debut: debut, fin: fin });
+  localStorage.setItem('demo_evenements', JSON.stringify(demoState.evenements));
+  fermerModalEvt();
+  recalculer();
+}
+window.ajouterEvt = ajouterEvt;
+
+// ── PAJEMPLOI TOGGLE ──────────────────────────────────────────────
+function showPaje(fam) {
+  document.getElementById('paje-fields-a').style.display = fam === 'a' ? '' : 'none';
+  document.getElementById('paje-fields-b').style.display = fam === 'b' ? '' : 'none';
+  document.getElementById('paje-btn-a').classList.toggle('active', fam === 'a');
+  document.getElementById('paje-btn-b').classList.toggle('active', fam === 'b');
+}
+window.showPaje = showPaje;
+
+// ── LAUNCH ────────────────────────────────────────────────────────
+recalculer();
 </script>
 
 </body>
