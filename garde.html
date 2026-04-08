@@ -96,6 +96,33 @@
     <div class="parties-grid" id="parties-grid">—</div>
   </div>
 
+  <!-- Invitation Famille B (visible uniquement pour Famille A quand B pas encore active) -->
+  <div class="section" id="section-invitation" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="section-title" style="margin-bottom:0">Inviter la Famille B</div>
+    </div>
+    <div id="invitation-contenu">
+      <p style="font-size:13px;color:var(--dust);margin:0 0 12px">Générez un lien d'invitation à envoyer manuellement à la Famille B. Le lien est valable 30 jours et à usage unique.</p>
+      <button id="btn-generer-invitation" onclick="genererInvitation()"
+        style="padding:9px 18px;border-radius:8px;border:none;background:var(--sage);color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer">
+        Générer un lien d'invitation
+      </button>
+    </div>
+    <div id="invitation-lien" style="display:none">
+      <div style="background:var(--paper);border-radius:8px;padding:12px;margin-bottom:10px;word-break:break-all;font-size:12px;color:var(--ink)" id="invitation-url"></div>
+      <div style="display:flex;gap:8px">
+        <button onclick="copierInvitation()"
+          style="flex:1;padding:9px;border-radius:8px;border:1.5px solid var(--sage);background:#fff;color:var(--sage);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer">
+          📋 Copier le lien
+        </button>
+        <button onclick="revoquerInvitation()"
+          style="padding:9px 14px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--dust);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">
+          Révoquer
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Enfants -->
   <div class="section" id="section-enfants">
     <div class="section-title">Enfants</div>
@@ -196,9 +223,18 @@
       </div>
     </div>
 
-    <div style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px;margin-bottom:4px">
-      <div style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Enfants</div>
-      <div id="edit-enfants-list"></div>
+    <div id="edit-nounou-section" style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px">
+      <div style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Nounou</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field">
+          <label>Prénom</label>
+          <input type="text" id="edit-nounou-prenom">
+        </div>
+        <div class="field">
+          <label>Nom</label>
+          <input type="text" id="edit-nounou-nom">
+        </div>
+      </div>
     </div>
 
     <div id="edit-enfants-section" style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px">
@@ -231,7 +267,7 @@
 </div>
 
 <script type="module">
-import { requireLogin, gardes, cp, API_BASE } from './js/api.js';
+import { requireLogin, gardes, cp, invitation, API_BASE } from './js/api.js';
 requireLogin();
 
 const params  = new URLSearchParams(location.search);
@@ -241,6 +277,13 @@ if (!gardeId) location.href = '/dashboard.html';
 let gardeData     = null;
 let hasValidated  = false;
 let familles      = [];
+let monFamille    = null;
+
+// Décode le JWT (côté client, sans vérification — uniquement pour l'affichage)
+function monUserId() {
+  try { return JSON.parse(atob(localStorage.getItem('nl_token').split('.')[1])).sub; }
+  catch { return null; }
+}
 
 // ── CP CONFIG ─────────────────────────────────────────────────────────────
 let cpMode = 'par_mois';
@@ -410,6 +453,47 @@ function afficherNounou(nounou, solde, dernierMois) {
   }
 }
 
+// ── INVITATION FAMILLE B ─────────────────────────────────────────────────────
+
+function afficherTokenInvitation(token) {
+  const urlEl  = document.getElementById('invitation-url');
+  const lienEl = document.getElementById('invitation-lien');
+  const btnEl  = document.getElementById('btn-generer-invitation');
+  if (token) {
+    const lien = location.origin + '/rejoindre.html?token=' + token;
+    urlEl.textContent = lien;
+    lienEl.style.display = '';
+    btnEl.textContent = 'Régénérer un lien';
+  } else {
+    lienEl.style.display = 'none';
+    btnEl.textContent = 'Générer un lien d\'invitation';
+  }
+}
+
+window.genererInvitation = async function() {
+  try {
+    const data = await invitation.generer(gardeId);
+    gardeData.invitation_token_b = data.invitation_token_b;
+    afficherTokenInvitation(data.invitation_token_b);
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
+
+window.copierInvitation = function() {
+  const lien = document.getElementById('invitation-url').textContent;
+  navigator.clipboard.writeText(lien).then(() => alert('Lien copié !')).catch(() => {
+    prompt('Copiez ce lien :', lien);
+  });
+};
+
+window.revoquerInvitation = async function() {
+  if (!confirm('Révoquer le lien ? La Famille B ne pourra plus l\'utiliser.')) return;
+  try {
+    await invitation.revoquer(gardeId);
+    gardeData.invitation_token_b = null;
+    afficherTokenInvitation(null);
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
+
 async function chargerCP() {
   try {
     const data = await cp.get(gardeId);
@@ -422,6 +506,7 @@ async function charger() {
     gardeData = await gardes.get(gardeId);
     hasValidated = gardeData.hasValidatedMois || false;
     familles = gardeData.familles || [];
+    monFamille = familles.find(f => f.utilisateur_id === monUserId()) || null;
     afficher();
 
     // Charger données nounou + CP
@@ -468,6 +553,15 @@ function afficher() {
     ${partieCard(famB?.nom_affiche || 'Famille B', 'Co-famille', famB?.utilisateur_id ? 'Active' : 'Pas encore invitée', '#2e7d32', '#e8f5e9', famB?.utilisateur_id ? 'prop' : 'invite')}
     ${partieCard(nounou ? `${nounou.prenom} ${nounou.nom}` : '—', 'Nounou', 'Garde à domicile', '#e65100', '#fff3e0', 'prop')}
   `;
+
+  // Section invitation Famille B (visible uniquement pour Famille A si B pas encore active)
+  const sectInvit = document.getElementById('section-invitation');
+  if (monFamille?.label === 'A' && !famB?.utilisateur_id) {
+    sectInvit.style.display = '';
+    afficherTokenInvitation(g.invitation_token_b);
+  } else {
+    sectInvit.style.display = 'none';
+  }
 
   // Config
   const modele = g.modele;
@@ -551,9 +645,11 @@ window.ouvrirModal = function() {
   document.getElementById('edit-nom').value     = g.nom || '';
   document.getElementById('edit-nom-a').value   = famA?.nom_affiche || '';
   document.getElementById('edit-email-a').value = famA?.email_contact || '';
-  document.getElementById('edit-nom-b').value   = famB?.nom_affiche || '';
-  document.getElementById('edit-email-b').value = famB?.email_contact || '';
-  document.getElementById('edit-debut').value   = g.date_debut || '';
+  document.getElementById('edit-nom-b').value         = famB?.nom_affiche || '';
+  document.getElementById('edit-email-b').value       = famB?.email_contact || '';
+  document.getElementById('edit-nounou-prenom').value = g.nounou?.prenom || '';
+  document.getElementById('edit-nounou-nom').value    = g.nounou?.nom || '';
+  document.getElementById('edit-debut').value         = g.date_debut || '';
   document.getElementById('edit-mode').value    = g.mode_calcul || 'mensualise';
 
   // Restriction si mois validé
@@ -628,6 +724,17 @@ window.sauvegarder = async function() {
         body: JSON.stringify({ prenom }),
       });
     }));
+
+    // Sauvegarder la nounou si des champs sont remplis
+    const nounouPrenom = document.getElementById('edit-nounou-prenom').value.trim();
+    const nounouNom    = document.getElementById('edit-nounou-nom').value.trim();
+    if (nounouPrenom && nounouNom) {
+      await fetch(`${API_BASE}/gardes/${gardeId}/nounou`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('nl_token'), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prenom: nounouPrenom, nom: nounouNom }),
+      }).catch(() => {});
+    }
 
     await charger();
     fermerModal();
