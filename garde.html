@@ -196,9 +196,18 @@
       </div>
     </div>
 
-    <div style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px;margin-bottom:4px">
-      <div style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Enfants</div>
-      <div id="edit-enfants-list"></div>
+    <div id="edit-nounou-section" style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px">
+      <div style="font-size:11px;font-weight:500;color:var(--dust);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Nounou</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field">
+          <label>Prénom</label>
+          <input type="text" id="edit-nounou-prenom">
+        </div>
+        <div class="field">
+          <label>Nom</label>
+          <input type="text" id="edit-nounou-nom">
+        </div>
+      </div>
     </div>
 
     <div id="edit-enfants-section" style="border-top:.5px solid var(--line);padding-top:16px;margin-top:4px">
@@ -551,9 +560,11 @@ window.ouvrirModal = function() {
   document.getElementById('edit-nom').value     = g.nom || '';
   document.getElementById('edit-nom-a').value   = famA?.nom_affiche || '';
   document.getElementById('edit-email-a').value = famA?.email_contact || '';
-  document.getElementById('edit-nom-b').value   = famB?.nom_affiche || '';
-  document.getElementById('edit-email-b').value = famB?.email_contact || '';
-  document.getElementById('edit-debut').value   = g.date_debut || '';
+  document.getElementById('edit-nom-b').value         = famB?.nom_affiche || '';
+  document.getElementById('edit-email-b').value       = famB?.email_contact || '';
+  document.getElementById('edit-nounou-prenom').value = g.nounou?.prenom || '';
+  document.getElementById('edit-nounou-nom').value    = g.nounou?.nom || '';
+  document.getElementById('edit-debut').value         = g.date_debut || '';
   document.getElementById('edit-mode').value    = g.mode_calcul || 'mensualise';
 
   // Restriction si mois validé
@@ -628,6 +639,17 @@ window.sauvegarder = async function() {
         body: JSON.stringify({ prenom }),
       });
     }));
+
+    // Sauvegarder la nounou si des champs sont remplis
+    const nounouPrenom = document.getElementById('edit-nounou-prenom').value.trim();
+    const nounouNom    = document.getElementById('edit-nounou-nom').value.trim();
+    if (nounouPrenom && nounouNom) {
+      await fetch(`${API_BASE}/gardes/${gardeId}/nounou`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('nl_token'), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prenom: nounouPrenom, nom: nounouNom }),
+      }).catch(() => {});
+    }
 
     await charger();
     fermerModal();
