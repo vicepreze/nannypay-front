@@ -10,7 +10,9 @@ export const API_BASE = 'https://nannypay-back-production.up.railway.app';
 
 export const auth = {
   async register(email, password, prenom, nom) {
-    return call('POST', '/auth/register', { email, password, prenom, nom });
+    const res = await call('POST', '/auth/register', { email, password, prenom, nom });
+    if (res.token) saveToken(res.token);
+    return res;
   },
   async login(email, password) {
     const res = await call('POST', '/auth/login', { email, password });
@@ -103,6 +105,20 @@ export const cp = {
 export const public_ = {
   async get(token) {
     return callPublic('GET', `/public/${token}`);
+  },
+};
+
+// ─── INVITATION ───────────────────────────────────────────────────────────────
+
+export const invitation = {
+  async generer(gardeId) {
+    return call('POST', `/gardes/${gardeId}/invitation`, {});
+  },
+  async revoquer(gardeId) {
+    return call('DELETE', `/gardes/${gardeId}/invitation`);
+  },
+  async validerToken(token) {
+    return callPublic('GET', `/public/invitation/${token}`);
   },
 };
 
