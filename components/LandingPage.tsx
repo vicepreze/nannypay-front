@@ -63,13 +63,18 @@ export function LandingPage() {
   const [mois]  = useState(now.getMonth() + 1);
 
   // Résultats calculés
-  const [results, setResults] = useState({ totalNounou: 0, a: { hNorm: 0, hSup: 0, salNet: 0, total: 0 }, b: { hNorm: 0, hSup: 0, salNet: 0, total: 0 } });
+  const [results, setResults] = useState({ totalNounou: 0, a: { hNorm: 0, hSup: 0, salNet: 0, entretien: 0, total: 0 }, b: { hNorm: 0, hSup: 0, salNet: 0, entretien: 0, total: 0 } });
 
   // Modal event
-  const [modalOpen, setModalOpen] = useState(false);
-  const [evtType,   setEvtType]   = useState<Evt['type'] | null>(null);
-  const [evtDebut,  setEvtDebut]  = useState('');
-  const [evtFin,    setEvtFin]    = useState('');
+  const [modalOpen,  setModalOpen]  = useState(false);
+  const [evtType,    setEvtType]    = useState<Evt['type'] | null>(null);
+  const [evtDebut,   setEvtDebut]   = useState('');
+  const [evtFin,     setEvtFin]     = useState('');
+  const [modalError, setModalError] = useState('');
+
+  // Bornes du mois pour les pickers
+  const minDate = `${annee}-${String(mois).padStart(2, '0')}-01`;
+  const maxDate = dateToStr(new Date(annee, mois, 0));
 
   // Auth modal
   const [authOpen,    setAuthOpen]    = useState(false);
@@ -95,20 +100,27 @@ export function LandingPage() {
     localStorage.setItem('demo_v2', JSON.stringify({ nbEnfants, taux, evts }));
   }, [nbEnfants, taux, evts]);
 
-  // Recalcul
+  // Recalcul — même logique que calcul.ts
   useEffect(() => {
     const scenario = SCENARIOS[nbEnfants];
-    const joursOuv = joursOuvrablesMois(annee, mois);
-    const joursAbs = evts.reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
-    const ratio = joursOuv > 0 ? Math.max(0, joursOuv - joursAbs) / joursOuv : 1;
+    const joursOuv        = joursOuvrablesMois(annee, mois);
+    const joursAbsMaladie = evts.filter(e => e.type === 'maladie_nounou')
+      .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
+    const joursAbsCP      = evts.filter(e => e.type === 'conge_paye')
+      .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
+    // Salaire : seule la maladie réduit le ratio
+    const ratio              = joursOuv > 0 ? Math.max(0, joursOuv - joursAbsMaladie) / joursOuv : 1;
+    // Entretien : non dû maladie ET CP
+    const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP);
 
     const calc = (fam: 'A' | 'B') => {
-      const qp = scenario.qp[fam];
-      const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
-      const hSup25 = Math.round(H_SUP25_MENS * qp * ratio);
-      const salNet = Math.round((H_NORM_MENS * qp * taux * ratio + H_SUP25_MENS * qp * taux * 1.25 * ratio) * 100) / 100;
-      const total  = Math.round((salNet + TRANSPORT / 2) * 100) / 100;
-      return { hNorm, hSup: hSup25, salNet, total };
+      const qp      = scenario.qp[fam];
+      const hNorm   = Math.round(H_NORM_MENS  * qp * ratio);
+      const hSup25  = Math.round(H_SUP25_MENS * qp * ratio);
+      const salNet  = Math.round((H_NORM_MENS * qp * taux * ratio + H_SUP25_MENS * qp * taux * 1.25 * ratio) * 100) / 100;
+      const entretien = Math.round(qp * joursEntretienBase * 6.0 * 100) / 100;
+      const total   = Math.round((salNet + TRANSPORT / 2 + entretien) * 100) / 100;
+      return { hNorm, hSup: hSup25, salNet, entretien, total };
     };
     const a = calc('A'), b = calc('B');
     setResults({ totalNounou: Math.round((a.total + b.total) * 100) / 100, a, b });
@@ -163,12 +175,16 @@ export function LandingPage() {
     setEvtType(null);
     setEvtDebut(ds ?? '');
     setEvtFin(ds ?? '');
+    setModalError('');
     setModalOpen(true);
   }
   function addEvt() {
-    if (!evtType) { alert('Choisissez un type.'); return; }
-    if (!evtDebut || !evtFin) { alert('Dates requises.'); return; }
-    if (evtFin < evtDebut) { alert('Date fin après début.'); return; }
+    setModalError('');
+    if (!evtType)              { setModalError('Choisissez un type.'); return; }
+    if (!evtDebut || !evtFin)  { setModalError('Les deux dates sont requises.'); return; }
+    if (evtFin < evtDebut)     { setModalError('La fin doit être après le début.'); return; }
+    const conflict = evts.some(e => e.debut <= evtFin && e.fin >= evtDebut);
+    if (conflict) { setModalError('Cet intervalle chevauche un événement existant.'); return; }
     setEvts(p => [...p, { type: evtType, debut: evtDebut, fin: evtFin }]);
     setModalOpen(false);
   }
@@ -256,9 +272,9 @@ export function LandingPage() {
             {/* ── GAUCHE ─────────────────────────────────────────── */}
             <aside className="flex flex-col gap-3">
 
-              {/* Taux */}
+              {/* Taux + heures hebdo */}
               <Panel title="Paramètres">
-                <div className="flex items-center justify-between p-4">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)]">
                   <span className="text-sm font-medium">Taux horaire net</span>
                   <div className="flex items-center gap-1.5 text-sm text-[var(--dust)]">
                     <input
@@ -269,6 +285,16 @@ export function LandingPage() {
                     <span>€/h</span>
                   </div>
                 </div>
+                {[
+                  ['H. normales / sem.',  `${H_NORM_SEM} h`],
+                  ['H. sup +25% / sem.',  `${H_SUP25_SEM} h`],
+                  ['Total hebdo',         `${H_NORM_SEM + H_SUP25_SEM} h`],
+                ].map(([l, v]) => (
+                  <div key={l} className="flex justify-between px-4 py-2 text-xs border-b border-[var(--line)] last:border-0">
+                    <span className="text-[var(--dust)]">{l}</span>
+                    <span className="font-medium font-mono">{v}</span>
+                  </div>
+                ))}
               </Panel>
 
               {/* Constantes */}
@@ -406,14 +432,15 @@ export function LandingPage() {
             <div className="grid grid-cols-2 gap-3 mb-1">
               <div>
                 <label className="text-xs text-[var(--dust)] block mb-1">Début</label>
-                <input type="date" value={evtDebut} onChange={e => setEvtDebut(e.target.value)} className={inp} />
+                <input type="date" value={evtDebut} min={minDate} max={maxDate} onChange={e => { setEvtDebut(e.target.value); setModalError(''); }} className={inp} />
               </div>
               <div>
                 <label className="text-xs text-[var(--dust)] block mb-1">Fin</label>
-                <input type="date" value={evtFin} onChange={e => setEvtFin(e.target.value)} className={inp} />
+                <input type="date" value={evtFin} min={minDate} max={maxDate} onChange={e => { setEvtFin(e.target.value); setModalError(''); }} className={inp} />
               </div>
             </div>
-            <div className="flex gap-2 mt-5 justify-end">
+            {modalError && <p className="text-xs text-red-600 mt-2 mb-1">{modalError}</p>}
+            <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => setModalOpen(false)} className={btnSec}>Annuler</button>
               <button onClick={addEvt} className={btnPri}>Ajouter</button>
             </div>
@@ -436,7 +463,7 @@ function Panel({ title, badge, children }: { title: string; badge?: string; chil
   );
 }
 
-function FamilleCard({ label, color, r }: { label: string; color: 'blue' | 'sage'; r: { hNorm: number; hSup: number; salNet: number; total: number } }) {
+function FamilleCard({ label, color, r }: { label: string; color: 'blue' | 'sage'; r: { hNorm: number; hSup: number; salNet: number; entretien: number; total: number } }) {
   const c = color === 'blue' ? 'text-[var(--blue)]' : 'text-[var(--sage)]';
   return (
     <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
@@ -444,12 +471,13 @@ function FamilleCard({ label, color, r }: { label: string; color: 'blue' | 'sage
         Famille {label} — Pajemploi
       </div>
       {[
-        ['Heures normales', r.hNorm + ' h', false],
-        ['Heures sup +25%', r.hSup + ' h', false],
-        ['Heures sup +50%', '0 h',         true],
-        ['Salaire net',     r.salNet.toFixed(2) + ' €', false],
-        ['Transport',       '45,40 €',     false],
-        ['Frais km',        '0,00 €',      true],
+        ['Heures normales', r.hNorm + ' h',              false],
+        ['Heures sup +25%', r.hSup  + ' h',              r.hSup === 0],
+        ['Heures sup +50%', '0 h',                       true],
+        ['Salaire net',     r.salNet.toFixed(2)    + ' €', false],
+        ['Transport',       (TRANSPORT / 2).toFixed(2) + ' €', false],
+        ['Entretien',       r.entretien.toFixed(2) + ' €', false],
+        ['Frais km',        '0,00 €',                    true],
       ].map(([l, v, dim]) => (
         <div key={String(l)} className={'flex justify-between px-4 py-1.5 border-b border-[var(--line)] last:border-0 text-xs ' + (dim ? 'opacity-40' : '')}>
           <span className="text-[var(--dust)]">{l}</span>
