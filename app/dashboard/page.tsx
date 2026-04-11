@@ -73,17 +73,16 @@ export default async function DashboardPage() {
               const famB = g.familles.find(f => f.label === 'B');
               const famBActif = famB?.statutAcces === 'invite_actif';
               return (
-                <Link
+                <div
                   key={g.id}
-                  href={`/gardes/${g.id}`}
-                  className="block bg-white border border-[var(--line)] rounded-[var(--radius)] p-5 hover:border-[var(--sage-mid)] hover:shadow-sm transition-all no-underline group"
+                  className="relative bg-white border border-[var(--line)] rounded-[var(--radius)] p-5 hover:border-[var(--sage-mid)] hover:shadow-sm transition-all group"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h2 className="text-base font-medium text-[var(--ink)] group-hover:text-[var(--sage)] transition-colors">
+                        <Link href={`/gardes/${g.id}`} className="text-base font-medium text-[var(--ink)] group-hover:text-[var(--sage)] transition-colors no-underline">
                           {g.nom ?? 'Garde sans nom'}
-                        </h2>
+                        </Link>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${g.statut === 'actif' ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
                           {g.statut}
                         </span>
@@ -112,17 +111,16 @@ export default async function DashboardPage() {
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      <span className="text-[var(--dust)] group-hover:text-[var(--sage)] transition-colors text-lg mt-0.5">→</span>
+                      <Link href={`/gardes/${g.id}`} className="text-[var(--dust)] group-hover:text-[var(--sage)] transition-colors text-lg mt-0.5 no-underline">→</Link>
                       <Link
                         href={`/gardes/${g.id}/mois/${annee}/${mois}`}
-                        onClick={e => e.stopPropagation()}
                         className="text-[11px] px-2.5 py-1 border border-[var(--line)] rounded-lg text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)] transition-colors no-underline whitespace-nowrap"
                       >
                         Mois en cours
                       </Link>
                     </div>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
