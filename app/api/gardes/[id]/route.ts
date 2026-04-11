@@ -33,8 +33,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const body = await req.json();
 
   // Mise à jour garde
-  if (body.nom !== undefined) {
-    await prisma.garde.update({ where: { id: params.id }, data: { nom: body.nom } });
+  if (body.nom !== undefined || body.statut !== undefined) {
+    await prisma.garde.update({
+      where: { id: params.id },
+      data: {
+        ...(body.nom    !== undefined ? { nom:    body.nom    } : {}),
+        ...(body.statut !== undefined ? { statut: body.statut } : {}),
+      },
+    });
   }
 
   // Mise à jour nounou

@@ -5,25 +5,35 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { SignOutButton } from '@/components/SignOutButton';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: { voir?: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect('/');
 
-  const now = new Date();
+  const now   = new Date();
   const annee = now.getFullYear();
   const mois  = now.getMonth() + 1;
+  const voirArchivees = searchParams.voir === 'archives';
 
-  const gardes = await prisma.garde.findMany({
-    where: {
-      familles: { some: { utilisateurId: session.user.id } },
-    },
-    include: {
-      nounou:   { select: { prenom: true } },
-      familles: { select: { label: true, nomAffiche: true, statutAcces: true } },
-      enfants:  { select: { prenom: true, fam: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const [gardes, nbArchivees] = await Promise.all([
+    prisma.garde.findMany({
+      where: {
+        familles: { some: { utilisateurId: session.user.id } },
+        statut: voirArchivees ? 'archivé' : { not: 'archivé' },
+      },
+      include: {
+        nounou:   { select: { prenom: true } },
+        familles: { select: { label: true, nomAffiche: true, statutAcces: true } },
+        enfants:  { select: { prenom: true, fam: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    voirArchivees ? Promise.resolve(0) : prisma.garde.count({
+      where: {
+        familles: { some: { utilisateurId: session.user.id } },
+        statut: 'archivé',
+      },
+    }),
+  ]);
 
   return (
     <div className="min-h-screen bg-[var(--paper)]">
@@ -41,28 +51,34 @@ export default async function DashboardPage() {
       <div className="pt-14 max-w-3xl mx-auto px-6 pb-16">
         <div className="flex items-center justify-between pt-10 mb-8">
           <div>
-            <h1 className="font-serif text-3xl text-[var(--ink)]">Mes gardes</h1>
+            <h1 className="font-serif text-3xl text-[var(--ink)]">
+              {voirArchivees ? 'Gardes archivées' : 'Mes gardes'}
+            </h1>
             <p className="text-sm text-[var(--dust)] mt-1">
-              {gardes.length === 0 ? 'Aucune garde configurée' : `${gardes.length} garde${gardes.length > 1 ? 's' : ''}`}
+              {gardes.length === 0
+                ? (voirArchivees ? 'Aucune garde archivée' : 'Aucune garde configurée')
+                : `${gardes.length} garde${gardes.length > 1 ? 's' : ''}`}
             </p>
           </div>
-          <Link
-            href="/nouvelle-garde/acteurs"
-            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline"
-          >
-            + Nouvelle garde
-          </Link>
+          <div className="flex gap-2">
+            {voirArchivees ? (
+              <Link href="/dashboard" className="px-4 py-2 border-[1.5px] border-[var(--line)] text-[var(--ink)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] bg-white no-underline">
+                ← Gardes actives
+              </Link>
+            ) : (
+              <Link href="/nouvelle-garde/acteurs" className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
+                + Nouvelle garde
+              </Link>
+            )}
+          </div>
         </div>
 
-        {gardes.length === 0 ? (
+        {gardes.length === 0 && !voirArchivees ? (
           <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-12 text-center">
             <div className="text-4xl mb-4">👶</div>
             <p className="font-medium text-[var(--ink)] mb-2">Aucune garde pour l&apos;instant</p>
             <p className="text-sm text-[var(--dust)] mb-6">Configurez votre première garde partagée en quelques minutes.</p>
-            <Link
-              href="/nouvelle-garde/acteurs"
-              className="px-5 py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline"
-            >
+            <Link href="/nouvelle-garde/acteurs" className="px-5 py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
               Créer ma première garde
             </Link>
           </div>
@@ -73,33 +89,28 @@ export default async function DashboardPage() {
               const famB = g.familles.find(f => f.label === 'B');
               const famBActif = famB?.statutAcces === 'invite_actif';
               return (
-                <div
-                  key={g.id}
-                  className="relative bg-white border border-[var(--line)] rounded-[var(--radius)] p-5 hover:border-[var(--sage-mid)] hover:shadow-sm transition-all group"
-                >
+                <div key={g.id} className="relative bg-white border border-[var(--line)] rounded-[var(--radius)] p-5 hover:border-[var(--sage-mid)] hover:shadow-sm transition-all group">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <Link href={`/gardes/${g.id}`} className="text-base font-medium text-[var(--ink)] group-hover:text-[var(--sage)] transition-colors no-underline">
                           {g.nom ?? 'Garde sans nom'}
                         </Link>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${g.statut === 'actif' ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                          g.statut === 'actif'    ? 'bg-[var(--sage-light)] text-[var(--sage)]' :
+                          g.statut === 'archivé'  ? 'bg-[var(--paper)] text-[var(--dust)]' :
+                          'bg-[var(--paper)] text-[var(--dust)]'
+                        }`}>
                           {g.statut}
                         </span>
                       </div>
-
                       <div className="flex flex-wrap gap-2 text-xs text-[var(--dust)]">
-                        {g.nounou && (
-                          <span>👩 {g.nounou.prenom}</span>
-                        )}
-                        <span className="text-[var(--blue)]">
-                          Fam. A : {famA?.nomAffiche ?? '—'}
-                        </span>
+                        {g.nounou && <span>👩 {g.nounou.prenom}</span>}
+                        <span className="text-[var(--blue)]">Fam. A : {famA?.nomAffiche ?? '—'}</span>
                         <span className={famBActif ? 'text-[var(--sage)]' : 'text-[var(--dust)]'}>
                           Fam. B : {famB?.nomAffiche ?? '—'} {!famBActif && '· en attente'}
                         </span>
                       </div>
-
                       {g.enfants.length > 0 && (
                         <div className="flex gap-1.5 mt-2">
                           {g.enfants.map((e, i) => (
@@ -112,17 +123,23 @@ export default async function DashboardPage() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <Link href={`/gardes/${g.id}`} className="text-[var(--dust)] group-hover:text-[var(--sage)] transition-colors text-lg mt-0.5 no-underline">→</Link>
-                      <Link
-                        href={`/gardes/${g.id}/mois/${annee}/${mois}`}
-                        className="text-[11px] px-2.5 py-1 border border-[var(--line)] rounded-lg text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)] transition-colors no-underline whitespace-nowrap"
-                      >
-                        Mois en cours
-                      </Link>
+                      {!voirArchivees && (
+                        <Link href={`/gardes/${g.id}/mois/${annee}/${mois}`} className="text-[11px] px-2.5 py-1 border border-[var(--line)] rounded-lg text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)] transition-colors no-underline whitespace-nowrap">
+                          Mois en cours
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>
               );
             })}
+
+            {/* Lien archives */}
+            {!voirArchivees && nbArchivees > 0 && (
+              <Link href="/dashboard?voir=archives" className="block text-center text-xs text-[var(--dust)] hover:text-[var(--ink)] py-2 no-underline">
+                {nbArchivees} garde{nbArchivees > 1 ? 's' : ''} archivée{nbArchivees > 1 ? 's' : ''} — voir
+              </Link>
+            )}
           </div>
         )}
       </div>

@@ -13,7 +13,7 @@ type Famille = { label: string; nomAffiche: string | null; utilisateurId: string
 type GardeInfo = {
   id: string; nom: string | null;
   familles: Famille[];
-  modele: { tauxHoraireNet: number; hNormalesSemaine: number; hSupplementairesSemaine: number; repartitionA: number; navigoMontant: number; indemEntretien: number; indemKm: number; joursJson: string } | null;
+  modele: { tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number; hSup50Semaine: number; repartitionA: number; navigoMontant: number; indemEntretien: number; indemKm: number; joursJson: string } | null;
 };
 type MoisRec = { statut: string; evenementsJson: string };
 
@@ -59,19 +59,20 @@ export default function MoisPage() {
   useEffect(() => {
     if (!garde?.modele) return;
     const m = garde.modele;
-    const jours = JSON.parse(m.joursJson || '{}') as Record<string, { actif: boolean; hDebut: string; hFin: string }>;
+    const jours = JSON.parse(m.joursJson || '{}') as Record<string, { actif: boolean; plages?: unknown[] }>;
     const joursActifs = Object.values(jours).filter(j => j.actif).length;
     setResult(calculerMois({
       annee, mois,
-      taux:                m.tauxHoraireNet,
-      hNormalesSemaine:    m.hNormalesSemaine,
-      hSupSemaine:         m.hSupplementairesSemaine,
-      repartitionA:        m.repartitionA,
-      navigo:              m.navigoMontant,
-      indemEntretien:      m.indemEntretien,
-      indemKm:             m.indemKm,
+      taux:                 m.tauxHoraireNet,
+      hNormalesSemaine:     m.hNormalesSemaine,
+      hSup25Semaine:        m.hSup25Semaine,
+      hSup50Semaine:        m.hSup50Semaine,
+      repartitionA:         m.repartitionA,
+      navigo:               m.navigoMontant,
+      indemEntretien:       m.indemEntretien,
+      indemKm:              m.indemKm,
       joursActifsParSemaine: joursActifs || 5,
-      evenements:          evts,
+      evenements:           evts,
     }));
   }, [garde, evts, annee, mois]);
 
@@ -366,13 +367,13 @@ function ResultCard({ label, nom, r }: { label: string; nom: string; r: ReturnTy
         {nom} — Pajemploi
       </div>
       {[
-        ['Heures normales',  r.hNorm  + ' h',           false],
-        ['Heures sup +25%',  r.hSup25 + ' h',           false],
-        ['Heures sup +50%',  '0 h',                     true],
-        ['Salaire net',      r.salNet.toFixed(2)  + ' €', false],
+        ['Heures normales',  r.hNorm  + ' h',              false],
+        ['Heures sup +25%',  r.hSup25 + ' h',              r.hSup25 === 0],
+        ['Heures sup +50%',  r.hSup50 + ' h',              r.hSup50 === 0],
+        ['Salaire net',      r.salNet.toFixed(2)  + ' €',  false],
         ['Transport',        r.transport.toFixed(2) + ' €', false],
         ['Entretien',        r.entretien.toFixed(2) + ' €', false],
-        ['Frais km',         r.km.toFixed(2) + ' €',    r.km === 0],
+        ['Frais km',         r.km.toFixed(2) + ' €',       r.km === 0],
       ].map(([l, v, dim]) => (
         <div key={String(l)} className={'flex justify-between px-4 py-1.5 border-b border-[var(--line)] last:border-0 text-xs ' + (dim ? 'opacity-40' : '')}>
           <span className="text-[var(--dust)]">{l}</span>

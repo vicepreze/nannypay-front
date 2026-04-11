@@ -27,22 +27,11 @@ export async function POST(req: NextRequest) {
   const nbTotal    = nbEnfantsA + nbEnfantsB || 2;
   const repartitionA = nbEnfantsA / nbTotal;
 
-  // Calcul heures semaine depuis le planning
-  const joursActifs: Array<{ num: number; hDebut: string; hFin: string }> = Object.entries(planning || {})
-    .filter(([, v]: [string, unknown]) => (v as { actif: boolean }).actif)
-    .map(([num, v]) => ({
-      num: parseInt(num),
-      hDebut: (v as { hDebut: string }).hDebut,
-      hFin: (v as { hFin: string }).hFin,
-    }));
-
-  const heuresSemaine = joursActifs.reduce((acc, j) => {
-    const [h1, m1] = j.hDebut.split(':').map(Number);
-    const [h2, m2] = j.hFin.split(':').map(Number);
-    return acc + (h2 * 60 + m2 - (h1 * 60 + m1)) / 60;
-  }, 0);
-  const hNormales = Math.min(heuresSemaine, 40);
-  const hSup      = Math.max(0, heuresSemaine - 40);
+  // planning contient maintenant { planning, hNormalesSemaine, hSup25Semaine, hSup50Semaine }
+  const planningData   = planning?.planning ?? planning;
+  const hNormales      = planning?.hNormalesSemaine ?? 40;
+  const hSup25         = planning?.hSup25Semaine    ?? 0;
+  const hSup50         = planning?.hSup50Semaine    ?? 0;
 
   const garde = await prisma.garde.create({
     data: {
@@ -85,14 +74,15 @@ export async function POST(req: NextRequest) {
       modele: {
         create: {
           tauxHoraireNet:          paie.taux,
-          hNormalesSemaine:        hNormales,
-          hSupplementairesSemaine: hSup,
-          modeCalcul:              paie.mode,
+          hNormalesSemaine: hNormales,
+          hSup25Semaine:    hSup25,
+          hSup50Semaine:    hSup50,
+          modeCalcul:       paie.mode,
           repartitionA,
-          navigoMontant:  paie.navigo,
-          indemKm:        paie.indemKm,
-          indemEntretien: paie.indemEntretien,
-          joursJson: JSON.stringify(planning),
+          navigoMontant:    paie.navigo,
+          indemKm:          paie.indemKm,
+          indemEntretien:   paie.indemEntretien,
+          joursJson: JSON.stringify(planningData),
         },
       },
     },

@@ -73,6 +73,18 @@ export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: Garde
     setLoading(false);
   }
 
+  async function archiverGarde() {
+    if (!confirm('Archiver cette garde ? Elle n\'apparaîtra plus dans votre dashboard.')) return;
+    setLoading(true);
+    const res = await fetch(`/api/gardes/${garde.id}`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statut: 'archivé' }),
+    });
+    if (res.ok) window.location.href = '/dashboard';
+    setLoading(false);
+  }
+
   async function revoquerInvitation() {
     setLoading(true);
     await fetch(`/api/gardes/${garde.id}/invitation`, { method: 'DELETE' });
@@ -122,6 +134,11 @@ export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: Garde
         <div className="flex gap-2">
           {moisUrl && !editMode && (
             <Link href={moisUrl} className={btnPri + ' no-underline'}>Mois en cours</Link>
+          )}
+          {!editMode && garde.statut !== 'archivé' && (
+            <button onClick={archiverGarde} disabled={loading} className="px-4 py-2 border-[1.5px] border-[var(--line)] text-[var(--dust)] rounded-[var(--radius)] text-sm font-medium hover:border-red-300 hover:text-red-500 transition-colors bg-white disabled:opacity-50">
+              Archiver
+            </button>
           )}
           {!editMode ? (
             <button onClick={() => setEditMode(true)} className={btnSec}>Modifier</button>

@@ -7,7 +7,7 @@ import { calculerMois, CalcResult } from '@/lib/calcul';
 type Famille = { label: string; nomAffiche: string | null };
 type Enfant  = { id: string; prenom: string; fam: string };
 type Modele  = {
-  tauxHoraireNet: number; hNormalesSemaine: number; hSupplementairesSemaine: number;
+  tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number; hSup50Semaine: number;
   modeCalcul: string; repartitionA: number; navigoMontant: number;
   indemEntretien: number; indemKm: number; joursJson: string;
 };
@@ -53,7 +53,8 @@ export default function PublicNounouPage() {
       mois:                  selected.mois,
       taux:                  m.tauxHoraireNet,
       hNormalesSemaine:      m.hNormalesSemaine,
-      hSupSemaine:           m.hSupplementairesSemaine,
+      hSup25Semaine:         m.hSup25Semaine,
+      hSup50Semaine:         m.hSup50Semaine,
       repartitionA:          m.repartitionA,
       navigo:                m.navigoMontant,
       indemEntretien:        m.indemEntretien,
