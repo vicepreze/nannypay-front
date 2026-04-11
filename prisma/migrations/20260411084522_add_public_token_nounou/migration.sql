@@ -1,2 +1,2 @@
--- AlterTable
-ALTER TABLE "Garde" ADD COLUMN "publicTokenNounou" TEXT;
+-- Inclus dans la migration init (réécrite pour PostgreSQL)
+SELECT 1;
