@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { calcHeuresSemaineFromPlanning } from '@/lib/calcul';
 
@@ -12,297 +12,241 @@ const JOURS = [
   { num: 5, label: 'Vendredi', court: 'Ven' },
 ];
 
-type Plage = { id: string; debut: string; fin: string; enfantIds: string[] };
-type JourPlanning = { actif: boolean; plages: Plage[] };
-type Planning = Record<number, JourPlanning>;
-type Enfant   = { prenom: string; fam: 'A' | 'B' };
+type Slot    = { actif: boolean; debut: string; fin: string };
+type PerDay  = Record<string, Slot>;          // key: "1"–"5"
+type Planning = Record<string, PerDay>;       // key: childName
+type Enfant  = { prenom: string; fam: 'A' | 'B' };
 
 const STORAGE_KEY = 'ng_planning';
 
-function uid() { return Math.random().toString(36).slice(2, 9); }
-
 function hhmm(t: string) {
-  const [h, m] = t.split(':').map(Number);
+  const [h, m] = (t || '').split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
 }
-
 function diffH(debut: string, fin: string) {
   const d = hhmm(fin) - hhmm(debut);
   return d > 0 ? d / 60 : 0;
 }
-
-function defaultPlanning(): Planning {
+function defaultSlots(): PerDay {
   return Object.fromEntries(
-    JOURS.map(j => [j.num, {
-      actif:  j.num !== 3,
-      plages: j.num !== 3 ? [{ id: uid(), debut: '08:30', fin: '18:30', enfantIds: [] }] : [],
-    }])
+    JOURS.map(j => [String(j.num), { actif: j.num !== 3, debut: '08:30', fin: '18:30' }])
   );
+}
+function buildPlanning(enfants: Enfant[], saved: Planning | null): Planning {
+  const result: Planning = {};
+  for (const e of enfants) {
+    result[e.prenom] = saved?.[e.prenom] ?? defaultSlots();
+  }
+  return result;
 }
 
 export default function PlanningPage() {
-  const router   = useRouter();
-  const [planning, setPlanning]   = useState<Planning>(defaultPlanning());
-  const [enfants,  setEnfants]    = useState<Enfant[]>([]);
-  const [error,    setError]      = useState('');
-  const [copier,   setCopier]     = useState<number | null>(null); // jour source pour propagation
+  const router = useRouter();
+  const [planning, setPlanning] = useState<Planning>({});
+  const [enfants,  setEnfants]  = useState<Enfant[]>([]);
+  const [error,    setError]    = useState('');
+  const [copier,   setCopier]   = useState<{ child: string; jour: string } | null>(null);
 
-  // Charge enfants depuis acteurs + planning sauvegardé
   useEffect(() => {
     const acteurs = sessionStorage.getItem('ng_acteurs');
     if (acteurs) {
-      const d = JSON.parse(acteurs);
-      setEnfants((d.enfants ?? []).filter((e: Enfant) => e.prenom));
+      const d    = JSON.parse(acteurs);
+      const enfs = ((d.enfants ?? []) as Enfant[]).filter(e => e.prenom);
+      setEnfants(enfs);
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const savedData = JSON.parse(saved) as { planning?: Planning } | Planning;
+        const p = (savedData as { planning?: Planning }).planning ?? (savedData as Planning);
+        setPlanning(buildPlanning(enfs, p));
+      } else {
+        setPlanning(buildPlanning(enfs, null));
+      }
     }
-    const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (saved) setPlanning(JSON.parse(saved));
   }, []);
 
   // ── Mutations ────────────────────────────────────────────────────
 
-  function toggleJour(num: number) {
-    setPlanning(prev => {
-      const p = prev[num];
-      return {
-        ...prev,
-        [num]: {
-          actif:  !p.actif,
-          plages: !p.actif && p.plages.length === 0
-            ? [{ id: uid(), debut: '08:30', fin: '18:30', enfantIds: [] }]
-            : p.plages,
-        },
-      };
-    });
-  }
-
-  function addPlage(num: number) {
-    setPlanning(prev => {
-      const last = prev[num].plages.at(-1);
-      const debut = last?.fin ?? '08:30';
-      return {
-        ...prev,
-        [num]: { ...prev[num], plages: [...prev[num].plages, { id: uid(), debut, fin: debut, enfantIds: [] }] },
-      };
-    });
-  }
-
-  function removePlage(num: number, id: string) {
+  function toggleSlot(child: string, jour: string) {
     setPlanning(prev => ({
       ...prev,
-      [num]: { ...prev[num], plages: prev[num].plages.filter(p => p.id !== id) },
+      [child]: { ...prev[child], [jour]: { ...prev[child][jour], actif: !prev[child][jour].actif } },
     }));
   }
 
-  function updatePlage(num: number, id: string, field: 'debut' | 'fin', val: string) {
+  function updateSlot(child: string, jour: string, field: 'debut' | 'fin', val: string) {
     setPlanning(prev => ({
       ...prev,
-      [num]: {
-        ...prev[num],
-        plages: prev[num].plages.map(p => p.id === id ? { ...p, [field]: val } : p),
-      },
+      [child]: { ...prev[child], [jour]: { ...prev[child][jour], [field]: val } },
     }));
   }
 
-  function toggleEnfantPlage(num: number, plageId: string, prenom: string) {
-    setPlanning(prev => ({
-      ...prev,
-      [num]: {
-        ...prev[num],
-        plages: prev[num].plages.map(p => {
-          if (p.id !== plageId) return p;
-          const has = p.enfantIds.includes(prenom);
-          return { ...p, enfantIds: has ? p.enfantIds.filter(e => e !== prenom) : [...p.enfantIds, prenom] };
-        }),
-      },
-    }));
-  }
-
-  function copierVers(source: number, cibles: number[]) {
+  function copierVers(child: string, source: string, cibles: string[]) {
     setPlanning(prev => {
-      const sourcePlages = prev[source].plages;
-      const update: Planning = { ...prev };
-      for (const c of cibles) {
-        update[c] = {
-          actif:  true,
-          plages: sourcePlages.map(p => ({ ...p, id: uid() })),
-        };
-      }
-      return update;
+      const src = prev[child][source];
+      const updated = { ...prev[child] };
+      for (const c of cibles) updated[c] = { ...src };
+      return { ...prev, [child]: updated };
     });
     setCopier(null);
   }
 
-  // ── Calcul résumé ────────────────────────────────────────────────
+  // ── Calcul résumé (union de tous les enfants) ────────────────────
 
-  const summary = useCallback(() => {
-    return calcHeuresSemaineFromPlanning(JSON.stringify(
-      Object.fromEntries(Object.entries(planning).map(([k, v]) => [k, v]))
-    ));
-  }, [planning]);
+  const planningJson = JSON.stringify(planning);
+  const { hNormalesSemaine, hSup25Semaine, hSup50Semaine, joursActifsParSemaine } =
+    calcHeuresSemaineFromPlanning(planningJson);
+  const hTotal   = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
+  const hMensuel = Math.round(hTotal * 52 / 12 * 10) / 10;
 
-  const joursActifs = JOURS.filter(j => planning[j.num].actif && planning[j.num].plages.length > 0);
-  const { hNormalesSemaine, hSup25Semaine, hSup50Semaine } = summary();
-  const hTotal    = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
-  const hMensuel  = Math.round(hTotal * 52 / 12 * 10) / 10;
+  const hasAnyActive = Object.values(planning).some(days =>
+    Object.values(days).some(s => s.actif)
+  );
 
   // ── Soumission ───────────────────────────────────────────────────
 
   function suivant() {
     setError('');
-    if (joursActifs.length === 0) { setError('Ajoutez au moins un jour avec des horaires.'); return; }
-    const invalid = joursActifs.some(j =>
-      planning[j.num].plages.some(p => !p.debut || !p.fin || hhmm(p.fin) <= hhmm(p.debut))
-    );
-    if (invalid) { setError('Vérifiez les horaires : l\'heure de fin doit être après le début.'); return; }
-
-    // Calcul auto des heures pour le modèle
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-      planning,
-      hNormalesSemaine,
-      hSup25Semaine,
-      hSup50Semaine,
-    }));
+    if (!hasAnyActive) { setError('Activez au moins un jour pour un enfant.'); return; }
+    for (const [child, days] of Object.entries(planning)) {
+      for (const [jour, slot] of Object.entries(days)) {
+        if (slot.actif) {
+          if (!slot.debut || !slot.fin || hhmm(slot.fin) <= hhmm(slot.debut)) {
+            const j = JOURS.find(x => String(x.num) === jour);
+            setError(`Horaires invalides pour ${child} – ${j?.label ?? jour}.`);
+            return;
+          }
+        }
+      }
+    }
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ planning, hNormalesSemaine, hSup25Semaine, hSup50Semaine }));
     router.push('/nouvelle-garde/paie');
+  }
+
+  if (enfants.length === 0) {
+    return (
+      <div className="space-y-5">
+        <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-6 text-sm text-[var(--dust)] text-center">
+          Aucun enfant défini. Retournez à l&apos;étape précédente pour ajouter des enfants.
+        </div>
+        <div className="flex justify-between pt-2">
+          <button onClick={() => router.back()} className={btnSec}>← Retour</button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-5">
+      <p className="text-sm text-[var(--dust)]">
+        Définissez les horaires habituels de la nounou pour chaque enfant. Les heures de la nounou sont calculées en prenant l&apos;union de toutes les plages.
+      </p>
 
-      {/* Jours */}
-      <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] text-sm font-medium">
-          Planning type hebdomadaire
-        </div>
+      {/* Planning par enfant */}
+      {enfants.map(enfant => {
+        const days = planning[enfant.prenom] ?? defaultSlots();
+        return (
+          <div key={enfant.prenom} className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
+            {/* En-tête enfant */}
+            <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center gap-2.5">
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                enfant.fam === 'A'
+                  ? 'bg-[var(--blue-light)] text-[var(--blue)]'
+                  : 'bg-[var(--sage-light)] text-[var(--sage)]'
+              }`}>
+                {enfant.prenom}
+              </span>
+              <span className="text-xs text-[var(--dust)]">Famille {enfant.fam}</span>
+            </div>
 
-        <div className="divide-y divide-[var(--line)]">
-          {JOURS.map(j => {
-            const p = planning[j.num];
-            return (
-              <div key={j.num} className={`px-5 py-4 ${!p.actif ? 'opacity-50' : ''}`}>
-
-                {/* En-tête jour */}
-                <div className="flex items-center justify-between mb-3">
-                  <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={p.actif}
-                      onChange={() => toggleJour(j.num)}
-                      className="w-4 h-4 accent-[var(--sage)] cursor-pointer"
-                    />
-                    <span className={`text-sm font-medium ${p.actif ? 'text-[var(--ink)]' : 'text-[var(--dust)]'}`}>
-                      {j.label}
-                    </span>
-                  </label>
-                  {p.actif && (
-                    <button
-                      onClick={() => setCopier(copier === j.num ? null : j.num)}
-                      className="text-[10px] text-[var(--dust)] hover:text-[var(--sage)] border border-[var(--line)] rounded px-2 py-0.5 transition-colors"
-                    >
-                      Copier vers…
-                    </button>
-                  )}
-                </div>
-
-                {/* Propagation */}
-                {copier === j.num && (
-                  <div className="flex flex-wrap gap-1.5 mb-3 p-2 bg-[var(--sage-light)] rounded-lg">
-                    <span className="text-[10px] text-[var(--sage)] font-medium w-full mb-1">Copier les plages de {j.label} vers :</span>
-                    {JOURS.filter(x => x.num !== j.num).map(x => (
-                      <button
-                        key={x.num}
-                        onClick={() => copierVers(j.num, [x.num])}
-                        className="text-xs px-2.5 py-1 bg-white border border-[var(--sage)] text-[var(--sage)] rounded-lg hover:bg-[var(--sage)] hover:text-white transition-colors font-medium"
-                      >
-                        {x.court}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => copierVers(j.num, JOURS.filter(x => x.num !== j.num).map(x => x.num))}
-                      className="text-xs px-2.5 py-1 bg-[var(--sage)] text-white rounded-lg hover:bg-[#3a5431] transition-colors font-medium"
-                    >
-                      Tous
-                    </button>
-                  </div>
-                )}
-
-                {/* Plages */}
-                {p.actif && (
-                  <div className="space-y-2">
-                    {p.plages.map(plage => (
-                      <div key={plage.id} className="flex flex-wrap items-center gap-2 bg-[var(--paper)] rounded-lg px-3 py-2">
+            <div className="divide-y divide-[var(--line)]">
+              {JOURS.map(j => {
+                const slot  = days[String(j.num)] ?? { actif: false, debut: '08:30', fin: '18:30' };
+                const isCopy = copier?.child === enfant.prenom && copier?.jour === String(j.num);
+                return (
+                  <div key={j.num}>
+                    <div className={`flex items-center gap-3 px-5 py-3 ${!slot.actif ? 'opacity-50' : ''}`}>
+                      {/* Checkbox + label */}
+                      <label className="flex items-center gap-2 cursor-pointer w-[88px] shrink-0">
                         <input
-                          type="time"
-                          value={plage.debut}
-                          onChange={e => updatePlage(j.num, plage.id, 'debut', e.target.value)}
-                          className={inp}
+                          type="checkbox"
+                          checked={slot.actif}
+                          onChange={() => toggleSlot(enfant.prenom, String(j.num))}
+                          className="w-4 h-4 accent-[var(--sage)] cursor-pointer"
                         />
-                        <span className="text-[var(--dust)] text-xs">→</span>
-                        <input
-                          type="time"
-                          value={plage.fin}
-                          onChange={e => updatePlage(j.num, plage.id, 'fin', e.target.value)}
-                          className={inp}
-                        />
-                        {plage.debut && plage.fin && diffH(plage.debut, plage.fin) > 0 && (
-                          <span className="text-[10px] text-[var(--dust)] min-w-[28px]">
-                            {diffH(plage.debut, plage.fin).toFixed(1)}h
-                          </span>
-                        )}
+                        <span className={`text-sm font-medium ${slot.actif ? 'text-[var(--ink)]' : 'text-[var(--dust)]'}`}>
+                          {j.label}
+                        </span>
+                      </label>
 
-                        {/* Sélection enfants */}
-                        {enfants.length > 0 && (
-                          <div className="flex flex-wrap gap-1 ml-1">
-                            {enfants.map(e => {
-                              const selected = plage.enfantIds.includes(e.prenom);
-                              return (
-                                <button
-                                  key={e.prenom}
-                                  onClick={() => toggleEnfantPlage(j.num, plage.id, e.prenom)}
-                                  className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-colors ${
-                                    selected
-                                      ? e.fam === 'A'
-                                        ? 'bg-[var(--blue-light)] border-[var(--blue)] text-[var(--blue)]'
-                                        : 'bg-[var(--sage-light)] border-[var(--sage)] text-[var(--sage)]'
-                                      : 'bg-white border-[var(--line)] text-[var(--dust)]'
-                                  }`}
-                                >
-                                  {e.prenom}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {p.plages.length > 1 && (
+                      {/* Horaires */}
+                      {slot.actif && (
+                        <>
+                          <input
+                            type="time"
+                            value={slot.debut}
+                            onChange={e => updateSlot(enfant.prenom, String(j.num), 'debut', e.target.value)}
+                            className={inp}
+                          />
+                          <span className="text-[var(--dust)] text-xs">→</span>
+                          <input
+                            type="time"
+                            value={slot.fin}
+                            onChange={e => updateSlot(enfant.prenom, String(j.num), 'fin', e.target.value)}
+                            className={inp}
+                          />
+                          {slot.debut && slot.fin && diffH(slot.debut, slot.fin) > 0 && (
+                            <span className="text-[10px] text-[var(--dust)] min-w-[28px]">
+                              {diffH(slot.debut, slot.fin).toFixed(1)}h
+                            </span>
+                          )}
                           <button
-                            onClick={() => removePlage(j.num, plage.id)}
-                            className="ml-auto text-[var(--dust)] hover:text-[var(--red)] text-base leading-none"
-                          >×</button>
-                        )}
+                            onClick={() => setCopier(isCopy ? null : { child: enfant.prenom, jour: String(j.num) })}
+                            className="ml-auto text-[10px] text-[var(--dust)] hover:text-[var(--sage)] border border-[var(--line)] rounded px-2 py-0.5 transition-colors shrink-0"
+                          >
+                            Copier →
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Propagation inline */}
+                    {isCopy && (
+                      <div className="mx-5 mb-3 flex flex-wrap gap-1.5 p-2.5 bg-[var(--sage-light)] rounded-lg">
+                        <span className="text-[10px] text-[var(--sage)] font-medium w-full mb-1">
+                          Copier {j.label} vers :
+                        </span>
+                        {JOURS.filter(x => x.num !== j.num).map(x => (
+                          <button
+                            key={x.num}
+                            onClick={() => copierVers(enfant.prenom, String(j.num), [String(x.num)])}
+                            className="text-xs px-2.5 py-1 bg-white border border-[var(--sage)] text-[var(--sage)] rounded-lg hover:bg-[var(--sage)] hover:text-white transition-colors font-medium"
+                          >
+                            {x.court}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => copierVers(enfant.prenom, String(j.num), JOURS.filter(x => x.num !== j.num).map(x => String(x.num)))}
+                          className="text-xs px-2.5 py-1 bg-[var(--sage)] text-white rounded-lg hover:bg-[#3a5431] transition-colors font-medium"
+                        >
+                          Tous
+                        </button>
                       </div>
-                    ))}
-
-                    <button
-                      onClick={() => addPlage(j.num)}
-                      className="text-[11px] text-[var(--sage)] hover:underline ml-1"
-                    >
-                      + Ajouter une plage horaire
-                    </button>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
 
-      {/* Résumé */}
-      {joursActifs.length > 0 && hTotal > 0 && (
+      {/* Résumé (heures nounounou = union) */}
+      {hasAnyActive && hTotal > 0 && (
         <div className="bg-[var(--sage-light)] border border-[var(--sage-mid)] rounded-[var(--radius)] px-5 py-4 text-sm space-y-1.5">
           <div className="font-medium text-[var(--sage)] mb-2">Résumé hebdomadaire (vue nounou)</div>
           <div className="flex justify-between">
-            <span className="text-[var(--dust)]">Jours travaillés</span>
-            <span className="font-medium">{joursActifs.length} j / semaine</span>
+            <span className="text-[var(--dust)]">Jours de présence</span>
+            <span className="font-medium">{joursActifsParSemaine} j / semaine</span>
           </div>
           <div className="flex justify-between">
             <span className="text-[var(--dust)]">Heures normales (≤ 40h)</span>
@@ -320,7 +264,7 @@ export default function PlanningPage() {
               <span className="font-medium">{hSup50Semaine} h</span>
             </div>
           )}
-          {hSup50Semaine > 0 && hTotal >= 50 && (
+          {hTotal >= 50 && (
             <p className="text-[10px] text-red-600 font-medium">⚠ Plafond légal de 50h atteint</p>
           )}
           <div className="flex justify-between pt-1.5 border-t border-[var(--sage-mid)] font-medium">

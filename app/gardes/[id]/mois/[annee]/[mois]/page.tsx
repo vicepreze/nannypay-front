@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { calculerMois, type Evt, type CalcResult } from '@/lib/calcul';
+import { calculerMois, calcHeuresSemaineFromPlanning, type Evt, type CalcResult } from '@/lib/calcul';
 import { useSession } from 'next-auth/react';
 
 const MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -37,10 +37,15 @@ export default function MoisPage() {
   const [saving,  setSaving]  = useState(false);
 
   // Modal event
-  const [modalOpen, setModalOpen] = useState(false);
-  const [evtType,   setEvtType]   = useState<Evt['type'] | null>(null);
-  const [evtDebut,  setEvtDebut]  = useState('');
-  const [evtFin,    setEvtFin]    = useState('');
+  const [modalOpen,  setModalOpen]  = useState(false);
+  const [evtType,    setEvtType]    = useState<Evt['type'] | null>(null);
+  const [evtDebut,   setEvtDebut]   = useState('');
+  const [evtFin,     setEvtFin]     = useState('');
+  const [modalError, setModalError] = useState('');
+
+  // Bornes du mois courant pour les date pickers
+  const minDate = `${annee}-${String(mois).padStart(2, '0')}-01`;
+  const maxDate = dateStr(new Date(annee, mois, 0));
 
   // Chargement
   useEffect(() => {
@@ -59,8 +64,7 @@ export default function MoisPage() {
   useEffect(() => {
     if (!garde?.modele) return;
     const m = garde.modele;
-    const jours = JSON.parse(m.joursJson || '{}') as Record<string, { actif: boolean; plages?: unknown[] }>;
-    const joursActifs = Object.values(jours).filter(j => j.actif).length;
+    const { joursActifsParSemaine } = calcHeuresSemaineFromPlanning(m.joursJson || '{}');
     setResult(calculerMois({
       annee, mois,
       taux:                 m.tauxHoraireNet,
@@ -71,7 +75,7 @@ export default function MoisPage() {
       navigo:               m.navigoMontant,
       indemEntretien:       m.indemEntretien,
       indemKm:              m.indemKm,
-      joursActifsParSemaine: joursActifs || 5,
+      joursActifsParSemaine: joursActifsParSemaine || 5,
       evenements:           evts,
     }));
   }, [garde, evts, annee, mois]);
@@ -101,9 +105,12 @@ export default function MoisPage() {
   }
 
   function addEvt() {
-    if (!evtType) { alert('Choisissez un type.'); return; }
-    if (!evtDebut || !evtFin) { alert('Dates requises.'); return; }
-    if (evtFin < evtDebut) { alert('La fin doit être après le début.'); return; }
+    setModalError('');
+    if (!evtType) { setModalError('Choisissez un type.'); return; }
+    if (!evtDebut || !evtFin) { setModalError('Les deux dates sont requises.'); return; }
+    if (evtFin < evtDebut) { setModalError('La fin doit être après le début.'); return; }
+    const conflict = evts.some(e => e.debut <= evtFin && e.fin >= evtDebut);
+    if (conflict) { setModalError('Cet intervalle chevauche un événement existant.'); return; }
     const newEvts = [...evts, { type: evtType, debut: evtDebut, fin: evtFin }];
     setEvts(newEvts);
     sauvegarderEvts(newEvts);
@@ -165,6 +172,7 @@ export default function MoisPage() {
     setEvtType(null);
     setEvtDebut(ds ?? '');
     setEvtFin(ds ?? '');
+    setModalError('');
     setModalOpen(true);
   }
 
@@ -243,11 +251,12 @@ export default function MoisPage() {
 
             {/* Résumé calendrier */}
             {result && (
-              <div className="mt-3 bg-white border border-[var(--line)] rounded-[var(--radius)] p-4 flex gap-6 text-sm">
+              <div className="mt-3 bg-white border border-[var(--line)] rounded-[var(--radius)] p-4 flex flex-wrap gap-6 text-sm">
                 <div><span className="text-[var(--dust)]">Jours ouvrables</span> <strong className="ml-2">{result.joursOuv}</strong></div>
-                {result.joursAbs > 0 && <div><span className="text-[var(--dust)]">Absences</span> <strong className="ml-2 text-[var(--red)]">- {result.joursAbs}</strong></div>}
+                {result.joursAbsMaladie > 0 && <div><span className="text-[var(--dust)]">Maladie</span> <strong className="ml-2 text-red-500">−{result.joursAbsMaladie}</strong></div>}
+                {result.joursAbsCP > 0 && <div><span className="text-[var(--dust)]">Congés payés</span> <strong className="ml-2 text-blue-600">−{result.joursAbsCP}</strong></div>}
                 <div><span className="text-[var(--dust)]">Jours travaillés</span> <strong className="ml-2">{result.joursTrav}</strong></div>
-                <div><span className="text-[var(--dust)]">Ratio</span> <strong className="ml-2">{(result.ratio * 100).toFixed(0)} %</strong></div>
+                <div><span className="text-[var(--dust)]">Ratio salaire</span> <strong className="ml-2">{(result.ratio * 100).toFixed(0)} %</strong></div>
               </div>
             )}
 
@@ -340,15 +349,22 @@ export default function MoisPage() {
               ))}
             </div>
             <div className="grid grid-cols-2 gap-3 mb-1">
-              {[['Début', evtDebut, setEvtDebut], ['Fin', evtFin, setEvtFin]].map(([lbl, val, fn]) => (
-                <div key={String(lbl)}>
-                  <label className="text-xs text-[var(--dust)] block mb-1">{String(lbl)}</label>
-                  <input type="date" value={String(val)} onChange={e => (fn as (v: string) => void)(e.target.value)}
-                    className="w-full px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm outline-none focus:border-[var(--sage)] bg-white" />
+              {([['Début', evtDebut, setEvtDebut], ['Fin', evtFin, setEvtFin]] as [string, string, (v: string) => void][]).map(([lbl, val, fn]) => (
+                <div key={lbl}>
+                  <label className="text-xs text-[var(--dust)] block mb-1">{lbl}</label>
+                  <input
+                    type="date"
+                    value={val}
+                    min={minDate}
+                    max={maxDate}
+                    onChange={e => { fn(e.target.value); setModalError(''); }}
+                    className="w-full px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm outline-none focus:border-[var(--sage)] bg-white"
+                  />
                 </div>
               ))}
             </div>
-            <div className="flex gap-2 mt-5 justify-end">
+            {modalError && <p className="text-xs text-red-600 mt-2 mb-1">{modalError}</p>}
+            <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm bg-white hover:border-[var(--ink)] transition-colors">Annuler</button>
               <button onClick={addEvt} className="px-4 py-2 bg-[var(--sage)] text-white rounded-lg text-sm font-medium hover:bg-[#3a5431] transition-colors">Ajouter</button>
             </div>

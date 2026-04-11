@@ -1,5 +1,6 @@
 // ── Moteur de calcul mensuel nounoulink ───────────────────────────
-// Formule Cour de cassation : retenue = salaire × (joursAbs / joursOuv)
+// Formule Cour de cassation : retenue = salaire × (joursAbsMaladie / joursOuv)
+// Congés payés : maintien salaire, mais entretien non dû ces jours-là
 // Heures sup légales : 40-48h = +25%, >48h = +50%, plafond 50h/sem
 
 export type Evt = { type: string; debut: string; fin: string };
@@ -9,84 +10,120 @@ export interface FamResult {
   hNorm:      number;
   hSup25:     number;
   hSup50:     number;
-  salNet:     number;   // hNorm + hSup25 + hSup50
+  salNet:     number;
   transport:  number;
   entretien:  number;
   km:         number;
-  total:      number;   // salNet + transport + entretien + km
+  total:      number;
 }
 
 export interface CalcResult {
-  annee:        number;
-  mois:         number;
-  joursOuv:     number;
-  joursAbs:     number;
-  joursTrav:    number;
-  ratio:        number;
-  hTotalSemaine: number;  // hNormales + hSup25 + hSup50 (vue nounou)
-  famA:         FamResult;
-  famB:         FamResult;
-  totalNounou:  number;
+  annee:         number;
+  mois:          number;
+  joursOuv:      number;
+  joursAbsMaladie: number;
+  joursAbsCP:    number;
+  joursAbs:      number;   // maladie + CP (pour affichage)
+  joursTrav:     number;   // joursOuv - maladie (base salaire)
+  ratio:         number;
+  hTotalSemaine: number;
+  famA:          FamResult;
+  famB:          FamResult;
+  totalNounou:   number;
 }
 
 export interface CalcInput {
   annee:               number;
   mois:                number;
   taux:                number;
-  hNormalesSemaine:    number;  // heures ≤ 40h/sem
-  hSup25Semaine:       number;  // heures 40-48h/sem (+25%)
-  hSup50Semaine:       number;  // heures >48h/sem (+50%)
-  repartitionA:        number;  // ex: 0.5 pour 50/50
-  navigo:              number;  // montant mensuel total (partagé 50/50)
-  indemEntretien:      number;  // €/jour
-  indemKm:             number;  // €/mois total
+  hNormalesSemaine:    number;
+  hSup25Semaine:       number;
+  hSup50Semaine:       number;
+  repartitionA:        number;
+  navigo:              number;
+  indemEntretien:      number;
+  indemKm:             number;
   joursActifsParSemaine: number;
   evenements:          Evt[];
 }
 
 // ── Helpers planning ─────────────────────────────────────────────
+
+type SlotJour = { actif: boolean; debut?: string; fin?: string };
+type PerChild = Record<string, Record<string, SlotJour>>;
+
 export function calcHeuresSemaineFromPlanning(joursJson: string): {
   hNormalesSemaine: number;
   hSup25Semaine:    number;
   hSup50Semaine:    number;
+  joursActifsParSemaine: number;
 } {
-  type Plage = { debut: string; fin: string };
-  type Jour  = { actif: boolean; plages: Plage[] };
-  const planning: Record<string, Jour> = JSON.parse(joursJson || '{}');
+  let planning: unknown;
+  try { planning = JSON.parse(joursJson || '{}'); } catch { planning = {}; }
+
+  const keys = Object.keys(planning as object);
+  // Format per-child : les clés ne sont pas "1"-"5"
+  const isPerChild = keys.length > 0 && !keys.every(k => ['1','2','3','4','5'].includes(k));
 
   let totalMin = 0;
-  for (const jour of Object.values(planning)) {
-    if (!jour.actif || !jour.plages?.length) continue;
-    // Union des plages du jour
-    const intervals = jour.plages
-      .map(p => ({ s: hhmm(p.debut), e: hhmm(p.fin) }))
-      .filter(i => i.e > i.s)
-      .sort((a, b) => a.s - b.s);
-    let dayMin = 0;
-    let cur = -1;
-    for (const { s, e } of intervals) {
-      if (s > cur) { dayMin += e - s; cur = e; }
-      else if (e > cur) { dayMin += e - cur; cur = e; }
+  const joursActifsSet = new Set<string>();
+
+  if (isPerChild) {
+    const perChild = planning as PerChild;
+    for (const jour of ['1','2','3','4','5']) {
+      const intervals: { s: number; e: number }[] = [];
+      for (const childSlots of Object.values(perChild)) {
+        const slot = childSlots[jour];
+        if (slot?.actif && slot.debut && slot.fin) {
+          const s = hhmm(slot.debut), e = hhmm(slot.fin);
+          if (e > s) { intervals.push({ s, e }); joursActifsSet.add(jour); }
+        }
+      }
+      totalMin += unionMin(intervals);
     }
-    totalMin += dayMin;
+  } else {
+    // Ancien format simple { "1": { actif, hDebut, hFin } }
+    const perDay = planning as Record<string, { actif: boolean; hDebut?: string; hFin?: string; plages?: { debut: string; fin: string }[] }>;
+    for (const [jour, v] of Object.entries(perDay)) {
+      if (!v.actif) continue;
+      joursActifsSet.add(jour);
+      if (v.plages?.length) {
+        const intervals = v.plages.map(p => ({ s: hhmm(p.debut), e: hhmm(p.fin) })).filter(i => i.e > i.s);
+        totalMin += unionMin(intervals);
+      } else if (v.hDebut && v.hFin) {
+        const s = hhmm(v.hDebut), e = hhmm(v.hFin);
+        if (e > s) totalMin += e - s;
+      }
+    }
   }
 
-  const totalH = totalMin / 60;
-  const capped  = Math.min(totalH, 50);               // plafond légal
-  const hNorm   = Math.min(capped, 40);
-  const hSup    = Math.max(0, capped - 40);
-  const hSup25  = Math.min(hSup, 8);
-  const hSup50  = Math.max(0, hSup - 8);
+  const totalH = Math.min(totalMin / 60, 50);
+  const hNorm  = Math.min(totalH, 40);
+  const hSup   = Math.max(0, totalH - 40);
+  const hSup25 = Math.min(hSup, 8);
+  const hSup50 = Math.max(0, hSup - 8);
 
   return {
-    hNormalesSemaine: Math.round(hNorm  * 10) / 10,
-    hSup25Semaine:    Math.round(hSup25 * 10) / 10,
-    hSup50Semaine:    Math.round(hSup50 * 10) / 10,
+    hNormalesSemaine:      Math.round(hNorm  * 10) / 10,
+    hSup25Semaine:         Math.round(hSup25 * 10) / 10,
+    hSup50Semaine:         Math.round(hSup50 * 10) / 10,
+    joursActifsParSemaine: joursActifsSet.size,
   };
 }
 
+function unionMin(intervals: { s: number; e: number }[]): number {
+  if (!intervals.length) return 0;
+  const sorted = [...intervals].sort((a, b) => a.s - b.s);
+  let total = 0, cur = -1;
+  for (const { s, e } of sorted) {
+    if (s > cur) { total += e - s; cur = e; }
+    else if (e > cur) { total += e - cur; cur = e; }
+  }
+  return total;
+}
+
 function hhmm(t: string): number {
-  const [h, m] = t.split(':').map(Number);
+  const [h, m] = (t || '').split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
 }
 
@@ -131,23 +168,30 @@ export function calculerMois(input: CalcInput): CalcResult {
     joursActifsParSemaine, evenements,
   } = input;
 
-  // Mensualisation (52/12)
   const H_NORM_MENS  = Math.round(hNormalesSemaine * 52 / 12 * 10) / 10;
   const H_SUP25_MENS = Math.round(hSup25Semaine    * 52 / 12 * 10) / 10;
   const H_SUP50_MENS = Math.round(hSup50Semaine    * 52 / 12 * 10) / 10;
 
-  // Jours ouvrables
   const joursOuv = joursOuvrablesMois(annee, mois);
-  const joursAbs = evenements.reduce(
-    (acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois),
-    0,
-  );
-  const joursTrav = Math.max(0, joursOuv - joursAbs);
+
+  // Séparer maladie et congés payés
+  const joursAbsMaladie = evenements
+    .filter(e => e.type === 'maladie_nounou')
+    .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
+
+  const joursAbsCP = evenements
+    .filter(e => e.type === 'conge_paye')
+    .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
+
+  const joursAbs  = joursAbsMaladie + joursAbsCP;
+  // Salaire : seule la maladie réduit le salaire (CP = maintien du salaire)
+  const joursTrav = Math.max(0, joursOuv - joursAbsMaladie);
   const ratio     = joursOuv > 0 ? joursTrav / joursOuv : 1;
 
-  // Entretien mensuel
-  const joursActifsMensuel = Math.round(joursActifsParSemaine * 52 / 12 * 10) / 10;
-  const entretienMensuel   = Math.round(indemEntretien * joursActifsMensuel * ratio * 100) / 100;
+  // Entretien : non dû pendant maladie ET pendant CP
+  // Formule : qp × (joursOuv - maladie - CP) × (joursActifs/5) × tarifJour
+  const tauxPresenceJour = joursActifsParSemaine > 0 ? joursActifsParSemaine / 5 : 1;
+  const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP);
 
   function calcFam(qp: number): FamResult {
     const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
@@ -160,7 +204,8 @@ export function calculerMois(input: CalcInput): CalcResult {
     const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
 
     const transport = Math.round(navigo / 2 * 100) / 100;
-    const entretien = Math.round(entretienMensuel / 2 * 100) / 100;
+    // Entretien = qp × joursEffectifs × (joursActifs/5) × tarifJour
+    const entretien = Math.round(qp * joursEntretienBase * tauxPresenceJour * indemEntretien * 100) / 100;
     const km        = Math.round(indemKm / 2 * 100) / 100;
     const total     = Math.round((salNet + transport + entretien + km) * 100) / 100;
 
@@ -169,8 +214,8 @@ export function calculerMois(input: CalcInput): CalcResult {
 
   const famA = calcFam(repartitionA);
   const famB = calcFam(1 - repartitionA);
-  const totalNounou    = Math.round((famA.total + famB.total) * 100) / 100;
-  const hTotalSemaine  = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
+  const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
+  const hTotalSemaine = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
 
-  return { annee, mois, joursOuv, joursAbs, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou };
+  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbs, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou };
 }

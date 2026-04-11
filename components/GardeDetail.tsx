@@ -6,7 +6,7 @@ import Link from 'next/link';
 type Famille = { id: string; label: string; nomAffiche: string | null; emailContact: string | null; statutAcces: string; utilisateurId: string | null };
 type Enfant  = { id: string; prenom: string; fam: string };
 type Nounou  = { id: string; prenom: string; nom: string | null; email: string | null } | null;
-type Modele  = { tauxHoraireNet: number; hNormalesSemaine: number; modeCalcul: string; navigoMontant: number; indemEntretien: number; indemKm: number } | null;
+type Modele  = { tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number; hSup50Semaine: number; modeCalcul: string; navigoMontant: number; indemEntretien: number; indemKm: number } | null;
 
 export type GardeData = {
   id: string; nom: string | null; statut: string;
@@ -44,6 +44,11 @@ export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: Garde
   const [famAEmail,     setFamAEmail]     = useState(famA?.emailContact ?? '');
   const [famBNom,       setFamBNom]       = useState(famB?.nomAffiche ?? '');
   const [famBEmail,     setFamBEmail]     = useState(famB?.emailContact ?? '');
+  // Modèle de paie éditable
+  const [modeleTaux,       setModeleTaux]       = useState(garde.modele?.tauxHoraireNet ?? 11);
+  const [modeleNavigo,     setModeleNavigo]     = useState(garde.modele?.navigoMontant  ?? 90.8);
+  const [modeleEntretien,  setModeleEntretien]  = useState(garde.modele?.indemEntretien ?? 6);
+  const [modeleKm,         setModeleKm]         = useState(garde.modele?.indemKm        ?? 0);
 
   const inviteUrl = typeof window !== 'undefined' && token
     ? `${window.location.origin}/rejoindre?token=${token}` : '';
@@ -58,6 +63,7 @@ export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: Garde
         nounou:  { prenom: nounouPrenom, nom: nounouNom || null, email: nounouEmail || null },
         familleA: { nomAffiche: famANom, emailContact: famAEmail || null },
         familleB: { nomAffiche: famBNom, emailContact: famBEmail || null },
+        ...(garde.modele ? { modele: { tauxHoraireNet: modeleTaux, navigoMontant: modeleNavigo, indemEntretien: modeleEntretien, indemKm: modeleKm } } : {}),
       }),
     });
     const data = await res.json();
@@ -306,14 +312,30 @@ export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: Garde
           {/* Modèle de paie */}
           {garde.modele && (
             <Section title="Modèle de paie">
-              <div className="divide-y divide-[var(--line)]">
-                <InfoRow label="Mode de calcul"  value={`${garde.modele.modeCalcul} — ${MODES[garde.modele.modeCalcul] ?? ''}`} padded />
-                <InfoRow label="Taux horaire net" value={`${garde.modele.tauxHoraireNet} €/h`} padded />
-                <InfoRow label="H. normales/sem." value={`${garde.modele.hNormalesSemaine} h`} padded />
-                <InfoRow label="Transport"        value={`${garde.modele.navigoMontant} €/mois`} padded />
-                <InfoRow label="Entretien"        value={`${garde.modele.indemEntretien} €/j`} padded />
-                <InfoRow label="Frais km"         value={`${garde.modele.indemKm} €/mois`} padded />
-              </div>
+              {editMode ? (
+                <div className="p-5 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <FieldEditNum label="Taux horaire net (€/h)"      value={modeleTaux}      onChange={setModeleTaux} />
+                    <FieldEditNum label="Navigo / transport (€/mois)" value={modeleNavigo}    onChange={setModeleNavigo} />
+                    <FieldEditNum label="Indemnité entretien (€/j)"   value={modeleEntretien} onChange={setModeleEntretien} />
+                    <FieldEditNum label="Frais kilométriques (€/mois)" value={modeleKm}       onChange={setModeleKm} />
+                  </div>
+                  <p className="text-[11px] text-[var(--dust)]">
+                    Les heures hebdomadaires sont issues du planning et ne peuvent pas être modifiées ici.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--line)]">
+                  <InfoRow label="Mode de calcul"    value={`${garde.modele.modeCalcul} — ${MODES[garde.modele.modeCalcul] ?? ''}`} padded />
+                  <InfoRow label="Taux horaire net"  value={`${garde.modele.tauxHoraireNet} €/h`} padded />
+                  <InfoRow label="H. normales/sem."  value={`${garde.modele.hNormalesSemaine} h`} padded />
+                  {garde.modele.hSup25Semaine > 0 && <InfoRow label="H. sup +25%/sem."  value={`${garde.modele.hSup25Semaine} h`} padded />}
+                  {garde.modele.hSup50Semaine > 0 && <InfoRow label="H. sup +50%/sem."  value={`${garde.modele.hSup50Semaine} h`} padded />}
+                  <InfoRow label="Transport"         value={`${garde.modele.navigoMontant} €/mois`} padded />
+                  <InfoRow label="Entretien"         value={`${garde.modele.indemEntretien} €/j`} padded />
+                  {garde.modele.indemKm > 0 && <InfoRow label="Frais km" value={`${garde.modele.indemKm} €/mois`} padded />}
+                </div>
+              )}
             </Section>
           )}
 
@@ -345,6 +367,21 @@ function FieldEdit({ label, value, onChange, type = 'text' }: { label: string; v
     <div>
       <label className="block text-xs text-[var(--dust)] mb-1">{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} className={inp} />
+    </div>
+  );
+}
+function FieldEditNum({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div>
+      <label className="block text-xs text-[var(--dust)] mb-1">{label}</label>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={value}
+        onChange={e => onChange(parseFloat(e.target.value) || 0)}
+        className={inp}
+      />
     </div>
   );
 }
