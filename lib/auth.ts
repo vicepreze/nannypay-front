@@ -40,4 +40,8 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/',
   },
+  // Fonctionne sur tous les sous-domaines Vercel preview sans NEXTAUTH_URL
+  ...(process.env.VERCEL_URL && !process.env.NEXTAUTH_URL
+    ? { url: `https://${process.env.VERCEL_URL}` }
+    : {}),
 };
