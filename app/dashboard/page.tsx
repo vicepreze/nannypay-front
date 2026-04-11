@@ -9,6 +9,10 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect('/');
 
+  const now = new Date();
+  const annee = now.getFullYear();
+  const mois  = now.getMonth() + 1;
+
   const gardes = await prisma.garde.findMany({
     where: {
       familles: { some: { utilisateurId: session.user.id } },
@@ -107,7 +111,16 @@ export default async function DashboardPage() {
                         </div>
                       )}
                     </div>
-                    <span className="text-[var(--dust)] group-hover:text-[var(--sage)] transition-colors text-lg mt-0.5">→</span>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className="text-[var(--dust)] group-hover:text-[var(--sage)] transition-colors text-lg mt-0.5">→</span>
+                      <Link
+                        href={`/gardes/${g.id}/mois/${annee}/${mois}`}
+                        onClick={e => e.stopPropagation()}
+                        className="text-[11px] px-2.5 py-1 border border-[var(--line)] rounded-lg text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)] transition-colors no-underline whitespace-nowrap"
+                      >
+                        Mois en cours
+                      </Link>
+                    </div>
                   </div>
                 </Link>
               );

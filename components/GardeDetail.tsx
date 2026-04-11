@@ -21,7 +21,7 @@ const MODES: Record<string, string> = {
   'B.2': '100% personnalisé',
 };
 
-export function GardeDetail({ garde: initial, monRole }: { garde: GardeData; monRole: string }) {
+export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: GardeData; monRole: string; moisUrl?: string }) {
   const [garde,    setGarde]   = useState(initial);
   const [token,    setToken]   = useState(initial.invitationTokenB ?? '');
   const [copied,   setCopied]  = useState(false);
@@ -93,6 +93,9 @@ export function GardeDetail({ garde: initial, monRole }: { garde: GardeData; mon
           <span className="text-sm font-medium text-[var(--ink)]">{garde.nom ?? 'Garde'}</span>
         </div>
         <div className="flex gap-2">
+          {moisUrl && !editMode && (
+            <Link href={moisUrl} className={btnPri + ' no-underline'}>Mois en cours</Link>
+          )}
           {!editMode ? (
             <button onClick={() => setEditMode(true)} className={btnSec}>Modifier</button>
           ) : (
