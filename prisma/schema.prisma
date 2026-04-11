@@ -39,6 +39,8 @@ model Garde {
   invitationTokenB          String?
   invitationTokenBExpiresAt DateTime?
 
+  publicTokenNounou String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

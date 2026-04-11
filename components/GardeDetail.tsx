@@ -11,6 +11,7 @@ type Modele  = { tauxHoraireNet: number; hNormalesSemaine: number; modeCalcul: s
 export type GardeData = {
   id: string; nom: string | null; statut: string;
   invitationTokenB: string | null; invitationTokenBExpiresAt: Date | null;
+  publicTokenNounou: string | null;
   nounou: Nounou; familles: Famille[]; enfants: Enfant[]; modele: Modele;
 };
 
@@ -23,8 +24,10 @@ const MODES: Record<string, string> = {
 
 export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: GardeData; monRole: string; moisUrl?: string }) {
   const [garde,    setGarde]   = useState(initial);
-  const [token,    setToken]   = useState(initial.invitationTokenB ?? '');
-  const [copied,   setCopied]  = useState(false);
+  const [token,      setToken]      = useState(initial.invitationTokenB ?? '');
+  const [publicToken, setPublicToken] = useState(initial.publicTokenNounou ?? '');
+  const [copied,       setCopied]       = useState(false);
+  const [copiedPublic, setCopiedPublic] = useState(false);
   const [loading,  setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
@@ -81,6 +84,30 @@ export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: Garde
     navigator.clipboard.writeText(inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  const publicUrl = typeof window !== 'undefined' && publicToken
+    ? `${window.location.origin}/public/nounou/${publicToken}` : '';
+
+  async function genererLienPublic() {
+    setLoading(true);
+    const res  = await fetch(`/api/gardes/${garde.id}/public-token`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) setPublicToken(data.token);
+    setLoading(false);
+  }
+
+  async function revoquerLienPublic() {
+    setLoading(true);
+    await fetch(`/api/gardes/${garde.id}/public-token`, { method: 'DELETE' });
+    setPublicToken('');
+    setLoading(false);
+  }
+
+  function copierLienPublic() {
+    navigator.clipboard.writeText(publicUrl);
+    setCopiedPublic(true);
+    setTimeout(() => setCopiedPublic(false), 2000);
   }
 
   return (
@@ -212,6 +239,35 @@ export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: Garde
               </div>
             </Section>
           )}
+
+          {/* Lien public nounou */}
+          <Section title="Lien de suivi pour la nounou">
+            <div className="p-5">
+              {publicToken ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-[var(--dust)]">Partagez ce lien avec la nounou pour qu&apos;elle puisse suivre ses récapitulatifs :</p>
+                  <div className="flex gap-2">
+                    <code className="flex-1 text-xs bg-[var(--paper)] border border-[var(--line)] rounded-lg px-3 py-2 break-all text-[var(--ink)]">
+                      {publicUrl}
+                    </code>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={copierLienPublic} className={btnPri + ' flex-1'}>
+                      {copiedPublic ? '✓ Copié !' : 'Copier le lien'}
+                    </button>
+                    <button onClick={revoquerLienPublic} disabled={loading} className={btnSec}>Révoquer</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-2">
+                  <p className="text-sm text-[var(--dust)] mb-4">Générez un lien de suivi public pour que la nounou puisse consulter ses récapitulatifs sans créer de compte.</p>
+                  <button onClick={genererLienPublic} disabled={loading} className={btnPri}>
+                    {loading ? 'Génération…' : 'Générer un lien de suivi'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </Section>
 
           {/* Enfants */}
           <Section title="Enfants gardés">
