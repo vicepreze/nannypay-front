@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════════════
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  prenom    String?
+  nom       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gardes   Garde[]
+  familles Famille[]
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GARDE
+// ═══════════════════════════════════════════════════════════════
+
+model Garde {
+  id     String  @id @default(cuid())
+  nom    String?
+  statut String  @default("brouillon") // 'brouillon' | 'actif'
+
+  proprietaireId String
+  proprietaire   User   @relation(fields: [proprietaireId], references: [id])
+
+  invitationTokenB          String?
+  invitationTokenBExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nounou   Nounou?
+  familles Famille[]
+  enfants  Enfant[]
+  modele   Modele?
+  mois     Mois[]
+}
+
+model Nounou {
+  id      String  @id @default(cuid())
+  gardeId String  @unique
+  garde   Garde   @relation(fields: [gardeId], references: [id], onDelete: Cascade)
+  prenom  String
+  nom     String?
+  email   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Famille {
+  id           String  @id @default(cuid())
+  gardeId      String
+  garde        Garde   @relation(fields: [gardeId], references: [id], onDelete: Cascade)
+  label        String  // 'A' | 'B'
+  nomAffiche   String?
+  emailContact String?
+  // 'proprietaire' | 'invite_actif' | 'invite_en_attente'
+  statutAcces  String  @default("invite_en_attente")
+
+  utilisateurId String?
+  utilisateur   User?   @relation(fields: [utilisateurId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([gardeId, label])
+}
+
+model Enfant {
+  id      String @id @default(cuid())
+  gardeId String
+  garde   Garde  @relation(fields: [gardeId], references: [id], onDelete: Cascade)
+  prenom  String
+  fam     String // 'A' | 'B'
+
+  createdAt DateTime @default(now())
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODÈLE DE PLANNING & PAIE
+// ═══════════════════════════════════════════════════════════════
+
+model Modele {
+  id      String @id @default(cuid())
+  gardeId String @unique
+  garde   Garde  @relation(fields: [gardeId], references: [id], onDelete: Cascade)
+
+  hNormalesSemaine        Float  @default(40)
+  hSupplementairesSemaine Float  @default(8)
+
+  // 'A.1' | 'B.1' | 'A.2' | 'B.2'
+  modeCalcul   String @default("A.1")
+  repartitionA Float  @default(0.5)
+
+  tauxHoraireNet Float @default(11)
+
+  navigoMontant  Float @default(90.80)
+  indemKm        Float @default(0)
+  indemEntretien Float @default(6.0)
+
+  // JSON : { "1": { actif, hDebut, hFin }, ... }  clés 1=lun..5=ven
+  joursJson String @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MOIS
+// ═══════════════════════════════════════════════════════════════
+
+model Mois {
+  id      String @id @default(cuid())
+  gardeId String
+  garde   Garde  @relation(fields: [gardeId], references: [id], onDelete: Cascade)
+
+  annee  Int
+  mois   Int
+  // 'ouvert' | 'valide_a' | 'valide_b' | 'valide_ab'
+  statut String @default("ouvert")
+
+  evenementsJson String @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([gardeId, annee, mois])
+}
