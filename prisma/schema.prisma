@@ -76,6 +76,13 @@ model Famille {
   utilisateurId String?
   utilisateur   User?   @relation(fields: [utilisateurId], references: [id])
 
+  // Aides CAF / fiscales (mode EQUITABLE)
+  cmgCotisations    Float @default(0)
+  cmgRemuneration   Float @default(0)
+  abattementCharges Float @default(0)
+  aideVille         Float @default(0)
+  creditImpot       Float @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
