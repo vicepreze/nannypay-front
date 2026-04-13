@@ -216,7 +216,9 @@ export default function MoisPage() {
     setModalOpen(true);
   }
 
-  // Statut validation
+  // Statut validation + rôle
+  const estProprietaire = garde ? session?.user?.id === garde.proprietaireId : false;
+  const famBActif = garde?.familles.find(f => f.label === 'B')?.statutAcces === 'invite_actif';
   const monLabel   = garde?.familles.find(f => f.utilisateurId === session?.user?.id)?.label ?? 'A';
   const statut     = moisRec?.statut ?? 'ouvert';
   const jaValide   = statut === `valide_${monLabel.toLowerCase()}` || statut === 'valide_ab';
@@ -241,31 +243,103 @@ export default function MoisPage() {
     <div className="min-h-screen bg-[var(--paper)]">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-[var(--line)] flex items-center justify-between px-6 z-50">
-        <div className="flex items-center gap-3">
-          <Link href={`/gardes/${gardeId}`} className="text-[var(--dust)] hover:text-[var(--ink)] text-sm no-underline">← {garde?.nom ?? 'Garde'}</Link>
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/" className="font-serif text-base text-[var(--ink)] no-underline">nounoulink<em className="text-[var(--sage)] not-italic">.</em></Link>
           <span className="text-[var(--line)]">/</span>
-          <span className="text-sm font-medium">{MOIS_LONGS[mois - 1]} {annee}</span>
+          <span className="text-[var(--dust)]">{garde?.nom ?? '…'}</span>
+          <span className="text-[var(--line)]">/</span>
+          <span className="font-medium text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
-            {statutLabel[statut] ?? statut}
-          </span>
+          <Link href={`/gardes/${gardeId}/mois/${prevMois[0]}/${prevMois[1]}`} className="text-[var(--dust)] hover:text-[var(--ink)] no-underline text-sm">←</Link>
+          <Link href={`/gardes/${gardeId}/mois/${nextMois[0]}/${nextMois[1]}`} className="text-[var(--dust)] hover:text-[var(--ink)] no-underline text-sm">→</Link>
+          <Link href="/dashboard" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Dashboard</Link>
+          <Link href="/demo" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Démo</Link>
           {saving && <span className="text-xs text-[var(--dust)]">Sauvegarde…</span>}
         </div>
       </header>
 
-      <div className="pt-14 max-w-5xl mx-auto px-6 pb-16">
-        {/* Nav mois */}
-        <div className="flex items-center justify-between pt-8 mb-6">
-          <Link href={`/gardes/${gardeId}/mois/${prevMois[0]}/${prevMois[1]}`} className="flex items-center gap-1.5 text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline">
-            ← {MOIS_COURTS[prevMois[1] - 1]} {prevMois[0]}
-          </Link>
-          <h1 className="font-serif text-2xl">{MOIS_LONGS[mois - 1]} {annee}</h1>
-          {!isFuture ? (
-            <Link href={`/gardes/${gardeId}/mois/${nextMois[0]}/${nextMois[1]}`} className="flex items-center gap-1.5 text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline">
-              {MOIS_COURTS[nextMois[1] - 1]} {nextMois[0]} →
+      <div className="pt-14 max-w-[1280px] mx-auto px-4 pb-16">
+        <div className="flex gap-5 pt-6 items-start">
+
+        {/* ── PANNEAU GAUCHE ─────────────────────────────────── */}
+        <aside className="w-52 shrink-0 sticky top-20 flex flex-col gap-3">
+
+          {/* Garde info */}
+          <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
+            <div className="px-3.5 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">
+              {garde?.nom ?? '…'}
+            </div>
+            <div className="px-3.5 py-2.5 space-y-1 text-xs text-[var(--dust)]">
+              {famA && <div><span className="text-[var(--blue)] font-medium">A</span> · {famA.nomAffiche ?? '—'}</div>}
+              {famB && <div><span className={famBActif ? 'text-[var(--sage)] font-medium' : 'font-medium'} style={{ color: famBActif ? 'var(--sage)' : undefined }}>B</span> · {famB.nomAffiche ?? '—'}{!famBActif && <span className="opacity-50"> · en attente</span>}</div>}
+              {garde?.nounou && <div>👩 {garde.nounou.prenom}</div>}
+            </div>
+          </div>
+
+          {/* Navigation mois */}
+          <div className="flex gap-1">
+            <Link href={`/gardes/${gardeId}/mois/${prevMois[0]}/${prevMois[1]}`}
+              className="flex-1 py-1.5 text-center text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--ink)] no-underline">
+              ← {MOIS_COURTS[prevMois[1] - 1]}
             </Link>
-          ) : <span className="w-20" />}
+            {!isFuture && (
+              <Link href={`/gardes/${gardeId}/mois/${nextMois[0]}/${nextMois[1]}`}
+                className="flex-1 py-1.5 text-center text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--ink)] no-underline">
+                {MOIS_COURTS[nextMois[1] - 1]} →
+              </Link>
+            )}
+          </div>
+
+          {/* Invitation Famille B */}
+          {estProprietaire && !famBActif && (
+            <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
+              <div className="px-3.5 py-2 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">Invitation Fam. B</div>
+              <div className="p-3 space-y-2">
+                {invToken ? (
+                  <>
+                    <button onClick={copierInvitation} className="w-full py-1.5 text-xs rounded-lg border border-[var(--line)] bg-white hover:border-[var(--sage)] transition-colors">
+                      {copiedInv ? '✓ Copié !' : 'Copier le lien'}
+                    </button>
+                    <button onClick={revoquerInvitation} className="w-full py-1.5 text-[10px] text-[var(--dust)] hover:text-[var(--red)] transition-colors">
+                      Révoquer
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={genererInvitation} className="w-full py-1.5 text-xs rounded-lg bg-[var(--sage)] text-white hover:bg-[#3a5431] transition-colors">
+                    Générer le lien
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Lien public nounou */}
+          {garde?.publicTokenNounou && (
+            <button onClick={copierLienPublic} className="w-full py-2 text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--sage)] transition-colors">
+              {copiedPub ? '✓ Lien copié !' : '🔗 Lien nounou'}
+            </button>
+          )}
+
+          {/* Paramètres + Archiver */}
+          <Link href={`/gardes/${gardeId}/settings`}
+            className="w-full py-2 text-xs text-center border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--ink)] hover:border-[var(--ink)] no-underline block">
+            ⚙ Paramètres
+          </Link>
+          {estProprietaire && (
+            <button onClick={archiverGarde} className="w-full py-1.5 text-[10px] text-[var(--dust)] hover:text-[var(--red)] transition-colors">
+              Archiver la garde
+            </button>
+          )}
+        </aside>
+
+        {/* ── CONTENU PRINCIPAL ──────────────────────────────── */}
+        <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-5">
+          <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
+          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
+            {statutLabel[statut] ?? statut}
+          </span>
         </div>
 
         <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 320px' }}>
@@ -373,6 +447,8 @@ export default function MoisPage() {
 
           </div>
         </div>
+        </div>{/* fin contenu principal */}
+        </div>{/* fin flex gap-5 */}
       </div>
 
       {/* Modal événement */}
