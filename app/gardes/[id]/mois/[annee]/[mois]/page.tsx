@@ -12,7 +12,11 @@ const MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oc
 type Famille = { label: string; nomAffiche: string | null; utilisateurId: string | null; statutAcces: string };
 type GardeInfo = {
   id: string; nom: string | null;
+  proprietaireId: string;
+  invitationTokenB: string | null;
+  publicTokenNounou: string | null;
   familles: Famille[];
+  nounou: { prenom: string } | null;
   modele: { tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number; hSup50Semaine: number; repartitionA: number; navigoMontant: number; indemEntretien: number; indemKm: number; joursJson: string } | null;
 };
 type MoisRec = { statut: string; evenementsJson: string };
@@ -36,6 +40,11 @@ export default function MoisPage() {
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
 
+  // Panneau gauche — invitation + lien public
+  const [invToken,   setInvToken]   = useState<string | null>(null);
+  const [copiedInv,  setCopiedInv]  = useState(false);
+  const [copiedPub,  setCopiedPub]  = useState(false);
+
   // Modal event
   const [modalOpen,  setModalOpen]  = useState(false);
   const [evtType,    setEvtType]    = useState<Evt['type'] | null>(null);
@@ -53,6 +62,7 @@ export default function MoisPage() {
       .then(r => r.json())
       .then(d => {
         setGarde(d.garde);
+        setInvToken(d.garde.invitationTokenB ?? null);
         setMoisRec(d.mois);
         const e = JSON.parse(d.mois.evenementsJson || '[]');
         setEvts(e);
@@ -121,6 +131,36 @@ export default function MoisPage() {
     const newEvts = evts.filter((_, idx) => idx !== i);
     setEvts(newEvts);
     sauvegarderEvts(newEvts);
+  }
+
+  // Panneau gauche — fonctions invitation + lien public
+  async function genererInvitation() {
+    const res = await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'POST' });
+    if (res.ok) { const d = await res.json(); setInvToken(d.token); }
+  }
+  async function revoquerInvitation() {
+    if (!confirm('Révoquer le lien d\'invitation ?')) return;
+    await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'DELETE' });
+    setInvToken(null);
+  }
+  function copierInvitation() {
+    if (!invToken) return;
+    navigator.clipboard.writeText(`${window.location.origin}/rejoindre?token=${invToken}`);
+    setCopiedInv(true); setTimeout(() => setCopiedInv(false), 2000);
+  }
+  function copierLienPublic() {
+    if (!garde?.publicTokenNounou) return;
+    navigator.clipboard.writeText(`${window.location.origin}/public/nounou/${garde.publicTokenNounou}`);
+    setCopiedPub(true); setTimeout(() => setCopiedPub(false), 2000);
+  }
+  async function archiverGarde() {
+    if (!confirm('Archiver cette garde ?')) return;
+    await fetch(`/api/gardes/${gardeId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statut: 'archivé' }),
+    });
+    window.location.href = '/dashboard';
   }
 
   // Calendrier

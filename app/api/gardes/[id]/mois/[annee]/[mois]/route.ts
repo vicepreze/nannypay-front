@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   // Vérifie accès
   const garde = await prisma.garde.findFirst({
     where: { id: params.id, familles: { some: { utilisateurId: session.user.id } } },
-    include: { familles: true, modele: true, enfants: true },
+    include: { familles: true, modele: true, enfants: true, nounou: { select: { prenom: true } } },
   });
   if (!garde) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
 

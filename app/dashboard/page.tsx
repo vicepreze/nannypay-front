@@ -4,21 +4,21 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { SignOutButton } from '@/components/SignOutButton';
+import { ArchiveButton } from '@/components/ArchiveButton';
 
-export default async function DashboardPage({ searchParams }: { searchParams: { voir?: string } }) {
+export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect('/');
 
   const now   = new Date();
   const annee = now.getFullYear();
   const mois  = now.getMonth() + 1;
-  const voirArchivees = searchParams.voir === 'archives';
 
-  const [gardes, nbArchivees] = await Promise.all([
+  const [actives, archivees] = await Promise.all([
     prisma.garde.findMany({
       where: {
         familles: { some: { utilisateurId: session.user.id } },
-        statut: voirArchivees ? 'archivé' : { not: 'archivé' },
+        statut: { not: 'archivé' },
       },
       include: {
         nounou:   { select: { prenom: true } },
@@ -27,11 +27,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
       },
       orderBy: { createdAt: 'desc' },
     }),
-    voirArchivees ? Promise.resolve(0) : prisma.garde.count({
+    prisma.garde.findMany({
       where: {
         familles: { some: { utilisateurId: session.user.id } },
         statut: 'archivé',
       },
+      include: {
+        familles: { select: { label: true, nomAffiche: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     }),
   ]);
 
@@ -43,7 +47,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
           nounoulink<em className="text-[var(--sage)] not-italic">.</em>
         </a>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-[var(--dust)] hidden sm:block">{session.user.email}</span>
+          <Link href="/demo" className="text-sm text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">Démo</Link>
           <SignOutButton />
         </div>
       </header>
@@ -51,96 +55,94 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
       <div className="pt-14 max-w-3xl mx-auto px-6 pb-16">
         <div className="flex items-center justify-between pt-10 mb-8">
           <div>
-            <h1 className="font-serif text-3xl text-[var(--ink)]">
-              {voirArchivees ? 'Gardes archivées' : 'Mes gardes'}
-            </h1>
+            <h1 className="font-serif text-3xl text-[var(--ink)]">Mes gardes</h1>
             <p className="text-sm text-[var(--dust)] mt-1">
-              {gardes.length === 0
-                ? (voirArchivees ? 'Aucune garde archivée' : 'Aucune garde configurée')
-                : `${gardes.length} garde${gardes.length > 1 ? 's' : ''}`}
+              {actives.length === 0 ? 'Aucune garde configurée' : `${actives.length} garde${actives.length > 1 ? 's' : ''}`}
             </p>
           </div>
-          <div className="flex gap-2">
-            {voirArchivees ? (
-              <Link href="/dashboard" className="px-4 py-2 border-[1.5px] border-[var(--line)] text-[var(--ink)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] bg-white no-underline">
-                ← Gardes actives
-              </Link>
-            ) : (
-              <Link href="/nouvelle-garde/acteurs" className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
-                + Nouvelle garde
-              </Link>
-            )}
-          </div>
+          <Link href="/nouvelle-garde/acteurs"
+            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
+            + Nouvelle garde
+          </Link>
         </div>
 
-        {gardes.length === 0 && !voirArchivees ? (
+        {actives.length === 0 ? (
           <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-12 text-center">
             <div className="text-4xl mb-4">👶</div>
             <p className="font-medium text-[var(--ink)] mb-2">Aucune garde pour l&apos;instant</p>
             <p className="text-sm text-[var(--dust)] mb-6">Configurez votre première garde partagée en quelques minutes.</p>
-            <Link href="/nouvelle-garde/acteurs" className="px-5 py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
+            <Link href="/nouvelle-garde/acteurs"
+              className="px-5 py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
               Créer ma première garde
             </Link>
           </div>
         ) : (
           <div className="space-y-4">
-            {gardes.map(g => {
+            {actives.map(g => {
               const famA = g.familles.find(f => f.label === 'A');
               const famB = g.familles.find(f => f.label === 'B');
               const famBActif = famB?.statutAcces === 'invite_actif';
               return (
-                <div key={g.id} className="relative bg-white border border-[var(--line)] rounded-[var(--radius)] p-5 hover:border-[var(--sage-mid)] hover:shadow-sm transition-all group">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Link href={`/gardes/${g.id}`} className="text-base font-medium text-[var(--ink)] group-hover:text-[var(--sage)] transition-colors no-underline">
-                          {g.nom ?? 'Garde sans nom'}
-                        </Link>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                          g.statut === 'actif'    ? 'bg-[var(--sage-light)] text-[var(--sage)]' :
-                          g.statut === 'archivé'  ? 'bg-[var(--paper)] text-[var(--dust)]' :
-                          'bg-[var(--paper)] text-[var(--dust)]'
-                        }`}>
-                          {g.statut}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-xs text-[var(--dust)]">
-                        {g.nounou && <span>👩 {g.nounou.prenom}</span>}
-                        <span className="text-[var(--blue)]">Fam. A : {famA?.nomAffiche ?? '—'}</span>
-                        <span className={famBActif ? 'text-[var(--sage)]' : 'text-[var(--dust)]'}>
-                          Fam. B : {famB?.nomAffiche ?? '—'} {!famBActif && '· en attente'}
-                        </span>
-                      </div>
-                      {g.enfants.length > 0 && (
-                        <div className="flex gap-1.5 mt-2">
-                          {g.enfants.map((e, i) => (
-                            <span key={i} className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${e.fam === 'A' ? 'bg-[var(--blue-light)] text-[var(--blue)]' : 'bg-[var(--sage-light)] text-[var(--sage)]'}`}>
-                              {e.prenom}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                <div key={g.id} className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-5">
+                  <div className="mb-3">
+                    <p className="text-base font-medium text-[var(--ink)] mb-1">{g.nom ?? 'Garde sans nom'}</p>
+                    <div className="flex flex-wrap gap-2 text-xs text-[var(--dust)]">
+                      {g.nounou && <span>👩 {g.nounou.prenom}</span>}
+                      <span className="text-[var(--blue)]">Fam. A : {famA?.nomAffiche ?? '—'}</span>
+                      <span className={famBActif ? 'text-[var(--sage)]' : 'text-[var(--dust)]'}>
+                        Fam. B : {famB?.nomAffiche ?? '—'}{!famBActif && ' · en attente'}
+                      </span>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Link href={`/gardes/${g.id}`} className="text-[var(--dust)] group-hover:text-[var(--sage)] transition-colors text-lg mt-0.5 no-underline">→</Link>
-                      {!voirArchivees && (
-                        <Link href={`/gardes/${g.id}/mois/${annee}/${mois}`} className="text-[11px] px-2.5 py-1 border border-[var(--line)] rounded-lg text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)] transition-colors no-underline whitespace-nowrap">
-                          Mois en cours
-                        </Link>
-                      )}
-                    </div>
+                    {g.enfants.length > 0 && (
+                      <div className="flex gap-1.5 mt-2">
+                        {g.enfants.map((e, i) => (
+                          <span key={i} className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${e.fam === 'A' ? 'bg-[var(--blue-light)] text-[var(--blue)]' : 'bg-[var(--sage-light)] text-[var(--sage)]'}`}>
+                            {e.prenom}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 pt-3 border-t border-[var(--line)]">
+                    <Link href={`/gardes/${g.id}/mois/${annee}/${mois}`}
+                      className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
+                      Voir →
+                    </Link>
+                    <Link href={`/gardes/${g.id}/settings`}
+                      className="px-4 py-2 border border-[var(--line)] text-[var(--ink)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] bg-white transition-colors no-underline">
+                      Paramètres
+                    </Link>
+                    <ArchiveButton gardeId={g.id}
+                      className="ml-auto text-xs text-[var(--dust)] hover:text-[var(--red)] transition-colors px-2 py-1" />
                   </div>
                 </div>
               );
             })}
-
-            {/* Lien archives */}
-            {!voirArchivees && nbArchivees > 0 && (
-              <Link href="/dashboard?voir=archives" className="block text-center text-xs text-[var(--dust)] hover:text-[var(--ink)] py-2 no-underline">
-                {nbArchivees} garde{nbArchivees > 1 ? 's' : ''} archivée{nbArchivees > 1 ? 's' : ''} — voir
-              </Link>
-            )}
           </div>
+        )}
+
+        {archivees.length > 0 && (
+          <details className="mt-8 group">
+            <summary className="text-xs text-[var(--dust)] hover:text-[var(--ink)] cursor-pointer select-none list-none flex items-center gap-1.5">
+              <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
+              {archivees.length} garde{archivees.length > 1 ? 's' : ''} archivée{archivees.length > 1 ? 's' : ''}
+            </summary>
+            <div className="mt-3 space-y-2">
+              {archivees.map(g => {
+                const famA = g.familles.find(f => f.label === 'A');
+                const famB = g.familles.find(f => f.label === 'B');
+                return (
+                  <div key={g.id} className="bg-white border border-[var(--line)] rounded-[var(--radius)] px-4 py-3 flex items-center justify-between opacity-60">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--ink)]">{g.nom ?? 'Garde sans nom'}</p>
+                      <p className="text-xs text-[var(--dust)]">{famA?.nomAffiche ?? '—'} · {famB?.nomAffiche ?? '—'}</p>
+                    </div>
+                    <span className="text-xs text-[var(--dust)]">archivée</span>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
         )}
       </div>
     </div>
