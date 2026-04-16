@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { calcBModeRepartition } from '@/lib/calcul';
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -19,16 +20,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Taux horaire invalide' }, { status: 400 });
   }
 
-  // Calcul répartition selon le mode
-  // A.1 / A.2 → moitié-moitié par défaut
-  // B.1 / B.2 → proportionnel aux enfants (calculé à la volée dans le moteur)
-  const nbEnfantsA = acteurs.enfants.filter((e: { fam: string }) => e.fam === 'A').length;
-  const nbEnfantsB = acteurs.enfants.filter((e: { fam: string }) => e.fam === 'B').length;
-  const nbTotal    = nbEnfantsA + nbEnfantsB || 2;
-  const repartitionA = nbEnfantsA / nbTotal;
+  // Calcul de repartitionA selon le mode
+  const planningData = planning?.planning ?? planning;
+  const joursJson    = JSON.stringify(planningData);
+  const enfants: { prenom: string; fam: string }[] = acteurs.enfants ?? [];
 
-  // planning contient maintenant { planning, hNormalesSemaine, hSup25Semaine, hSup50Semaine }
-  const planningData   = planning?.planning ?? planning;
+  let repartitionA: number;
+  if (paie.mode?.startsWith('C')) {
+    // % spécifique défini par l'utilisateur
+    repartitionA = Math.min(1, Math.max(0, (paie.pourcentA ?? 50) / 100));
+  } else if (paie.mode?.startsWith('B')) {
+    // proportionnel aux heures par enfant dans le planning
+    repartitionA = calcBModeRepartition(joursJson, enfants);
+  } else {
+    // A — proportionnel au nombre d'enfants
+    const nbA    = enfants.filter(e => e.fam === 'A').length;
+    const nbTot  = enfants.length || 2;
+    repartitionA = nbA / nbTot;
+  }
+
   const hNormales      = planning?.hNormalesSemaine ?? 40;
   const hSup25         = planning?.hSup25Semaine    ?? 0;
   const hSup50         = planning?.hSup50Semaine    ?? 0;

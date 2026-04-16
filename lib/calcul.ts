@@ -5,46 +5,60 @@
 
 export type Evt = { type: string; debut: string; fin: string };
 
+export interface AidesInput {
+  cmgCotisations:    number;
+  cmgRemuneration:   number;
+  abattementCharges: number;
+  aideVille:         number;
+  creditImpot:       number; // €/an → divisé par 12 en interne
+}
+
 export interface FamResult {
-  qp:         number;
-  hNorm:      number;
-  hSup25:     number;
-  hSup50:     number;
-  salNet:     number;
-  transport:  number;
-  entretien:  number;
-  km:         number;
-  total:      number;
+  qp:          number;
+  hNorm:       number;
+  hSup25:      number;
+  hSup50:      number;
+  salNet:      number;
+  transport:   number;
+  entretien:   number;
+  km:          number;
+  total:       number;  // total à verser à la nounou
+  aidesTotal:  number;  // aides mensuelles déduites (0 si mode simple)
+  resteCharge: number;  // total - aidesTotal (ce que la famille paie réellement)
 }
 
 export interface CalcResult {
-  annee:         number;
-  mois:          number;
-  joursOuv:      number;
+  annee:           number;
+  mois:            number;
+  joursOuv:        number;
   joursAbsMaladie: number;
-  joursAbsCP:    number;
-  joursAbs:      number;   // maladie + CP (pour affichage)
-  joursTrav:     number;   // joursOuv - maladie (base salaire)
-  ratio:         number;
-  hTotalSemaine: number;
-  famA:          FamResult;
-  famB:          FamResult;
-  totalNounou:   number;
+  joursAbsCP:      number;
+  joursAbs:        number;
+  joursTrav:       number;
+  ratio:           number;
+  hTotalSemaine:   number;
+  famA:            FamResult;
+  famB:            FamResult;
+  totalNounou:     number;
+  isEquitable:     boolean;
 }
 
 export interface CalcInput {
-  annee:               number;
-  mois:                number;
-  taux:                number;
-  hNormalesSemaine:    number;
-  hSup25Semaine:       number;
-  hSup50Semaine:       number;
-  repartitionA:        number;
-  navigo:              number;
-  indemEntretien:      number;
-  indemKm:             number;
+  annee:                number;
+  mois:                 number;
+  taux:                 number;
+  hNormalesSemaine:     number;
+  hSup25Semaine:        number;
+  hSup50Semaine:        number;
+  repartitionA:         number;
+  navigo:               number;
+  indemEntretien:       number;
+  indemKm:              number;
   joursActifsParSemaine: number;
-  evenements:          Evt[];
+  evenements:           Evt[];
+  modeCalcul?:          string;       // 'A.1'|'B.1'|'C.1'|'A.2'|'B.2'|'C.2'
+  aidesA?:              AidesInput;
+  aidesB?:              AidesInput;
 }
 
 // ── Helpers planning ─────────────────────────────────────────────
@@ -53,16 +67,15 @@ type SlotJour = { actif: boolean; debut?: string; fin?: string };
 type PerChild = Record<string, Record<string, SlotJour>>;
 
 export function calcHeuresSemaineFromPlanning(joursJson: string): {
-  hNormalesSemaine: number;
-  hSup25Semaine:    number;
-  hSup50Semaine:    number;
+  hNormalesSemaine:      number;
+  hSup25Semaine:         number;
+  hSup50Semaine:         number;
   joursActifsParSemaine: number;
 } {
   let planning: unknown;
   try { planning = JSON.parse(joursJson || '{}'); } catch { planning = {}; }
 
   const keys = Object.keys(planning as object);
-  // Format per-child : les clés ne sont pas "1"-"5"
   const isPerChild = keys.length > 0 && !keys.every(k => ['1','2','3','4','5'].includes(k));
 
   let totalMin = 0;
@@ -82,7 +95,6 @@ export function calcHeuresSemaineFromPlanning(joursJson: string): {
       totalMin += unionMin(intervals);
     }
   } else {
-    // Ancien format simple { "1": { actif, hDebut, hFin } }
     const perDay = planning as Record<string, { actif: boolean; hDebut?: string; hFin?: string; plages?: { debut: string; fin: string }[] }>;
     for (const [jour, v] of Object.entries(perDay)) {
       if (!v.actif) continue;
@@ -111,12 +123,57 @@ export function calcHeuresSemaineFromPlanning(joursJson: string): {
   };
 }
 
+/**
+ * Calcule repartitionA (0–1) en mode B (PAR_HEURE) à partir du planning per-child.
+ * Fallback sur nbEnfantsA / nbTotal si le planning n'est pas au format per-child.
+ */
+export function calcBModeRepartition(
+  joursJson: string,
+  enfants: { prenom: string; fam: string }[],
+): number {
+  let planning: unknown;
+  try { planning = JSON.parse(joursJson || '{}'); } catch { planning = {}; }
+
+  const keys = Object.keys(planning as object);
+  const isPerChild = keys.length > 0 && !keys.every(k => ['1','2','3','4','5'].includes(k));
+
+  if (!isPerChild) {
+    const nbA = enfants.filter(e => e.fam === 'A').length;
+    const nbTotal = enfants.length || 2;
+    return nbA / nbTotal;
+  }
+
+  const perChild = planning as PerChild;
+  let hoursA = 0, hoursB = 0;
+
+  for (const [childName, daySlots] of Object.entries(perChild)) {
+    const enfant = enfants.find(e => e.prenom === childName);
+    if (!enfant) continue;
+    let childMins = 0;
+    for (const slot of Object.values(daySlots)) {
+      if (slot.actif && slot.debut && slot.fin) {
+        const mins = hhmm(slot.fin) - hhmm(slot.debut);
+        if (mins > 0) childMins += mins;
+      }
+    }
+    if (enfant.fam === 'A') hoursA += childMins;
+    else                     hoursB += childMins;
+  }
+
+  const total = hoursA + hoursB;
+  if (total === 0) {
+    const nbA = enfants.filter(e => e.fam === 'A').length;
+    return nbA / (enfants.length || 2);
+  }
+  return hoursA / total;
+}
+
 function unionMin(intervals: { s: number; e: number }[]): number {
   if (!intervals.length) return 0;
   const sorted = [...intervals].sort((a, b) => a.s - b.s);
   let total = 0, cur = -1;
   for (const { s, e } of sorted) {
-    if (s > cur) { total += e - s; cur = e; }
+    if (s > cur)      { total += e - s; cur = e; }
     else if (e > cur) { total += e - cur; cur = e; }
   }
   return total;
@@ -127,7 +184,14 @@ function hhmm(t: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
+function monthlyAides(a: AidesInput): number {
+  return Math.round(
+    (a.cmgCotisations + a.cmgRemuneration + a.abattementCharges + a.aideVille + a.creditImpot / 12) * 100
+  ) / 100;
+}
+
 // ── Helpers date ──────────────────────────────────────────────────
+
 function joursOuvrablesMois(annee: number, mois: number): number {
   let nb = 0;
   const cur = new Date(annee, mois - 1, 1);
@@ -160,13 +224,18 @@ function joursOuvrablesIntersect(debut: string, fin: string, annee: number, mois
 }
 
 // ── Calcul principal ──────────────────────────────────────────────
+
 export function calculerMois(input: CalcInput): CalcResult {
   const {
     annee, mois, taux,
     hNormalesSemaine, hSup25Semaine, hSup50Semaine,
     repartitionA, navigo, indemEntretien, indemKm,
     joursActifsParSemaine, evenements,
+    modeCalcul = 'A.1',
+    aidesA, aidesB,
   } = input;
+
+  const isEquitable = modeCalcul.endsWith('.2');
 
   const H_NORM_MENS  = Math.round(hNormalesSemaine * 52 / 12 * 10) / 10;
   const H_SUP25_MENS = Math.round(hSup25Semaine    * 52 / 12 * 10) / 10;
@@ -174,7 +243,6 @@ export function calculerMois(input: CalcInput): CalcResult {
 
   const joursOuv = joursOuvrablesMois(annee, mois);
 
-  // Séparer maladie et congés payés
   const joursAbsMaladie = evenements
     .filter(e => e.type === 'maladie_nounou')
     .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
@@ -184,16 +252,13 @@ export function calculerMois(input: CalcInput): CalcResult {
     .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
 
   const joursAbs  = joursAbsMaladie + joursAbsCP;
-  // Salaire : seule la maladie réduit le salaire (CP = maintien du salaire)
   const joursTrav = Math.max(0, joursOuv - joursAbsMaladie);
   const ratio     = joursOuv > 0 ? joursTrav / joursOuv : 1;
 
-  // Entretien : non dû pendant maladie ET pendant CP
-  // Formule : qp × (joursOuv - maladie - CP) × (joursActifs/5) × tarifJour
-  const tauxPresenceJour = joursActifsParSemaine > 0 ? joursActifsParSemaine / 5 : 1;
+  const tauxPresenceJour   = joursActifsParSemaine > 0 ? joursActifsParSemaine / 5 : 1;
   const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP);
 
-  function calcFam(qp: number): FamResult {
+  function calcFam(qp: number): Omit<FamResult, 'aidesTotal' | 'resteCharge'> {
     const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
     const hSup25 = Math.round(H_SUP25_MENS * qp * ratio);
     const hSup50 = Math.round(H_SUP50_MENS * qp * ratio);
@@ -204,7 +269,6 @@ export function calculerMois(input: CalcInput): CalcResult {
     const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
 
     const transport = Math.round(navigo / 2 * 100) / 100;
-    // Entretien = qp × joursEffectifs × (joursActifs/5) × tarifJour
     const entretien = Math.round(qp * joursEntretienBase * tauxPresenceJour * indemEntretien * 100) / 100;
     const km        = Math.round(indemKm / 2 * 100) / 100;
     const total     = Math.round((salNet + transport + entretien + km) * 100) / 100;
@@ -212,10 +276,35 @@ export function calculerMois(input: CalcInput): CalcResult {
     return { qp, hNorm, hSup25, hSup50, salNet, transport, entretien, km, total };
   }
 
-  const famA = calcFam(repartitionA);
-  const famB = calcFam(1 - repartitionA);
+  const baseA = calcFam(repartitionA);
+  const baseB = calcFam(1 - repartitionA);
+
+  let famA: FamResult;
+  let famB: FamResult;
+
+  if (isEquitable) {
+    // Équilibrage : chaque famille supporte repartitionA × totalNet de reste à charge.
+    // total versé à la nounounou = fixe (baseA.total + baseB.total)
+    // gross_A = repartitionA × (total - aidesA - aidesB) + aidesA
+    const aidesAMens = aidesA ? monthlyAides(aidesA) : 0;
+    const aidesBMens = aidesB ? monthlyAides(aidesB) : 0;
+    const totalNounouBrut = baseA.total + baseB.total;
+    const totalNet        = totalNounouBrut - aidesAMens - aidesBMens;
+
+    const newTotalA = Math.round((repartitionA * totalNet + aidesAMens) * 100) / 100;
+    const newTotalB = Math.round(((1 - repartitionA) * totalNet + aidesBMens) * 100) / 100;
+
+    famA = { ...baseA, total: newTotalA, aidesTotal: aidesAMens, resteCharge: Math.round((newTotalA - aidesAMens) * 100) / 100 };
+    famB = { ...baseB, total: newTotalB, aidesTotal: aidesBMens, resteCharge: Math.round((newTotalB - aidesBMens) * 100) / 100 };
+  } else {
+    const aidesAMens = aidesA ? monthlyAides(aidesA) : 0;
+    const aidesBMens = aidesB ? monthlyAides(aidesB) : 0;
+    famA = { ...baseA, aidesTotal: aidesAMens, resteCharge: Math.round((baseA.total - aidesAMens) * 100) / 100 };
+    famB = { ...baseB, aidesTotal: aidesBMens, resteCharge: Math.round((baseB.total - aidesBMens) * 100) / 100 };
+  }
+
   const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
   const hTotalSemaine = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
 
-  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbs, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou };
+  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbs, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, isEquitable };
 }

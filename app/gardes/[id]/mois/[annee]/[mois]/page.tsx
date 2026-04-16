@@ -9,7 +9,12 @@ import { useSession } from 'next-auth/react';
 const MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 
-type Famille = { label: string; nomAffiche: string | null; utilisateurId: string | null; statutAcces: string };
+type Famille = {
+  label: string; nomAffiche: string | null;
+  utilisateurId: string | null; statutAcces: string;
+  cmgCotisations: number; cmgRemuneration: number;
+  abattementCharges: number; aideVille: number; creditImpot: number;
+};
 type GardeInfo = {
   id: string; nom: string | null;
   proprietaireId: string;
@@ -17,7 +22,11 @@ type GardeInfo = {
   publicTokenNounou: string | null;
   familles: Famille[];
   nounou: { prenom: string } | null;
-  modele: { tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number; hSup50Semaine: number; repartitionA: number; navigoMontant: number; indemEntretien: number; indemKm: number; joursJson: string } | null;
+  modele: {
+    tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number;
+    hSup50Semaine: number; repartitionA: number; modeCalcul: string;
+    navigoMontant: number; indemEntretien: number; indemKm: number; joursJson: string;
+  } | null;
 };
 type MoisRec = { statut: string; evenementsJson: string };
 
@@ -75,18 +84,28 @@ export default function MoisPage() {
     if (!garde?.modele) return;
     const m = garde.modele;
     const { joursActifsParSemaine } = calcHeuresSemaineFromPlanning(m.joursJson || '{}');
+    const toAides = (f?: Famille) => ({
+      cmgCotisations:    f?.cmgCotisations    ?? 0,
+      cmgRemuneration:   f?.cmgRemuneration   ?? 0,
+      abattementCharges: f?.abattementCharges ?? 0,
+      aideVille:         f?.aideVille         ?? 0,
+      creditImpot:       f?.creditImpot       ?? 0,
+    });
     setResult(calculerMois({
       annee, mois,
-      taux:                 m.tauxHoraireNet,
-      hNormalesSemaine:     m.hNormalesSemaine,
-      hSup25Semaine:        m.hSup25Semaine,
-      hSup50Semaine:        m.hSup50Semaine,
-      repartitionA:         m.repartitionA,
-      navigo:               m.navigoMontant,
-      indemEntretien:       m.indemEntretien,
-      indemKm:              m.indemKm,
+      taux:                  m.tauxHoraireNet,
+      hNormalesSemaine:      m.hNormalesSemaine,
+      hSup25Semaine:         m.hSup25Semaine,
+      hSup50Semaine:         m.hSup50Semaine,
+      repartitionA:          m.repartitionA,
+      modeCalcul:            m.modeCalcul,
+      navigo:                m.navigoMontant,
+      indemEntretien:        m.indemEntretien,
+      indemKm:               m.indemKm,
       joursActifsParSemaine: joursActifsParSemaine || 5,
-      evenements:           evts,
+      evenements:            evts,
+      aidesA: toAides(garde.familles.find(f => f.label === 'A')),
+      aidesB: toAides(garde.familles.find(f => f.label === 'B')),
     }));
   }, [garde, evts, annee, mois]);
 
@@ -414,10 +433,8 @@ export default function MoisPage() {
                   </div>
                 </div>
 
-                {/* Famille A */}
-                <ResultCard label="A" nom={famA?.nomAffiche ?? 'Famille A'} r={result.famA} />
-                {/* Famille B */}
-                <ResultCard label="B" nom={famB?.nomAffiche ?? 'Famille B'} r={result.famB} />
+                <ResultCard label="A" nom={famA?.nomAffiche ?? 'Famille A'} r={result.famA} isEquitable={result.isEquitable} />
+                <ResultCard label="B" nom={famB?.nomAffiche ?? 'Famille B'} r={result.famB} isEquitable={result.isEquitable} />
               </>
             )}
 
@@ -491,7 +508,11 @@ export default function MoisPage() {
   );
 }
 
-function ResultCard({ label, nom, r }: { label: string; nom: string; r: ReturnType<typeof calculerMois>['famA'] }) {
+function ResultCard({ label, nom, r, isEquitable }: {
+  label: string; nom: string;
+  r: ReturnType<typeof calculerMois>['famA'];
+  isEquitable: boolean;
+}) {
   const color = label === 'A' ? 'text-[var(--blue)]' : 'text-[var(--sage)]';
   return (
     <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
@@ -499,23 +520,35 @@ function ResultCard({ label, nom, r }: { label: string; nom: string; r: ReturnTy
         {nom} — Pajemploi
       </div>
       {[
-        ['Heures normales',  r.hNorm  + ' h',              false],
-        ['Heures sup +25%',  r.hSup25 + ' h',              r.hSup25 === 0],
-        ['Heures sup +50%',  r.hSup50 + ' h',              r.hSup50 === 0],
-        ['Salaire net',      r.salNet.toFixed(2)  + ' €',  false],
-        ['Transport',        r.transport.toFixed(2) + ' €', false],
-        ['Entretien',        r.entretien.toFixed(2) + ' €', false],
-        ['Frais km',         r.km.toFixed(2) + ' €',       r.km === 0],
+        ['Heures normales', r.hNorm  + ' h',               false],
+        ['Heures sup +25%', r.hSup25 + ' h',               r.hSup25 === 0],
+        ['Heures sup +50%', r.hSup50 + ' h',               r.hSup50 === 0],
+        ['Salaire net',     r.salNet.toFixed(2)    + ' €',  false],
+        ['Transport',       r.transport.toFixed(2) + ' €',  false],
+        ['Entretien',       r.entretien.toFixed(2) + ' €',  false],
+        ['Frais km',        r.km.toFixed(2)        + ' €',  r.km === 0],
       ].map(([l, v, dim]) => (
-        <div key={String(l)} className={'flex justify-between px-4 py-1.5 border-b border-[var(--line)] last:border-0 text-xs ' + (dim ? 'opacity-40' : '')}>
+        <div key={String(l)} className={'flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs ' + (dim ? 'opacity-40' : '')}>
           <span className="text-[var(--dust)]">{l}</span>
           <span className="font-medium font-mono">{v}</span>
         </div>
       ))}
-      <div className="flex justify-between px-4 py-2.5 bg-[var(--paper)] font-semibold text-sm">
+      <div className="flex justify-between px-4 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] font-semibold text-sm">
         <span>Total à verser</span>
         <span>{r.total.toFixed(2)} €</span>
       </div>
+      {isEquitable && r.aidesTotal > 0 && (
+        <>
+          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--sage)]">
+            <span>Aides CAF (mensuel)</span>
+            <span className="font-medium font-mono">− {r.aidesTotal.toFixed(2)} €</span>
+          </div>
+          <div className="flex justify-between px-4 py-2.5 bg-[var(--sage-light)] font-semibold text-sm text-[var(--sage)]">
+            <span>Reste à charge</span>
+            <span>{r.resteCharge.toFixed(2)} €</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
