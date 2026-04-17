@@ -533,6 +533,17 @@ function ResultCard({ label, nom, r, isEquitable }: {
           <span className="font-medium font-mono">{v}</span>
         </div>
       ))}
+      {isEquitable && (() => {
+        const baseTotal = r.salNet + r.transport + r.entretien + r.km;
+        const ajust = Math.round((r.total - baseTotal) * 100) / 100;
+        if (ajust === 0) return null;
+        return (
+          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--sage)]">
+            <span>Ajustement équité</span>
+            <span className="font-medium font-mono">{ajust > 0 ? '+' : ''}{ajust.toFixed(2)} €</span>
+          </div>
+        );
+      })()}
       <div className="flex justify-between px-4 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] font-semibold text-sm">
         <span>Total à verser</span>
         <span>{r.total.toFixed(2)} €</span>
