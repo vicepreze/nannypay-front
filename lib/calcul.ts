@@ -14,17 +14,18 @@ export interface AidesInput {
 }
 
 export interface FamResult {
-  qp:          number;
-  hNorm:       number;
-  hSup25:      number;
-  hSup50:      number;
-  salNet:      number;
-  transport:   number;
-  entretien:   number;
-  km:          number;
-  total:       number;  // total à verser à la nounou
-  aidesTotal:  number;  // aides mensuelles déduites (0 si mode simple)
-  resteCharge: number;  // total - aidesTotal (ce que la famille paie réellement)
+  qp:               number;
+  hNorm:            number;
+  hSup25:           number;
+  hSup50:           number;
+  salNet:           number;
+  transport:        number;
+  entretien:        number;
+  km:               number;
+  total:            number;  // total à verser à la nounou (toujours proportionnel, identique .1 et .2)
+  aidesTotal:       number;  // aides mensuelles CAF
+  ajustementEquite: number;  // transfert inter-familles pour équilibrer le RAC (0 en mode .1)
+  resteCharge:      number;  // RAC final = (total - aidesTotal) + ajustementEquite
 }
 
 export interface CalcResult {
@@ -282,25 +283,30 @@ export function calculerMois(input: CalcInput): CalcResult {
   let famA: FamResult;
   let famB: FamResult;
 
+  const aidesAMens = aidesA ? monthlyAides(aidesA) : 0;
+  const aidesBMens = aidesB ? monthlyAides(aidesB) : 0;
+
   if (isEquitable) {
-    // Équilibrage : chaque famille supporte repartitionA × totalNet de reste à charge.
-    // total versé à la nounounou = fixe (baseA.total + baseB.total)
-    // gross_A = repartitionA × (total - aidesA - aidesB) + aidesA
-    const aidesAMens = aidesA ? monthlyAides(aidesA) : 0;
-    const aidesBMens = aidesB ? monthlyAides(aidesB) : 0;
-    const totalNounouBrut = baseA.total + baseB.total;
-    const totalNet        = totalNounouBrut - aidesAMens - aidesBMens;
+    // total à verser à la nounou = inchangé (proportionnel), identique au mode .1
+    // L'équilibrage porte sur le reste à charge via un transfert inter-familles :
+    //   RAC brut A = baseA.total - aidesA
+    //   RAC brut B = baseB.total - aidesB
+    //   totalRac   = RAC brut A + RAC brut B
+    //   RAC cible A = repartitionA × totalRac  (chaque famille paie sa quote-part du RAC global)
+    //   Ajustement = RAC cible - RAC brut (< 0 : reçoit, > 0 : verse à l'autre famille)
+    const racBrutA  = Math.round((baseA.total - aidesAMens) * 100) / 100;
+    const racBrutB  = Math.round((baseB.total - aidesBMens) * 100) / 100;
+    const totalRac  = Math.round((racBrutA + racBrutB) * 100) / 100;
+    const racCibleA = Math.round(repartitionA       * totalRac * 100) / 100;
+    const racCibleB = Math.round((1 - repartitionA) * totalRac * 100) / 100;
+    const ajustA    = Math.round((racCibleA - racBrutA) * 100) / 100;
+    const ajustB    = Math.round((racCibleB - racBrutB) * 100) / 100;
 
-    const newTotalA = Math.round((repartitionA * totalNet + aidesAMens) * 100) / 100;
-    const newTotalB = Math.round(((1 - repartitionA) * totalNet + aidesBMens) * 100) / 100;
-
-    famA = { ...baseA, total: newTotalA, aidesTotal: aidesAMens, resteCharge: Math.round((newTotalA - aidesAMens) * 100) / 100 };
-    famB = { ...baseB, total: newTotalB, aidesTotal: aidesBMens, resteCharge: Math.round((newTotalB - aidesBMens) * 100) / 100 };
+    famA = { ...baseA, aidesTotal: aidesAMens, ajustementEquite: ajustA, resteCharge: racCibleA };
+    famB = { ...baseB, aidesTotal: aidesBMens, ajustementEquite: ajustB, resteCharge: racCibleB };
   } else {
-    const aidesAMens = aidesA ? monthlyAides(aidesA) : 0;
-    const aidesBMens = aidesB ? monthlyAides(aidesB) : 0;
-    famA = { ...baseA, aidesTotal: aidesAMens, resteCharge: Math.round((baseA.total - aidesAMens) * 100) / 100 };
-    famB = { ...baseB, aidesTotal: aidesBMens, resteCharge: Math.round((baseB.total - aidesBMens) * 100) / 100 };
+    famA = { ...baseA, aidesTotal: aidesAMens, ajustementEquite: 0, resteCharge: Math.round((baseA.total - aidesAMens) * 100) / 100 };
+    famB = { ...baseB, aidesTotal: aidesBMens, ajustementEquite: 0, resteCharge: Math.round((baseB.total - aidesBMens) * 100) / 100 };
   }
 
   const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
