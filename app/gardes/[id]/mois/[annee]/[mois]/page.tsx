@@ -24,7 +24,7 @@ type GardeInfo = {
   nounou: { prenom: string } | null;
   modele: {
     tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number;
-    hSup50Semaine: number; repartitionA: number; modeCalcul: string;
+    hSup50Semaine: number; repartitionA: number; racOptionActive: boolean;
     navigoMontant: number; indemEntretien: number; indemKm: number; joursJson: string;
   } | null;
 };
@@ -98,7 +98,7 @@ export default function MoisPage() {
       hSup25Semaine:         m.hSup25Semaine,
       hSup50Semaine:         m.hSup50Semaine,
       repartitionA:          m.repartitionA,
-      modeCalcul:            m.modeCalcul,
+      racOptionActive:       m.racOptionActive,
       navigo:                m.navigoMontant,
       indemEntretien:        m.indemEntretien,
       indemKm:               m.indemKm,
@@ -433,8 +433,8 @@ export default function MoisPage() {
                   </div>
                 </div>
 
-                <ResultCard label="A" nom={famA?.nomAffiche ?? 'Famille A'} r={result.famA} isEquitable={result.isEquitable} />
-                <ResultCard label="B" nom={famB?.nomAffiche ?? 'Famille B'} r={result.famB} isEquitable={result.isEquitable} />
+                <ResultCard label="A" nom={famA?.nomAffiche ?? 'Famille A'} r={result.famA} racOptionActive={result.racOptionActive} />
+                <ResultCard label="B" nom={famB?.nomAffiche ?? 'Famille B'} r={result.famB} racOptionActive={result.racOptionActive} />
               </>
             )}
 
@@ -508,16 +508,17 @@ export default function MoisPage() {
   );
 }
 
-function ResultCard({ label, nom, r, isEquitable }: {
+function ResultCard({ label, nom, r, racOptionActive }: {
   label: string; nom: string;
   r: ReturnType<typeof calculerMois>['famA'];
-  isEquitable: boolean;
+  racOptionActive: boolean;
 }) {
   const color = label === 'A' ? 'text-[var(--blue)]' : 'text-[var(--sage)]';
   return (
     <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-      <div className={`px-4 py-2.5 border-b border-[var(--line)] text-[10px] font-medium uppercase tracking-wide bg-[var(--paper)] ${color}`}>
-        {nom} — Pajemploi
+      <div className={`px-4 py-2.5 border-b border-[var(--line)] text-[10px] font-medium uppercase tracking-wide bg-[var(--paper)] ${color} flex justify-between items-center`}>
+        <span>{nom} — Pajemploi</span>
+        <span className="font-mono">{(r.qp * 100).toFixed(1)} %</span>
       </div>
       {[
         ['Heures normales', r.hNorm  + ' h',               false],
@@ -537,20 +538,22 @@ function ResultCard({ label, nom, r, isEquitable }: {
         <span>Total à verser</span>
         <span>{r.total.toFixed(2)} €</span>
       </div>
-      {isEquitable && (
+      {racOptionActive && (
         <>
+          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
+            <span>Charges salariales (21,88 %)</span>
+            <span className="font-medium font-mono">{r.chargesSalariales.toFixed(2)} €</span>
+          </div>
+          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
+            <span>Charges patronales (44,70 %)</span>
+            <span className="font-medium font-mono">{r.chargesPatronales.toFixed(2)} €</span>
+          </div>
           <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
             <span>Aides CAF (mensuel)</span>
             <span className="font-medium font-mono">− {r.aidesTotal.toFixed(2)} €</span>
           </div>
-          {r.ajustementEquite !== 0 && (
-            <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--sage)]">
-              <span>Ajustement équité</span>
-              <span className="font-medium font-mono">{r.ajustementEquite > 0 ? '+' : ''}{r.ajustementEquite.toFixed(2)} €</span>
-            </div>
-          )}
           <div className="flex justify-between px-4 py-2.5 bg-[var(--sage-light)] font-semibold text-sm text-[var(--sage)]">
-            <span>Reste à charge</span>
+            <span>Reste à charge estimé</span>
             <span>{r.resteCharge.toFixed(2)} €</span>
           </div>
         </>

@@ -8,7 +8,7 @@ type Famille = { label: string; nomAffiche: string | null };
 type Enfant  = { id: string; prenom: string; fam: string };
 type Modele  = {
   tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number; hSup50Semaine: number;
-  modeCalcul: string; repartitionA: number; navigoMontant: number;
+  repartitionA: number; racOptionActive: boolean; navigoMontant: number;
   indemEntretien: number; indemKm: number; joursJson: string;
 };
 type MoisRec = {

@@ -6,20 +6,13 @@ import Link from 'next/link';
 type Famille = { id: string; label: string; nomAffiche: string | null; emailContact: string | null; statutAcces: string; utilisateurId: string | null };
 type Enfant  = { id: string; prenom: string; fam: string };
 type Nounou  = { id: string; prenom: string; nom: string | null; email: string | null } | null;
-type Modele  = { tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number; hSup50Semaine: number; modeCalcul: string; navigoMontant: number; indemEntretien: number; indemKm: number } | null;
+type Modele  = { tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number; hSup50Semaine: number; repartitionA: number; racOptionActive: boolean; navigoMontant: number; indemEntretien: number; indemKm: number } | null;
 
 export type GardeData = {
   id: string; nom: string | null; statut: string;
   invitationTokenB: string | null; invitationTokenBExpiresAt: Date | null;
   publicTokenNounou: string | null;
   nounou: Nounou; familles: Famille[]; enfants: Enfant[]; modele: Modele;
-};
-
-const MODES: Record<string, string> = {
-  'A.1': 'Moitié-moitié',
-  'B.1': 'Partage au temps',
-  'A.2': 'Partage au coût',
-  'B.2': '100% personnalisé',
 };
 
 export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: GardeData; monRole: string; moisUrl?: string }) {
@@ -326,7 +319,8 @@ export function GardeDetail({ garde: initial, monRole, moisUrl }: { garde: Garde
                 </div>
               ) : (
                 <div className="divide-y divide-[var(--line)]">
-                  <InfoRow label="Mode de calcul"    value={`${garde.modele.modeCalcul} — ${MODES[garde.modele.modeCalcul] ?? ''}`} padded />
+                  <InfoRow label="Répartition salaire" value={`Famille A : ${(garde.modele.repartitionA * 100).toFixed(1)} % / Famille B : ${((1 - garde.modele.repartitionA) * 100).toFixed(1)} %`} padded />
+                  {garde.modele.racOptionActive && <InfoRow label="Reste à charge" value="Calculé (aides CAF saisies)" padded />}
                   <InfoRow label="Taux horaire net"  value={`${garde.modele.tauxHoraireNet} €/h`} padded />
                   <InfoRow label="H. normales/sem."  value={`${garde.modele.hNormalesSemaine} h`} padded />
                   {garde.modele.hSup25Semaine > 0 && <InfoRow label="H. sup +25%/sem."  value={`${garde.modele.hSup25Semaine} h`} padded />}

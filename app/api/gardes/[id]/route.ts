@@ -52,17 +52,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
     });
   }
 
-  // Mise à jour familles
+  // Mise à jour familles (nom / email / aides CAF)
+  const famFields = (src: Record<string, unknown>) => {
+    const d: Record<string, unknown> = {};
+    for (const k of ['nomAffiche', 'emailContact', 'cmgCotisations', 'cmgRemuneration', 'abattementCharges', 'aideVille', 'creditImpot']) {
+      if (src[k] !== undefined) d[k] = src[k];
+    }
+    return d;
+  };
   if (body.familleA) {
     await prisma.famille.updateMany({
       where: { gardeId: params.id, label: 'A' },
-      data:  { nomAffiche: body.familleA.nomAffiche, emailContact: body.familleA.emailContact },
+      data:  famFields(body.familleA),
     });
   }
   if (body.familleB) {
     await prisma.famille.updateMany({
       where: { gardeId: params.id, label: 'B' },
-      data:  { nomAffiche: body.familleB.nomAffiche, emailContact: body.familleB.emailContact },
+      data:  famFields(body.familleB),
     });
   }
 

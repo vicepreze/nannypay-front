@@ -2,6 +2,12 @@
 // Formule Cour de cassation : retenue = salaire × (joursAbsMaladie / joursOuv)
 // Congés payés : maintien salaire, mais entretien non dû ces jours-là
 // Heures sup légales : 40-48h = +25%, >48h = +50%, plafond 50h/sem
+// Charges : salariales 21,88 % du brut, patronales 44,70 % du brut
+//           brut = net / (1 − 0,2188) = net / 0,7812
+
+export const K_SAL   = 0.2188 / 0.7812;         // ≈ 0,2801  charges salariales / salNet
+export const K_PAT   = 0.4470 / 0.7812;         // ≈ 0,5722  charges patronales / salNet
+export const K_TOTAL = 1 + K_SAL + K_PAT;       // ≈ 1,8523  coût employeur / salNet
 
 export type Evt = { type: string; debut: string; fin: string };
 
@@ -14,18 +20,19 @@ export interface AidesInput {
 }
 
 export interface FamResult {
-  qp:               number;
-  hNorm:            number;
-  hSup25:           number;
-  hSup50:           number;
-  salNet:           number;
-  transport:        number;
-  entretien:        number;
-  km:               number;
-  total:            number;  // total à verser à la nounou (toujours proportionnel, identique .1 et .2)
-  aidesTotal:       number;  // aides mensuelles CAF
-  ajustementEquite: number;  // transfert inter-familles pour équilibrer le RAC (0 en mode .1)
-  resteCharge:      number;  // RAC final = (total - aidesTotal) + ajustementEquite
+  qp:                number;
+  hNorm:             number;
+  hSup25:            number;
+  hSup50:            number;
+  salNet:            number;
+  transport:         number;
+  entretien:         number;
+  km:                number;
+  total:             number;  // salNet + transport + entretien + km (versé à la nounou)
+  chargesSalariales: number;  // salNet × K_SAL
+  chargesPatronales: number;  // salNet × K_PAT
+  aidesTotal:        number;  // total aides mensuelles CAF
+  resteCharge:       number;  // (total + chargesSal + chargesPat) − aidesTotal
 }
 
 export interface CalcResult {
@@ -41,25 +48,26 @@ export interface CalcResult {
   famA:            FamResult;
   famB:            FamResult;
   totalNounou:     number;
-  isEquitable:     boolean;
+  racOptionActive: boolean;
 }
 
 export interface CalcInput {
-  annee:                number;
-  mois:                 number;
-  taux:                 number;
-  hNormalesSemaine:     number;
-  hSup25Semaine:        number;
-  hSup50Semaine:        number;
-  repartitionA:         number;
-  navigo:               number;
-  indemEntretien:       number;
-  indemKm:              number;
+  annee:                 number;
+  mois:                  number;
+  taux:                  number;
+  hNormalesSemaine:      number;
+  hSup25Semaine:         number;
+  hSup50Semaine:         number;
+  repartitionA:          number;
+  navigo:                number;
+  indemEntretien:        number;
+  indemKm:               number;
   joursActifsParSemaine: number;
-  evenements:           Evt[];
-  modeCalcul?:          string;       // 'A.1'|'B.1'|'C.1'|'A.2'|'B.2'|'C.2'
-  aidesA?:              AidesInput;
-  aidesB?:              AidesInput;
+  evenements:            Evt[];
+  racOptionActive?:      boolean;
+  modeCalcul?:           string;  // legacy — ignoré si racOptionActive fourni
+  aidesA?:               AidesInput;
+  aidesB?:               AidesInput;
 }
 
 // ── Helpers planning ─────────────────────────────────────────────
@@ -125,8 +133,8 @@ export function calcHeuresSemaineFromPlanning(joursJson: string): {
 }
 
 /**
- * Calcule repartitionA (0–1) en mode B (PAR_HEURE) à partir du planning per-child.
- * Fallback sur nbEnfantsA / nbTotal si le planning n'est pas au format per-child.
+ * Calcule repartitionA (0–1) proportionnellement aux heures par famille.
+ * Utilise le planning per-child si disponible ; sinon fallback sur nbEnfants.
  */
 export function calcBModeRepartition(
   joursJson: string,
@@ -167,6 +175,27 @@ export function calcBModeRepartition(
     return nbA / (enfants.length || 2);
   }
   return hoursA / total;
+}
+
+/**
+ * Calcule le ratio A cible (0–1) pour que le RAC de chaque famille soit
+ * proportionnel à ratioA / ratioB, compte tenu de leurs aides CAF.
+ *
+ * Formule :
+ *   pEquitable = ratioA + (aidesA × ratioB − aidesB × ratioA) / (salNetTotal × K_TOTAL)
+ *
+ * Résultat clampé entre 0 et 1.
+ */
+export function calcEquitableRatioA(
+  ratioA:       number,   // répartition proportionnelle aux heures (0–1)
+  salNetTotal:  number,   // salaire net mensuel total nounou (hors indemnités)
+  aidesAMens:   number,   // total aides mensuelles famille A
+  aidesBMens:   number,   // total aides mensuelles famille B
+): number {
+  if (salNetTotal <= 0) return ratioA;
+  const ratioB = 1 - ratioA;
+  const p = ratioA + (aidesAMens * ratioB - aidesBMens * ratioA) / (salNetTotal * K_TOTAL);
+  return Math.min(1, Math.max(0, Math.round(p * 10000) / 10000));
 }
 
 function unionMin(intervals: { s: number; e: number }[]): number {
@@ -232,11 +261,13 @@ export function calculerMois(input: CalcInput): CalcResult {
     hNormalesSemaine, hSup25Semaine, hSup50Semaine,
     repartitionA, navigo, indemEntretien, indemKm,
     joursActifsParSemaine, evenements,
+    racOptionActive: racOpt,
     modeCalcul = 'A.1',
     aidesA, aidesB,
   } = input;
 
-  const isEquitable = modeCalcul.endsWith('.2');
+  // racOptionActive prend le dessus sur le champ legacy modeCalcul
+  const racOptionActive = racOpt ?? modeCalcul.endsWith('.2');
 
   const H_NORM_MENS  = Math.round(hNormalesSemaine * 52 / 12 * 10) / 10;
   const H_SUP25_MENS = Math.round(hSup25Semaine    * 52 / 12 * 10) / 10;
@@ -259,7 +290,7 @@ export function calculerMois(input: CalcInput): CalcResult {
   const tauxPresenceJour   = joursActifsParSemaine > 0 ? joursActifsParSemaine / 5 : 1;
   const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP);
 
-  function calcFam(qp: number): Omit<FamResult, 'aidesTotal' | 'resteCharge'> {
+  function calcFam(qp: number, aides: AidesInput | undefined): FamResult {
     const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
     const hSup25 = Math.round(H_SUP25_MENS * qp * ratio);
     const hSup50 = Math.round(H_SUP50_MENS * qp * ratio);
@@ -274,43 +305,19 @@ export function calculerMois(input: CalcInput): CalcResult {
     const km        = Math.round(indemKm / 2 * 100) / 100;
     const total     = Math.round((salNet + transport + entretien + km) * 100) / 100;
 
-    return { qp, hNorm, hSup25, hSup50, salNet, transport, entretien, km, total };
+    const chargesSalariales = Math.round(salNet * K_SAL * 100) / 100;
+    const chargesPatronales = Math.round(salNet * K_PAT * 100) / 100;
+    const aidesTotal        = aides ? monthlyAides(aides) : 0;
+    const resteCharge       = Math.round((total + chargesSalariales + chargesPatronales - aidesTotal) * 100) / 100;
+
+    return { qp, hNorm, hSup25, hSup50, salNet, transport, entretien, km, total, chargesSalariales, chargesPatronales, aidesTotal, resteCharge };
   }
 
-  const baseA = calcFam(repartitionA);
-  const baseB = calcFam(1 - repartitionA);
-
-  let famA: FamResult;
-  let famB: FamResult;
-
-  const aidesAMens = aidesA ? monthlyAides(aidesA) : 0;
-  const aidesBMens = aidesB ? monthlyAides(aidesB) : 0;
-
-  if (isEquitable) {
-    // total à verser à la nounou = inchangé (proportionnel), identique au mode .1
-    // L'équilibrage porte sur le reste à charge via un transfert inter-familles :
-    //   RAC brut A = baseA.total - aidesA
-    //   RAC brut B = baseB.total - aidesB
-    //   totalRac   = RAC brut A + RAC brut B
-    //   RAC cible A = repartitionA × totalRac  (chaque famille paie sa quote-part du RAC global)
-    //   Ajustement = RAC cible - RAC brut (< 0 : reçoit, > 0 : verse à l'autre famille)
-    const racBrutA  = Math.round((baseA.total - aidesAMens) * 100) / 100;
-    const racBrutB  = Math.round((baseB.total - aidesBMens) * 100) / 100;
-    const totalRac  = Math.round((racBrutA + racBrutB) * 100) / 100;
-    const racCibleA = Math.round(repartitionA       * totalRac * 100) / 100;
-    const racCibleB = Math.round((1 - repartitionA) * totalRac * 100) / 100;
-    const ajustA    = Math.round((racCibleA - racBrutA) * 100) / 100;
-    const ajustB    = Math.round((racCibleB - racBrutB) * 100) / 100;
-
-    famA = { ...baseA, aidesTotal: aidesAMens, ajustementEquite: ajustA, resteCharge: racCibleA };
-    famB = { ...baseB, aidesTotal: aidesBMens, ajustementEquite: ajustB, resteCharge: racCibleB };
-  } else {
-    famA = { ...baseA, aidesTotal: aidesAMens, ajustementEquite: 0, resteCharge: Math.round((baseA.total - aidesAMens) * 100) / 100 };
-    famB = { ...baseB, aidesTotal: aidesBMens, ajustementEquite: 0, resteCharge: Math.round((baseB.total - aidesBMens) * 100) / 100 };
-  }
+  const famA = calcFam(repartitionA,       racOptionActive ? aidesA : undefined);
+  const famB = calcFam(1 - repartitionA,   racOptionActive ? aidesB : undefined);
 
   const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
   const hTotalSemaine = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
 
-  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbs, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, isEquitable };
+  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbs, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, racOptionActive };
 }

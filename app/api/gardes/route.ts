@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
           hSup50Semaine:    hSup50,
           modeCalcul:       paie.mode,
           repartitionA,
+          racOptionActive:  typeof paie.mode === 'string' && paie.mode.endsWith('.2'),
           navigoMontant:    paie.navigo,
           indemKm:          paie.indemKm,
           indemEntretien:   paie.indemEntretien,
