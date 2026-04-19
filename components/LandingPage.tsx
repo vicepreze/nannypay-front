@@ -436,7 +436,7 @@ export function LandingPage() {
             <div className="grid grid-cols-3 gap-4 mb-12 text-left">
               {[
                 { icon: '⚙️', title: 'Votre situation, exactement', desc: '✓ 2 ou 3 enfants, horaires identiques ou différents\n✓ Répartition proportionnelle aux heures par enfant\n✓ Équilibrage au reste à charge selon vos aides CAF\n✓ Frais d\'entretien, repas et transport inclus' },
-                { icon: '👨‍👩‍👦‍👦', title: 'Collaboration famille', desc: 'Chaque famille accède à ses chiffres. Fini les allers-retours sur WhatsApp.' },
+                { icon: '👨‍👩‍👦‍👦', title: 'Simple pour tous', desc: '✓ Familles et nounou valident les chiffres ensemble, avant la déclaration\n   via un lien partageable — sans compte requis — avec le détail complet du salaire\n✓ Fini les écarts surprise entre ce qui était prévu et ce qui arrive sur le compte' },
                 { icon: '📅', title: 'Suivi mensuel',          desc: 'Historique des salaires, congés et absences. Toujours à jour, toujours lisible.' },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="bg-white/5 rounded-xl p-5">
