@@ -221,8 +221,8 @@ export function LandingPage() {
             Gratuit · Aucun compte requis pour démarrer
           </div>
           <h1 className="font-serif text-[42px] leading-tight text-[var(--ink)] mb-4">
-            Fini les désaccords<br />
-            <em className="not-italic text-[var(--sage)]">sur le salaire de votre nounou.</em>
+            Une nounou, deux familles,<br />
+            <em className="not-italic text-[var(--sage)]">enfin sur la même page.</em>
           </h1>
           <p className="text-[17px] text-[var(--dust)] leading-relaxed mb-10 max-w-lg mx-auto">
             Calculez en 30 secondes, simulez les absences, et alignez-vous avec l&apos;autre famille — sans tableur, sans WhatsApp.
