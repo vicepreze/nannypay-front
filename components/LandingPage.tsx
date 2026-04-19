@@ -443,14 +443,14 @@ export function LandingPage() {
             </p>
             <div className="grid grid-cols-3 gap-4 mb-12 text-left">
               {[
-                { icon: '⚙️', title: 'Calcul sur mesure',     desc: 'Planning personnalisé, heures réelles ou mensualisées, cas 2 et 3 enfants.' },
+                { icon: '⚙️', title: 'Votre situation, exactement', desc: '✓ 2 ou 3 enfants, horaires identiques ou différents\n✓ Répartition proportionnelle aux heures par enfant\n✓ Équilibrage au reste à charge selon vos aides CAF\n✓ Frais d\'entretien, repas et transport inclus' },
                 { icon: '👨‍👩‍👦‍👦', title: 'Collaboration famille', desc: 'Chaque famille accède à ses chiffres. Fini les allers-retours sur WhatsApp.' },
                 { icon: '📅', title: 'Suivi mensuel',          desc: 'Historique des salaires, congés et absences. Toujours à jour, toujours lisible.' },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="bg-white/5 rounded-xl p-5">
                   <div className="text-2xl mb-3">{icon}</div>
                   <div className="text-sm font-semibold mb-1.5">{title}</div>
-                  <div className="text-xs text-white/50 leading-relaxed">{desc}</div>
+                  <div className="text-xs text-white/50 leading-relaxed whitespace-pre-line">{desc}</div>
                 </div>
               ))}
             </div>
