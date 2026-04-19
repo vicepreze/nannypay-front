@@ -436,8 +436,8 @@ export function LandingPage() {
             <div className="grid grid-cols-3 gap-4 mb-12 text-left">
               {[
                 { icon: '⚙️', title: 'Votre situation, exactement', desc: '✓ 2 ou 3 enfants, horaires identiques ou différents\n✓ Répartition proportionnelle aux heures par enfant\n✓ Équilibrage au reste à charge selon vos aides CAF\n✓ Frais d\'entretien, repas et transport inclus' },
-                { icon: '👨‍👩‍👦‍👦', title: 'Simple pour tous', desc: '✓ Familles et nounou valident les chiffres ensemble, avant la déclaration\n   via un lien partageable — sans compte requis — avec le détail complet du salaire\n✓ Fini les écarts surprise entre ce qui était prévu et ce qui arrive sur le compte' },
-                { icon: '📅', title: 'Suivi mensuel',          desc: 'Historique des salaires, congés et absences. Toujours à jour, toujours lisible.' },
+                { icon: '👨‍👩‍👧', title: 'Simple pour tous', desc: '✓ La nounou reçoit un lien — sans compte — avec son salaire détaillé\n✓ Elle voit ce que chaque famille lui verse, avant le versement\n✓ Fini les surprises sur le compte' },
+                { icon: '📅', title: 'Pas juste pour démarrer. Pour chaque mois.', desc: '✓ La mensualisation lisse le salaire — mais pas les événements du mois\n✓ Congés, maladies, absences : chaque événement est tracé et son impact calculé\n✓ Une trace partagée qui remplace les fils WhatsApp\n✓ Idéal pour se lancer, indispensable pour tenir sur la durée' },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="bg-white/5 rounded-xl p-5">
                   <div className="text-2xl mb-3">{icon}</div>
