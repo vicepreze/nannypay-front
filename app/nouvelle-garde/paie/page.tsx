@@ -23,7 +23,7 @@ function totalAidesMens(a: Aides): number {
   ) / 100;
 }
 
-const SLIDER_MIN = 40;
+const SLIDER_MIN = 20;
 const SLIDER_MAX = 80;
 const pct = (p: number) => ((p * 100 - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
 
@@ -43,8 +43,9 @@ export default function PaiePage() {
   const [indemKm,   setIndemKm]   = useState(0);
   const [entretien, setEntretien] = useState(6.0);
 
-  const [repartA,   setRepartA]   = useState(0.5);
+  const [repartA,   setRepartA]   = useState(0.5);   // 50 % par défaut
   const [racOption, setRacOption] = useState(false);
+
   const [aA, setAA] = useState<Aides>(aidesZero());
   const [aB, setAB] = useState<Aides>(aidesZero());
 
@@ -69,10 +70,6 @@ export default function PaiePage() {
       if (typeof planning?.hNormalesSemaine === 'number') setHNorm(planning.hNormalesSemaine);
       if (typeof planning?.hSup25Semaine    === 'number') setHSup25(planning.hSup25Semaine);
       if (typeof planning?.hSup50Semaine    === 'number') setHSup50(planning.hSup50Semaine);
-
-      // Défaut du slider : proportionnel aux heures
-      const defaultRatio = calcBModeRepartition(joursStr, enf);
-      setRepartA(defaultRatio);
 
       if (saved) {
         if (typeof saved.repartitionA   === 'number')  setRepartA(saved.repartitionA);
@@ -188,14 +185,14 @@ export default function PaiePage() {
         </div>
       </Card>
 
-      {/* 3 — Slider répartition */}
+      {/* A — Slider répartition */}
       <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
         <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)]">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs">3</span>
-            Répartition du salaire net
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">A</span>
+            Répartition du salaire en fonction des heures par enfant
           </div>
-          <p className="text-xs text-[var(--dust)] mt-1 ml-7">Position initiale calculée selon le nombre d&apos;enfants et les heures. Ajustez si besoin.</p>
+          <p className="text-xs text-[var(--dust)] mt-1 ml-7">Position calculée selon le nombre d&apos;enfants et les heures. Ajustez si besoin.</p>
         </div>
         <div className="p-5">
           <SliderRow
@@ -203,8 +200,7 @@ export default function PaiePage() {
             onChange={setRepartA}
             min={SLIDER_MIN} max={SLIDER_MAX}
             markers={[
-              { value: 0.5,            label: '50/50' },
-              { value: pProportionnel, label: 'Proportionnel aux heures' },
+              { value: 0.5, label: '50/50' },
               ...(racOption ? [{ value: pEquitable, label: 'Équitable RAC', highlight: true }] : []),
             ]}
           />
@@ -235,13 +231,13 @@ export default function PaiePage() {
         </div>
       </div>
 
-      {/* 4 — Option RAC */}
+      {/* B — Option RAC */}
       <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
         <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs">4</span>
-              Calculer selon le reste à charge
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
+              Répartition du salaire en fonction du reste à charge par famille
             </div>
             <p className="text-xs text-[var(--dust)] mt-1 ml-7">Renseignez les aides CAF par famille pour affiner la répartition.</p>
           </div>
