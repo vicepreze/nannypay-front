@@ -44,6 +44,7 @@ export function LandingPage() {
   const [taux,      setTaux]      = useState(11);
   const [hHebdo,    setHHebdo]    = useState(40);
   const [nbEnfants, setNbEnfants] = useState<NbEnfants>(2);
+  const [repartA,   setRepartA]   = useState(0.5);
   const [evts,      setEvts]      = useState<Evt[]>([]);
 
   // Modal événement
@@ -73,10 +74,19 @@ export function LandingPage() {
     .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
   const ratio      = joursOuv > 0 ? Math.max(0, joursOuv - joursMal) / joursOuv : 1;
   const salNetMens = Math.round(hHebdo * (52 / 12) * taux * ratio * 100) / 100;
-  const qpA        = nbEnfants === 2 ? 0.5 : 2 / 3;
-  const salNetA    = Math.round(salNetMens * qpA * 100) / 100;
-  const salNetB    = Math.round(salNetMens * (1 - qpA) * 100) / 100;
+  const salNetA    = Math.round(salNetMens * repartA * 100) / 100;
+  const salNetB    = Math.round(salNetMens * (1 - repartA) * 100) / 100;
   const hasCP      = evts.some(e => e.type === 'conge_paye');
+  // Slider markers
+  const S_MIN = 20, S_MAX = 80;
+  const sPct  = (p: number) => ((p * 100 - S_MIN) / (S_MAX - S_MIN)) * 100;
+  const pProportionnel = nbEnfants === 2 ? 0.5 : 2 / 3;
+  const markers = nbEnfants === 2
+    ? [{ value: 0.5,  label: 'Proportionnel', highlight: false }]
+    : [{ value: 2/3,  label: 'Proportionnel', highlight: false },
+       { value: 0.6,  label: 'Après aides CAF', highlight: true }];
+  const nbA = nbEnfants === 2 ? 1 : 2;
+  const nbB = 1;
 
   // ── Événements ───────────────────────────────────────────────────
   function openEvtModal(ds: string) {
@@ -265,7 +275,7 @@ export function LandingPage() {
                 <div className="text-sm font-semibold text-[var(--ink)] mb-3">Nombre d&apos;enfants gardés</div>
                 <div className="flex rounded-xl overflow-hidden border border-[var(--line)] w-fit">
                   {([2, 3] as const).map(n => (
-                    <button key={n} onClick={() => setNbEnfants(n)}
+                    <button key={n} onClick={() => { setNbEnfants(n); setRepartA(n === 2 ? 0.5 : 2/3); }}
                       className={'px-5 py-2 text-sm font-medium transition-colors ' + (nbEnfants === n ? 'bg-[var(--sage)] text-white' : 'bg-white text-[var(--dust)] hover:text-[var(--ink)]')}>
                       {n} enfants
                     </button>
@@ -274,6 +284,72 @@ export function LandingPage() {
                 <div className="text-xs text-[var(--dust)] mt-2">Partage équitable entre familles</div>
               </div>
             </div>
+          </div>
+
+          {/* Slider répartition */}
+          <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden shadow-sm px-6 py-5">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-semibold text-[var(--ink)]">Répartition du salaire net — Famille A</span>
+              <span className="text-sm font-bold text-[var(--sage)]">{(repartA * 100).toFixed(1)} %</span>
+            </div>
+            <p className="text-xs text-[var(--dust)] mb-4">
+              {nbEnfants === 3
+                ? 'Famille A a 2 enfants. Ajustez le curseur entre la répartition brute (66,7 %) et le résultat typique après aides CAF (60 %).'
+                : 'Chaque famille a 1 enfant — répartition 50/50.'}
+            </p>
+            {/* Labels markers */}
+            <div className="relative h-5 mb-1">
+              {markers.map((m, i) => {
+                const p = sPct(m.value);
+                if (p < 0 || p > 100) return null;
+                return (
+                  <span key={i}
+                    className={`absolute text-[10px] -translate-x-1/2 whitespace-nowrap ${m.highlight ? 'text-[var(--sage)] font-semibold' : 'text-[var(--dust)]'}`}
+                    style={{ left: `${p}%` }}>
+                    {m.label}
+                  </span>
+                );
+              })}
+            </div>
+            {/* Track + range */}
+            <div className="relative h-6">
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[var(--line)]" />
+              {markers.map((m, i) => {
+                const p = sPct(m.value);
+                if (p < 0 || p > 100) return null;
+                return (
+                  <span key={i}
+                    className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${m.highlight ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]'}`}
+                    style={{ left: `${p}%` }} />
+                );
+              })}
+              <input type="range" min={S_MIN} max={S_MAX} step={0.1}
+                value={repartA * 100}
+                onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
+                className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer demo-slider"
+                style={{ WebkitAppearance: 'none' }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-[var(--dust)] mt-1">
+              <span>{S_MIN} %</span><span>{S_MAX} %</span>
+            </div>
+            <button onClick={() => setRepartA(pProportionnel)}
+              className="text-xs text-[var(--dust)] hover:text-[var(--ink)] mt-3 underline decoration-dotted transition-colors">
+              ↩ Revenir au calcul proportionnel ({(pProportionnel * 100).toFixed(1)} %)
+            </button>
+            <style jsx>{`
+              .demo-slider::-webkit-slider-thumb {
+                -webkit-appearance: none; appearance: none;
+                width: 20px; height: 20px; border-radius: 50%;
+                background: white; border: 2px solid var(--sage);
+                cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+              }
+              .demo-slider::-moz-range-thumb {
+                width: 20px; height: 20px; border-radius: 50%;
+                background: white; border: 2px solid var(--sage);
+                cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+              }
+            `}</style>
           </div>
 
           {/* Résultats + Calendrier */}
@@ -296,12 +372,18 @@ export function LandingPage() {
                 </div>
                 <div className="flex items-center gap-3 bg-[var(--sage-light)] rounded-xl px-4 py-3">
                   <span className="w-7 h-7 rounded-full bg-[var(--sage)] text-white text-xs font-bold flex items-center justify-center shrink-0">A</span>
-                  <span className="text-sm font-medium text-[var(--ink)] flex-1">Famille A</span>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-[var(--ink)]">Famille A</div>
+                    <div className="text-[10px] text-[var(--dust)]">{nbA} enfant{nbA > 1 ? 's' : ''} · {(repartA * 100).toFixed(1)} %</div>
+                  </div>
                   <span className="text-[15px] font-bold text-[var(--sage)]">{salNetA.toFixed(2)} €</span>
                 </div>
                 <div className="flex items-center gap-3 bg-[var(--sage-light)] rounded-xl px-4 py-3">
                   <span className="w-7 h-7 rounded-full bg-[var(--sage)] text-white text-xs font-bold flex items-center justify-center shrink-0">B</span>
-                  <span className="text-sm font-medium text-[var(--ink)] flex-1">Famille B</span>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-[var(--ink)]">Famille B</div>
+                    <div className="text-[10px] text-[var(--dust)]">{nbB} enfant · {((1 - repartA) * 100).toFixed(1)} %</div>
+                  </div>
                   <span className="text-[15px] font-bold text-[var(--sage)]">{salNetB.toFixed(2)} €</span>
                 </div>
                 {hasCP && (
