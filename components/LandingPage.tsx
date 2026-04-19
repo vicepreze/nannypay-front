@@ -286,72 +286,6 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* Slider répartition */}
-          <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden shadow-sm px-6 py-5">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-semibold text-[var(--ink)]">Répartition du salaire net — Famille A</span>
-              <span className="text-sm font-bold text-[var(--sage)]">{(repartA * 100).toFixed(1)} %</span>
-            </div>
-            <p className="text-xs text-[var(--dust)] mb-4">
-              {nbEnfants === 3
-                ? 'Famille A a 2 enfants. Ajustez le curseur entre la répartition brute (66,7 %) et le résultat typique après aides CAF (60 %).'
-                : 'Chaque famille a 1 enfant — répartition 50/50.'}
-            </p>
-            {/* Labels markers */}
-            <div className="relative h-5 mb-1">
-              {markers.map((m, i) => {
-                const p = sPct(m.value);
-                if (p < 0 || p > 100) return null;
-                return (
-                  <span key={i}
-                    className={`absolute text-[10px] -translate-x-1/2 whitespace-nowrap ${m.highlight ? 'text-[var(--sage)] font-semibold' : 'text-[var(--dust)]'}`}
-                    style={{ left: `${p}%` }}>
-                    {m.label}
-                  </span>
-                );
-              })}
-            </div>
-            {/* Track + range */}
-            <div className="relative h-6">
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[var(--line)]" />
-              {markers.map((m, i) => {
-                const p = sPct(m.value);
-                if (p < 0 || p > 100) return null;
-                return (
-                  <span key={i}
-                    className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${m.highlight ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]'}`}
-                    style={{ left: `${p}%` }} />
-                );
-              })}
-              <input type="range" min={S_MIN} max={S_MAX} step={0.1}
-                value={repartA * 100}
-                onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
-                className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer demo-slider"
-                style={{ WebkitAppearance: 'none' }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-[var(--dust)] mt-1">
-              <span>{S_MIN} %</span><span>{S_MAX} %</span>
-            </div>
-            <button onClick={() => setRepartA(pProportionnel)}
-              className="text-xs text-[var(--dust)] hover:text-[var(--ink)] mt-3 underline decoration-dotted transition-colors">
-              ↩ Revenir au calcul proportionnel ({(pProportionnel * 100).toFixed(1)} %)
-            </button>
-            <style jsx>{`
-              .demo-slider::-webkit-slider-thumb {
-                -webkit-appearance: none; appearance: none;
-                width: 20px; height: 20px; border-radius: 50%;
-                background: white; border: 2px solid var(--sage);
-                cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-              }
-              .demo-slider::-moz-range-thumb {
-                width: 20px; height: 20px; border-radius: 50%;
-                background: white; border: 2px solid var(--sage);
-                cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-              }
-            `}</style>
-          </div>
-
           {/* Résultats + Calendrier */}
           <div className="grid grid-cols-2 gap-4">
 
@@ -391,6 +325,64 @@ export function LandingPage() {
                     🏖 Les congés payés n&apos;impactent pas le salaire net mensuel.
                   </p>
                 )}
+
+                {/* Slider intégré */}
+                <div className="pt-2 border-t border-[var(--line)]">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] font-semibold text-[var(--dust)] uppercase tracking-wide">Répartition</span>
+                    <button onClick={() => setRepartA(pProportionnel)}
+                      className="text-[10px] text-[var(--dust)] hover:text-[var(--sage)] transition-colors">
+                      ↺ Auto
+                    </button>
+                  </div>
+                  {/* Markers */}
+                  <div className="relative h-4 mb-0.5">
+                    {markers.map((m, i) => {
+                      const p = sPct(m.value);
+                      if (p < 0 || p > 100) return null;
+                      return (
+                        <span key={i}
+                          className={`absolute text-[9px] -translate-x-1/2 whitespace-nowrap ${m.highlight ? 'text-[var(--sage)] font-semibold' : 'text-[var(--dust)]'}`}
+                          style={{ left: `${p}%` }}>
+                          {m.highlight ? 'CAF' : 'Auto'}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {/* Track */}
+                  <div className="relative h-5">
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 rounded-full bg-[var(--line)]" />
+                    {markers.map((m, i) => {
+                      const p = sPct(m.value);
+                      if (p < 0 || p > 100) return null;
+                      return (
+                        <span key={i}
+                          className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${m.highlight ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]'}`}
+                          style={{ left: `${p}%` }} />
+                      );
+                    })}
+                    <input type="range" min={S_MIN} max={S_MAX} step={0.1}
+                      value={repartA * 100}
+                      onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
+                      className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer demo-slider"
+                      style={{ WebkitAppearance: 'none' }}
+                    />
+                  </div>
+                  <style jsx>{`
+                    .demo-slider::-webkit-slider-thumb {
+                      -webkit-appearance: none; appearance: none;
+                      width: 16px; height: 16px; border-radius: 50%;
+                      background: white; border: 2px solid var(--sage);
+                      cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                    }
+                    .demo-slider::-moz-range-thumb {
+                      width: 16px; height: 16px; border-radius: 50%;
+                      background: white; border: 2px solid var(--sage);
+                      cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                    }
+                  `}</style>
+                </div>
+
               </div>
             </div>
 
