@@ -26,18 +26,22 @@ export async function POST(req: NextRequest) {
   const enfants: { prenom: string; fam: string }[] = acteurs.enfants ?? [];
 
   let repartitionA: number;
-  if (paie.mode?.startsWith('C')) {
-    // % spécifique défini par l'utilisateur
+  if (typeof paie.repartitionA === 'number') {
+    // Nouvelle UX : valeur directe du slider (0..1)
+    repartitionA = Math.min(1, Math.max(0, paie.repartitionA));
+  } else if (paie.mode?.startsWith('C')) {
     repartitionA = Math.min(1, Math.max(0, (paie.pourcentA ?? 50) / 100));
   } else if (paie.mode?.startsWith('B')) {
-    // proportionnel aux heures par enfant dans le planning
     repartitionA = calcBModeRepartition(joursJson, enfants);
   } else {
-    // A — proportionnel au nombre d'enfants
     const nbA    = enfants.filter(e => e.fam === 'A').length;
     const nbTot  = enfants.length || 2;
     repartitionA = nbA / nbTot;
   }
+
+  const racOptionActive = typeof paie.racOptionActive === 'boolean'
+    ? paie.racOptionActive
+    : (typeof paie.mode === 'string' && paie.mode.endsWith('.2'));
 
   const hNormales      = planning?.hNormalesSemaine ?? 40;
   const hSup25         = planning?.hSup25Semaine    ?? 0;
@@ -101,9 +105,9 @@ export async function POST(req: NextRequest) {
           hNormalesSemaine: hNormales,
           hSup25Semaine:    hSup25,
           hSup50Semaine:    hSup50,
-          modeCalcul:       paie.mode,
+          modeCalcul:       paie.mode ?? 'A.1',
           repartitionA,
-          racOptionActive:  typeof paie.mode === 'string' && paie.mode.endsWith('.2'),
+          racOptionActive,
           navigoMontant:    paie.navigo,
           indemKm:          paie.indemKm,
           indemEntretien:   paie.indemEntretien,

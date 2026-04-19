@@ -1,78 +1,128 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-
-const TAUX_CHARGES = 0.2188;
-
-type Repartition = 'PAR_ENFANT' | 'PAR_HEURE' | 'PERCENT';
-type Equite      = 'SIMPLE'     | 'EQUITABLE';
-
-const MODE_LABEL: Record<string, string> = {
-  'A.1': 'Par enfant · coût brut',
-  'B.1': 'Par heure · coût brut',
-  'C.1': '% fixe · coût brut',
-  'A.2': 'Par enfant · reste à charge équitable',
-  'B.2': 'Par heure · reste à charge équitable',
-  'C.2': '% fixe · reste à charge équitable',
-};
-
-function toModeCalcul(r: Repartition, e: Equite): string {
-  const base = r === 'PAR_ENFANT' ? 'A' : r === 'PAR_HEURE' ? 'B' : 'C';
-  return base + '.' + (e === 'SIMPLE' ? '1' : '2');
-}
+import { calcBModeRepartition, calcEquitableRatioA, K_SAL, K_PAT } from '@/lib/calcul';
 
 type Aides = {
-  cmgCotisations: number; cmgRemuneration: number;
-  abattementCharges: number; aideVille: number; creditImpot: number;
+  cmgCotisations:    number;
+  cmgRemuneration:   number;
+  abattementCharges: number;
+  aideVille:         number;
+  creditImpot:       number;
 };
-const aidesZero = (): Aides => ({ cmgCotisations: 0, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: 0 });
+const aidesZero = (): Aides => ({
+  cmgCotisations: 0, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: 0,
+});
+
+type Enfant = { prenom: string; fam: string };
+
+function totalAidesMens(a: Aides): number {
+  return Math.round(
+    (a.cmgCotisations + a.cmgRemuneration + a.abattementCharges + a.aideVille + a.creditImpot / 12) * 100
+  ) / 100;
+}
+
+const SLIDER_MIN = 40;
+const SLIDER_MAX = 80;
+const pct = (p: number) => ((p * 100 - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
 
 export default function PaiePage() {
   const router = useRouter();
 
-  const [repartition,    setRepartition]    = useState<Repartition>('PAR_ENFANT');
-  const [equite,         setEquite]         = useState<Equite>('SIMPLE');
-  const [pourcentA,      setPourcentA]      = useState(50);
-  const [taux,           setTaux]           = useState(11);
-  const [navigo,         setNavigo]         = useState(90.80);
-  const [indemKm,        setIndemKm]        = useState(0);
-  const [indemEntretien, setIndemEntretien] = useState(6.0);
-  const [aidesA,         setAidesA]         = useState<Aides>(aidesZero());
-  const [aidesB,         setAidesB]         = useState<Aides>(aidesZero());
-  const [loading,        setLoading]        = useState(false);
-  const [error,          setError]          = useState('');
+  const [enfants,   setEnfants]   = useState<Enfant[]>([]);
+  const [nomA,      setNomA]      = useState('Famille A');
+  const [nomB,      setNomB]      = useState('Famille B');
+  const [joursJson, setJoursJson] = useState('{}');
+  const [hNorm,     setHNorm]     = useState(40);
+  const [hSup25,    setHSup25]    = useState(0);
+  const [hSup50,    setHSup50]    = useState(0);
+
+  const [taux,      setTaux]      = useState(11);
+  const [navigo,    setNavigo]    = useState(90.80);
+  const [indemKm,   setIndemKm]   = useState(0);
+  const [entretien, setEntretien] = useState(6.0);
+
+  const [repartA,   setRepartA]   = useState(0.5);
+  const [racOption, setRacOption] = useState(false);
+  const [aA, setAA] = useState<Aides>(aidesZero());
+  const [aB, setAB] = useState<Aides>(aidesZero());
+
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const saved = sessionStorage.getItem('ng_paie');
-    if (!saved) return;
     try {
-      const d = JSON.parse(saved);
-      if (d.repartition) setRepartition(d.repartition);
-      else if (d.mode) {
-        setRepartition((d.mode as string).startsWith('A') ? 'PAR_ENFANT' : (d.mode as string).startsWith('B') ? 'PAR_HEURE' : 'PERCENT');
-        setEquite((d.mode as string).endsWith('.2') ? 'EQUITABLE' : 'SIMPLE');
+      const acteurs  = JSON.parse(sessionStorage.getItem('ng_acteurs')  || 'null');
+      const planning = JSON.parse(sessionStorage.getItem('ng_planning') || 'null');
+      const saved    = JSON.parse(sessionStorage.getItem('ng_paie')     || 'null');
+
+      const enf: Enfant[] = acteurs?.enfants ?? [];
+      setEnfants(enf);
+      if (acteurs?.famANom) setNomA(acteurs.famANom);
+      if (acteurs?.famBNom) setNomB(acteurs.famBNom);
+
+      const planningData = planning?.planning ?? planning ?? {};
+      const joursStr = JSON.stringify(planningData);
+      setJoursJson(joursStr);
+      if (typeof planning?.hNormalesSemaine === 'number') setHNorm(planning.hNormalesSemaine);
+      if (typeof planning?.hSup25Semaine    === 'number') setHSup25(planning.hSup25Semaine);
+      if (typeof planning?.hSup50Semaine    === 'number') setHSup50(planning.hSup50Semaine);
+
+      // Défaut du slider : proportionnel aux heures
+      const defaultRatio = calcBModeRepartition(joursStr, enf);
+      setRepartA(defaultRatio);
+
+      if (saved) {
+        if (typeof saved.repartitionA   === 'number')  setRepartA(saved.repartitionA);
+        if (typeof saved.racOptionActive === 'boolean') setRacOption(saved.racOptionActive);
+        if (typeof saved.taux           === 'number')  setTaux(saved.taux);
+        if (typeof saved.navigo         === 'number')  setNavigo(saved.navigo);
+        if (typeof saved.indemKm        === 'number')  setIndemKm(saved.indemKm);
+        if (typeof saved.indemEntretien === 'number')  setEntretien(saved.indemEntretien);
+        if (saved.aidesA) setAA(saved.aidesA);
+        if (saved.aidesB) setAB(saved.aidesB);
       }
-      if (d.equite)                      setEquite(d.equite);
-      if (typeof d.pourcentA === 'number') setPourcentA(d.pourcentA);
-      if (typeof d.taux           === 'number') setTaux(d.taux);
-      if (typeof d.navigo         === 'number') setNavigo(d.navigo);
-      if (typeof d.indemKm        === 'number') setIndemKm(d.indemKm);
-      if (typeof d.indemEntretien === 'number') setIndemEntretien(d.indemEntretien);
-      if (d.aidesA) setAidesA(d.aidesA);
-      if (d.aidesB) setAidesB(d.aidesB);
     } catch { /* ignore */ }
+    setHydrated(true);
   }, []);
 
-  const mode     = toModeCalcul(repartition, equite);
-  const tauxBrut = (taux / (1 - TAUX_CHARGES)).toFixed(2);
+  const pProportionnel = useMemo(
+    () => calcBModeRepartition(joursJson, enfants),
+    [joursJson, enfants]
+  );
+
+  const salNetTotalMens = useMemo(() => {
+    const baseNet  = hNorm  * 52/12 * taux;
+    const sup25Net = hSup25 * 52/12 * taux * 1.25;
+    const sup50Net = hSup50 * 52/12 * taux * 1.50;
+    return Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
+  }, [hNorm, hSup25, hSup50, taux]);
+
+  const aidesAMens = useMemo(() => totalAidesMens(aA), [aA]);
+  const aidesBMens = useMemo(() => totalAidesMens(aB), [aB]);
+
+  const pEquitable = useMemo(
+    () => calcEquitableRatioA(pProportionnel, salNetTotalMens, aidesAMens, aidesBMens),
+    [pProportionnel, salNetTotalMens, aidesAMens, aidesBMens]
+  );
+
+  const preview = useMemo(() => {
+    const salNetA = Math.round(repartA * salNetTotalMens * 100) / 100;
+    const salNetB = Math.round((1 - repartA) * salNetTotalMens * 100) / 100;
+    const chSalA  = Math.round(salNetA * K_SAL * 100) / 100;
+    const chPatA  = Math.round(salNetA * K_PAT * 100) / 100;
+    const chSalB  = Math.round(salNetB * K_SAL * 100) / 100;
+    const chPatB  = Math.round(salNetB * K_PAT * 100) / 100;
+    const racA    = Math.round((salNetA + chSalA + chPatA - aidesAMens) * 100) / 100;
+    const racB    = Math.round((salNetB + chSalB + chPatB - aidesBMens) * 100) / 100;
+    return { salNetA, salNetB, chSalA, chPatA, chSalB, chPatB, racA, racB };
+  }, [repartA, salNetTotalMens, aidesAMens, aidesBMens]);
 
   async function creerGarde() {
     setError('');
     if (!taux || taux <= 0) { setError('Taux horaire requis.'); return; }
-    if (repartition === 'PERCENT' && (pourcentA < 0 || pourcentA > 100)) {
-      setError('Le pourcentage doit être entre 0 et 100.'); return;
-    }
 
     const acteurs  = JSON.parse(sessionStorage.getItem('ng_acteurs')  || 'null');
     const planning = JSON.parse(sessionStorage.getItem('ng_planning') || 'null');
@@ -80,7 +130,9 @@ export default function PaiePage() {
     if (!planning) { setError('Volet Planning incomplet. Recommencez.'); return; }
 
     sessionStorage.setItem('ng_paie', JSON.stringify({
-      repartition, equite, pourcentA, taux, navigo, indemKm, indemEntretien, aidesA, aidesB,
+      repartitionA: repartA,
+      racOptionActive: racOption,
+      taux, navigo, indemKm, indemEntretien: entretien, aidesA: aA, aidesB: aB,
     }));
 
     setLoading(true);
@@ -90,7 +142,16 @@ export default function PaiePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           acteurs, planning,
-          paie: { mode, pourcentA, taux, navigo, indemKm, indemEntretien, aidesA, aidesB },
+          paie: {
+            repartitionA:    repartA,
+            racOptionActive: racOption,
+            taux,
+            navigo,
+            indemKm,
+            indemEntretien: entretien,
+            aidesA: aA,
+            aidesB: aB,
+          },
         }),
       });
       const data = await res.json();
@@ -105,115 +166,109 @@ export default function PaiePage() {
     }
   }
 
+  if (!hydrated) return null;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
 
-      {/* Question 1 — Répartition */}
-      <Card title="Comment répartir le coût de la nounou ?">
-        <div className="grid grid-cols-3 gap-3">
-          <ChoiceCard
-            selected={repartition === 'PAR_ENFANT'}
-            onClick={() => setRepartition('PAR_ENFANT')}
-            title="Par enfant"
-            desc="Proportionnel au nombre d'enfants de chaque famille"
-          />
-          <ChoiceCard
-            selected={repartition === 'PAR_HEURE'}
-            onClick={() => setRepartition('PAR_HEURE')}
-            title="Par heure"
-            desc="Proportionnel aux heures de garde utilisées"
-          />
-          <ChoiceCard
-            selected={repartition === 'PERCENT'}
-            onClick={() => setRepartition('PERCENT')}
-            title="% spécifique"
-            desc="Vous définissez la part exacte de chaque famille"
-          />
-        </div>
-
-        {repartition === 'PERCENT' && (
-          <div className="mt-4 flex items-center gap-3 p-4 bg-[var(--sage-light)] rounded-lg border border-[var(--line)]" style={{ animation: 'fadeSlideIn 0.2s ease' }}>
-            <style>{`@keyframes fadeSlideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}`}</style>
-            <span className="text-sm font-medium text-[var(--ink)]">Famille A</span>
-            <input
-              type="number" min={0} max={100} step={1}
-              value={pourcentA}
-              onChange={e => setPourcentA(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-              className="w-20 px-3 py-2 text-center font-semibold text-lg border-[1.5px] border-[var(--line)] rounded-lg outline-none focus:border-[var(--sage)] bg-white"
-            />
-            <span className="text-sm text-[var(--dust)]">%</span>
-            <span className="text-sm text-[var(--dust)]">·</span>
-            <span className="text-sm font-medium text-[var(--ink)]">Famille B</span>
-            <span className="text-lg font-semibold text-[var(--dust)] w-20 text-center">{100 - pourcentA} %</span>
-          </div>
-        )}
-      </Card>
-
-      {/* Question 2 — Équité */}
-      <Card title="Ce partage s'applique à…">
-        <div className="grid grid-cols-2 gap-3">
-          <ChoiceCard
-            selected={equite === 'SIMPLE'}
-            onClick={() => setEquite('SIMPLE')}
-            title="Au coût brut"
-            desc="Chaque famille paie sa part du total versé à la nounou"
-          />
-          <ChoiceCard
-            selected={equite === 'EQUITABLE'}
-            onClick={() => setEquite('EQUITABLE')}
-            title="Au reste à charge"
-            desc="On déduit les aides de chaque famille avant d'appliquer la répartition"
-          />
-        </div>
-      </Card>
-
-      {/* Mode résultant */}
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--sage-light)] rounded-lg border border-[var(--line)] text-sm">
-        <span className="font-semibold text-[var(--sage)]">{mode}</span>
-        <span className="text-[var(--dust)]">—</span>
-        <span className="text-[var(--ink)]">{MODE_LABEL[mode]}</span>
-      </div>
-
-      {/* Aides CAF — uniquement si équitable */}
-      {equite === 'EQUITABLE' && (
-        <div className="space-y-3" style={{ animation: 'fadeSlideIn 0.25s ease' }}>
-          <AidesBlock label="Aides Famille A" aides={aidesA} onChange={setAidesA} />
-          <AidesBlock label="Aides Famille B" aides={aidesB} onChange={setAidesB} />
-        </div>
-      )}
-
-      {/* Taux horaire */}
-      <Card title="Taux horaire net">
-        <div className="flex items-center gap-3">
-          <input
-            type="number" step="0.01" min="5" max="50" value={taux}
-            onChange={e => setTaux(parseFloat(e.target.value) || 0)}
-            className="w-28 px-3 py-2 text-lg font-semibold border-[1.5px] border-[var(--line)] rounded-[var(--radius)] outline-none focus:border-[var(--sage)] focus:ring-2 focus:ring-[var(--sage-light)] text-center bg-white"
-          />
-          <span className="text-[var(--dust)] text-sm">€ / heure net</span>
-        </div>
-        <p className="text-xs text-[var(--dust)] mt-2">
-          Taux brut correspondant : <strong>{tauxBrut} €/h</strong> (charges salariales 21,88 %)
+      {/* 1 — Rémunération */}
+      <Card title="1 — Rémunération">
+        <FN label="Taux horaire net (€/h)" value={taux} onChange={setTaux} />
+        <p className="text-xs text-[var(--dust)] -mt-1">
+          Taux brut correspondant : <strong>{(taux / 0.7812).toFixed(2)} €/h</strong> (charges salariales 21,88 %)
         </p>
       </Card>
 
-      {/* Indemnités */}
-      <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] text-sm font-medium">
-          Indemnités mensuelles
+      {/* 2 — Indemnités */}
+      <Card title="2 — Indemnités">
+        <div className="grid grid-cols-3 gap-3">
+          <FN label="Navigo (€/mois)"   value={navigo}    onChange={setNavigo} />
+          <FN label="Frais km (€/mois)" value={indemKm}   onChange={setIndemKm} />
+          <FN label="Entretien (€/j)"   value={entretien} onChange={setEntretien} />
         </div>
-        <div className="divide-y divide-[var(--line)]">
-          <IndemRow label="Transport (Navigo)"  hint="50 % du pass mensuel — obligatoire" unit="€/mois" value={navigo}         onChange={setNavigo} />
-          <IndemRow label="Frais kilométriques" hint="Si la nounou utilise son véhicule"  unit="€/mois" value={indemKm}        onChange={setIndemKm} />
-          <IndemRow label="Entretien"           hint="Minimum 3,52 €/j — repas en sus"   unit="€/jour" value={indemEntretien} onChange={setIndemEntretien} />
+      </Card>
+
+      {/* 3 — Slider répartition */}
+      <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
+        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs">3</span>
+            Répartition du salaire net
+          </div>
+          <p className="text-xs text-[var(--dust)] mt-1 ml-7">Position initiale calculée selon le nombre d&apos;enfants et les heures. Ajustez si besoin.</p>
+        </div>
+        <div className="p-5">
+          <SliderRow
+            value={repartA}
+            onChange={setRepartA}
+            min={SLIDER_MIN} max={SLIDER_MAX}
+            markers={[
+              { value: 0.5,            label: '50/50' },
+              { value: pProportionnel, label: 'Proportionnel aux heures' },
+              ...(racOption ? [{ value: pEquitable, label: 'Équitable RAC', highlight: true }] : []),
+            ]}
+          />
+
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            <FamPreview
+              label={nomA} percent={repartA} color="sage"
+              salNet={preview.salNetA}
+              chSal={preview.chSalA} chPat={preview.chPatA}
+              aides={aidesAMens} rac={preview.racA}
+              racOption={racOption}
+            />
+            <FamPreview
+              label={nomB} percent={1 - repartA} color="blue"
+              salNet={preview.salNetB}
+              chSal={preview.chSalB} chPat={preview.chPatB}
+              aides={aidesBMens} rac={preview.racB}
+              racOption={racOption}
+            />
+          </div>
+
+          <button
+            onClick={() => setRepartA(pProportionnel)}
+            className="text-xs text-[var(--dust)] hover:text-[var(--ink)] mt-4 underline decoration-dotted"
+          >
+            ↩ Revenir au calcul automatique ({(pProportionnel * 100).toFixed(1)} %)
+          </button>
         </div>
       </div>
 
-      {error && <p className="text-sm text-[var(--red)] bg-[var(--red-light,#fef2f2)] rounded-lg px-4 py-2">{error}</p>}
+      {/* 4 — Option RAC */}
+      <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
+        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs">4</span>
+              Calculer selon le reste à charge
+            </div>
+            <p className="text-xs text-[var(--dust)] mt-1 ml-7">Renseignez les aides CAF par famille pour affiner la répartition.</p>
+          </div>
+          <Toggle checked={racOption} onChange={setRacOption} />
+        </div>
+
+        {racOption && (
+          <>
+            <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
+              <AidesColumn label={nomA} a={aA} setA={setAA} total={aidesAMens} />
+              <AidesColumn label={nomB} a={aB} setA={setAB} total={aidesBMens} />
+            </div>
+
+            {salNetTotalMens > 0 && (aidesAMens > 0 || aidesBMens > 0) && (
+              <div className="m-5 p-4 rounded-[var(--radius)] bg-[var(--sage-light)] text-xs text-[var(--ink)] leading-relaxed">
+                💡 <strong>Suggestion :</strong> Pour que le RAC de chaque famille soit proportionnel à sa part d&apos;heures ({(pProportionnel * 100).toFixed(1)} % / {((1-pProportionnel) * 100).toFixed(1)} %), placez le slider sur <strong>{(pEquitable * 100).toFixed(1)} %</strong> (marqueur <em>Équitable RAC</em>).
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-[var(--red,#b91c1c)] bg-red-50 rounded-lg px-4 py-2">{error}</p>}
 
       <div className="flex justify-between pt-2">
-        <button onClick={() => router.back()} className={btnSecondary} disabled={loading}>← Retour</button>
-        <button onClick={creerGarde} className={btnPrimary} disabled={loading}>
+        <button onClick={() => router.back()} disabled={loading} className={btnSecondary}>← Retour</button>
+        <button onClick={creerGarde} disabled={loading} className={btnPrimary}>
           {loading ? 'Création…' : 'Créer la garde →'}
         </button>
       </div>
@@ -221,73 +276,174 @@ export default function PaiePage() {
   );
 }
 
-/* ── Sub-components ── */
+// ── Sub-components (alignés avec SettingsClient) ──────────────────────
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function SliderRow({ value, onChange, min, max, markers }: {
+  value: number;
+  onChange: (v: number) => void;
+  min: number; max: number;
+  markers: { value: number; label: string; highlight?: boolean }[];
+}) {
   return (
-    <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-      <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] text-sm font-medium">{title}</div>
-      <div className="p-5">{children}</div>
+    <div>
+      <div className="relative h-5 mb-1">
+        {markers.map((m, i) => {
+          const p = pct(m.value);
+          if (p < -5 || p > 105) return null;
+          return (
+            <span
+              key={i}
+              className={`absolute text-[10px] -translate-x-1/2 whitespace-nowrap ${m.highlight ? 'text-[var(--sage)] font-semibold' : 'text-[var(--dust)]'}`}
+              style={{ left: `${p}%` }}
+            >
+              {m.label}
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="relative h-6">
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[var(--line)]" />
+        {markers.map((m, i) => {
+          const p = pct(m.value);
+          if (p < 0 || p > 100) return null;
+          return (
+            <span
+              key={i}
+              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${m.highlight ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]'}`}
+              style={{ left: `${p}%` }}
+            />
+          );
+        })}
+        <input
+          type="range"
+          min={min} max={max} step={0.1}
+          value={value * 100}
+          onChange={e => onChange(parseFloat(e.target.value) / 100)}
+          className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer slider-thumb"
+          style={{ WebkitAppearance: 'none' }}
+        />
+      </div>
+
+      <div className="flex justify-between text-[10px] text-[var(--dust)] mt-1">
+        <span>{min} %</span>
+        <span>{max} %</span>
+      </div>
+
+      <style jsx>{`
+        .slider-thumb::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: white;
+          border: 2px solid var(--sage);
+          cursor: pointer;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+        .slider-thumb::-moz-range-thumb {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: white;
+          border: 2px solid var(--sage);
+          cursor: pointer;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+      `}</style>
     </div>
   );
 }
 
-function ChoiceCard({ selected, onClick, title, desc }: { selected: boolean; onClick: () => void; title: string; desc: string }) {
+function FamPreview({ label, percent, color, salNet, chSal, chPat, aides, rac, racOption }: {
+  label: string; percent: number; color: 'sage' | 'blue';
+  salNet: number; chSal: number; chPat: number; aides: number; rac: number;
+  racOption: boolean;
+}) {
+  const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
+  const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
   return (
-    <button type="button" onClick={onClick}
-      className={['text-left p-4 rounded-lg border-[1.5px] transition-all', selected ? 'border-[var(--sage)] bg-[var(--sage-light)]' : 'border-[var(--line)] bg-white hover:border-[var(--sage)]'].join(' ')}>
-      <div className={`text-sm font-semibold mb-1 ${selected ? 'text-[var(--sage)]' : 'text-[var(--ink)]'}`}>{title}</div>
-      <div className="text-xs text-[var(--dust)] leading-snug">{desc}</div>
+    <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className={`text-sm font-semibold ${text}`}>{label}</span>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
+      </div>
+      <div className="text-[11px] text-[var(--dust)]">Salaire net à verser</div>
+      <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
+
+      {racOption && (
+        <div className="mt-3 pt-3 border-t border-white/70 text-xs space-y-1">
+          <Line l="Charges salariales (21,88 %)" v={`${chSal.toFixed(2)} €`} />
+          <Line l="Charges patronales (44,70 %)" v={`${chPat.toFixed(2)} €`} />
+          <Line l="Total aides CAF" v={`− ${aides.toFixed(2)} €`} bold />
+          <div className="flex justify-between pt-1 border-t border-white/70 font-semibold">
+            <span>Reste à charge estimé</span>
+            <span>{rac.toFixed(2)} €</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Line({ l, v, bold }: { l: string; v: string; bold?: boolean }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-[var(--dust)]">{l}</span>
+      <span className={`font-mono ${bold ? 'font-semibold' : ''}`}>{v}</span>
+    </div>
+  );
+}
+
+function AidesColumn({ label, a, setA, total }: {
+  label: string; a: Aides; setA: (v: Aides) => void; total: number;
+}) {
+  const upd = (k: keyof Aides) => (v: number) => setA({ ...a, [k]: v });
+  return (
+    <div className="p-5 space-y-3">
+      <div className="text-xs font-semibold text-[var(--ink)] uppercase tracking-wide">{label}</div>
+      <FN label="Abattement charges patronales"     value={a.abattementCharges} onChange={upd('abattementCharges')} />
+      <FN label="CMG cotisations sociales CAF"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
+      <FN label="CMG rémunération CAF"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
+      <FN label="Aide ville (ex : St-Ouen)"         value={a.aideVille}         onChange={upd('aideVille')} />
+      <FN label="Crédit d'impôt (annuel)"           value={a.creditImpot}       onChange={upd('creditImpot')} />
+      <div className="flex justify-between pt-3 border-t border-[var(--line)] text-xs font-semibold">
+        <span>Total aides / mois</span>
+        <span className="font-mono text-[var(--sage)]">− {total.toFixed(2)} €</span>
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`relative w-11 h-6 rounded-full transition-colors ${checked ? 'bg-[var(--sage)]' : 'bg-[var(--line)]'}`}
+      aria-pressed={checked}
+    >
+      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${checked ? 'left-[22px]' : 'left-0.5'}`} />
     </button>
   );
 }
 
-function AidesBlock({ label, aides, onChange }: { label: string; aides: Aides; onChange: (a: Aides) => void }) {
-  function set(key: keyof Aides, val: number) { onChange({ ...aides, [key]: val }); }
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-      <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] text-sm font-semibold text-[var(--ink)]">{label}</div>
-      <div className="p-5 space-y-3">
-        <p className="text-xs text-[var(--dust)] -mt-1">Tous les champs sont facultatifs. Laissez à 0 si non applicable.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <AideField label="CMG cotisations sociales" unit="€/mois" value={aides.cmgCotisations}    onChange={v => set('cmgCotisations',    v)} />
-          <AideField label="CMG rémunération"         unit="€/mois" value={aides.cmgRemuneration}   onChange={v => set('cmgRemuneration',   v)} />
-          <AideField label="Abattement charges"       unit="€/mois" value={aides.abattementCharges} onChange={v => set('abattementCharges', v)} />
-          <AideField label="Aide de la ville / mairie" unit="€/mois" value={aides.aideVille}        onChange={v => set('aideVille',         v)} />
-        </div>
-        <AideField label="Crédit d'impôt (estimation annuelle)" unit="€/an" value={aides.creditImpot} onChange={v => set('creditImpot', v)} />
-      </div>
+    <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
+      <div className="px-5 py-3 text-sm font-semibold border-b border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]">{title}</div>
+      <div className="p-5 space-y-3">{children}</div>
     </div>
   );
 }
 
-function AideField({ label, unit, value, onChange }: { label: string; unit: string; value: number; onChange: (v: number) => void }) {
+function FN({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div>
       <label className="block text-xs font-medium mb-1 text-[var(--dust)]">{label}</label>
-      <div className="flex items-center gap-1.5">
-        <input type="number" step="0.01" min="0" value={value}
-          onChange={e => onChange(parseFloat(e.target.value) || 0)}
-          className="w-full px-3 py-1.5 border-[1.5px] border-[var(--line)] rounded-lg text-sm text-right outline-none focus:border-[var(--sage)] bg-white" />
-        <span className="text-xs text-[var(--dust)] whitespace-nowrap">{unit}</span>
-      </div>
-    </div>
-  );
-}
-
-function IndemRow({ label, hint, unit, value, onChange }: { label: string; hint: string; unit: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <div className="px-5 py-4 flex items-center justify-between gap-4">
-      <div>
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-[var(--dust)]">{hint}</div>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <input type="number" step="0.01" min="0" value={value}
-          onChange={e => onChange(parseFloat(e.target.value) || 0)}
-          className="w-24 px-3 py-1.5 border-[1.5px] border-[var(--line)] rounded-lg text-sm text-center outline-none focus:border-[var(--sage)] bg-white" />
-        <span className="text-xs text-[var(--dust)] w-12">{unit}</span>
-      </div>
+      <input type="number" step="0.01" min="0" value={value} onChange={e => onChange(parseFloat(e.target.value) || 0)}
+        className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border border-[var(--line)] focus:border-[var(--sage)]" />
     </div>
   );
 }
