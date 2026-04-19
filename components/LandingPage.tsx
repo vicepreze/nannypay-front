@@ -82,9 +82,9 @@ export function LandingPage() {
   const sPct  = (p: number) => ((p * 100 - S_MIN) / (S_MAX - S_MIN)) * 100;
   const pProportionnel = nbEnfants === 2 ? 0.5 : 2 / 3;
   const markers = nbEnfants === 2
-    ? [{ value: 0.5,  label: 'Proportionnel', highlight: false }]
-    : [{ value: 2/3,  label: 'Proportionnel', highlight: false },
-       { value: 0.6,  label: 'Après aides CAF', highlight: true }];
+    ? [{ value: 0.5, label: 'Selon les heures', ghost: false }]
+    : [{ value: 2/3, label: 'Selon les heures', ghost: false },
+       { value: 0.6, label: 'Selon vos aides 🔒', ghost: true }];
   const nbA = nbEnfants === 2 ? 1 : 2;
   const nbB = 1;
 
@@ -332,7 +332,7 @@ export function LandingPage() {
                     <span className="text-[10px] font-semibold text-[var(--dust)] uppercase tracking-wide">Répartition</span>
                     <button onClick={() => setRepartA(pProportionnel)}
                       className="text-[10px] text-[var(--dust)] hover:text-[var(--sage)] transition-colors">
-                      ↺ Auto
+                      ↺ Réinitialiser
                     </button>
                   </div>
                   {/* Markers */}
@@ -342,9 +342,9 @@ export function LandingPage() {
                       if (p < 0 || p > 100) return null;
                       return (
                         <span key={i}
-                          className={`absolute text-[9px] -translate-x-1/2 whitespace-nowrap ${m.highlight ? 'text-[var(--sage)] font-semibold' : 'text-[var(--dust)]'}`}
+                          className={`absolute text-[9px] -translate-x-1/2 whitespace-nowrap ${m.ghost ? 'text-gray-300' : 'text-[var(--dust)]'}`}
                           style={{ left: `${p}%` }}>
-                          {m.highlight ? 'CAF' : 'Auto'}
+                          {m.label}
                         </span>
                       );
                     })}
@@ -355,9 +355,13 @@ export function LandingPage() {
                     {markers.map((m, i) => {
                       const p = sPct(m.value);
                       if (p < 0 || p > 100) return null;
-                      return (
+                      return m.ghost ? (
+                        <div key={i}
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-gray-200 border-2 border-dashed border-gray-300 pointer-events-none"
+                          style={{ left: `${p}%` }} />
+                      ) : (
                         <span key={i}
-                          className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${m.highlight ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]'}`}
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[var(--dust)]"
                           style={{ left: `${p}%` }} />
                       );
                     })}
@@ -381,6 +385,25 @@ export function LandingPage() {
                       cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
                     }
                   `}</style>
+                  {nbEnfants === 3 && (
+                    <div className="mt-3 flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+                      <span className="text-sm mt-0.5">🔒</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 mb-0.5">
+                          Selon vos aides — environ 60 / 40
+                        </p>
+                        <p className="text-xs text-gray-400 leading-snug mb-1.5">
+                          Les aides CAF ne sont pas proportionnelles aux heures : avec 2 enfants,
+                          Famille A reçoit relativement moins d&apos;aides. La répartition équitable
+                          au reste à charge se rapproche de <strong>60 / 40</strong>.
+                        </p>
+                        <button onClick={() => openAuth('register')}
+                          className="text-emerald-500 text-xs font-semibold hover:underline">
+                          Créer un compte pour calculer avec vos aides →
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>
