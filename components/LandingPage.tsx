@@ -359,46 +359,47 @@ export function LandingPage() {
                     </div>
                   )}
 
-                  {/* 3 enfants — marqueurs A / B + slider libre */}
+                  {/* 3 enfants — un seul slider avec marqueurs A / B */}
                   {nbEnfants === 3 && (
                     <>
-                      {/* Snap buttons */}
-                      <div className="relative flex items-start justify-between px-2 mb-3">
-                        <div className="absolute left-9 right-9 top-[18px] h-0.5 bg-[var(--line)]" />
-                        <button onClick={() => setRepartA(pProportionnel)}
-                          className="flex flex-col items-center gap-1.5 group z-10">
-                          <span className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${activeOpt === 'heures' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--line)] text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>A</span>
-                          <span className="text-[9px] text-[var(--dust)] whitespace-nowrap">Selon les heures</span>
-                        </button>
-                        <button onClick={() => setRepartA(P_AIDES)}
-                          className="flex flex-col items-center gap-1.5 group z-10">
-                          <span className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${activeOpt === 'aides' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--line)] text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>B</span>
-                          <span className="text-[9px] text-[var(--dust)] whitespace-nowrap">Selon les aides</span>
-                        </button>
-                      </div>
+                      <div className="relative h-14">
+                        {/* Track */}
+                        <div className="absolute inset-x-0 top-3 h-0.5 rounded-full bg-[var(--line)]" />
 
-                      {/* Slider avec repères A et B */}
-                      <div className="relative h-5 flex items-center">
-                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 rounded-full bg-[var(--line)]" />
-                        <span className={`absolute top-0 bottom-0 w-0.5 -translate-x-1/2 rounded-full transition-colors ${activeOpt === 'heures' ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]/40'}`}
-                          style={{ left: `${posA3}%` }} />
-                        <span className={`absolute top-0 bottom-0 w-0.5 -translate-x-1/2 rounded-full transition-colors ${activeOpt === 'aides' ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]/40'}`}
-                          style={{ left: `${posB3}%` }} />
+                        {/* Slider (derrière les marqueurs) */}
                         <input type="range" min={S_MIN} max={S_MAX} step={0.5}
                           value={repartA * 100}
                           onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
-                          className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer z-10 demo-slider3"
+                          className={`absolute inset-x-0 top-0 h-7 w-full appearance-none bg-transparent cursor-pointer z-10 demo-slider3${activeOpt !== 'custom' ? ' snap-thumb' : ''}`}
                         />
+
+                        {/* Marqueur A */}
+                        <button onClick={() => setRepartA(pProportionnel)}
+                          style={{ left: `${posA3}%` }}
+                          className="absolute top-0 -translate-x-1/2 z-20 group flex flex-col items-center">
+                          <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${activeOpt === 'heures' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--dust)]/50 text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>A</span>
+                          <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mt-1">Selon les heures</span>
+                        </button>
+
+                        {/* Marqueur B */}
+                        <button onClick={() => setRepartA(P_AIDES)}
+                          style={{ left: `${posB3}%` }}
+                          className="absolute top-0 -translate-x-1/2 z-20 group flex flex-col items-center">
+                          <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${activeOpt === 'aides' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--dust)]/50 text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>B</span>
+                          <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mt-1">Selon les aides</span>
+                        </button>
                       </div>
                       <style jsx>{`
                         .demo-slider3::-webkit-slider-thumb {
                           -webkit-appearance: none; appearance: none;
-                          width: 16px; height: 16px; border-radius: 50%;
+                          width: 14px; height: 14px; border-radius: 50%;
                           background: white; border: 2px solid var(--sage);
                           cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                          transition: opacity 0.1s;
                         }
+                        .demo-slider3.snap-thumb::-webkit-slider-thumb { opacity: 0; }
                         .demo-slider3::-moz-range-thumb {
-                          width: 16px; height: 16px; border-radius: 50%;
+                          width: 14px; height: 14px; border-radius: 50%;
                           background: white; border: 2px solid var(--sage);
                           cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
                         }
