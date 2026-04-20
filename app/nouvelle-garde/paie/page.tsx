@@ -435,11 +435,19 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function FN({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const [raw, setRaw] = useState(() => value !== 0 ? String(value) : '');
   return (
     <div>
       <label className="block text-xs font-medium mb-1 text-[var(--dust)]">{label}</label>
-      <input type="number" step="0.01" min="0" value={value} onChange={e => onChange(parseFloat(e.target.value) || 0)}
-        className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border border-[var(--line)] focus:border-[var(--sage)]" />
+      <input
+        type="text"
+        inputMode="decimal"
+        value={raw}
+        placeholder="0"
+        onChange={e => { const s = e.target.value; setRaw(s); const n = parseFloat(s.replace(',', '.')); onChange(isNaN(n) ? 0 : n); }}
+        onBlur={() => { const n = parseFloat(raw.replace(',', '.')); setRaw(!isNaN(n) && n !== 0 ? String(n) : ''); onChange(isNaN(n) ? 0 : n); }}
+        className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border border-[var(--line)] focus:border-[var(--sage)]"
+      />
     </div>
   );
 }

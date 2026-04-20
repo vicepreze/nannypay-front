@@ -254,9 +254,7 @@ export function LandingPage() {
               <div className="px-6 py-5">
                 <div className="text-sm font-semibold text-[var(--ink)] mb-3">Taux horaire net</div>
                 <div className="flex items-center gap-2">
-                  <input type="number" min={5} max={50} step={0.5} value={taux}
-                    onChange={e => setTaux(parseFloat(e.target.value) || 11)}
-                    className={numInp + ' flex-1'} />
+                  <NumInput value={taux} onChange={setTaux} className={numInp + ' flex-1'} />
                   <span className="text-sm text-[var(--dust)]">€/h</span>
                 </div>
                 <div className="text-xs text-[var(--dust)] mt-2">Net employeur (hors charges)</div>
@@ -264,9 +262,7 @@ export function LandingPage() {
               <div className="px-6 py-5">
                 <div className="text-sm font-semibold text-[var(--ink)] mb-3">Heures par semaine</div>
                 <div className="flex items-center gap-2">
-                  <input type="number" min={1} max={60} step={1} value={hHebdo}
-                    onChange={e => setHHebdo(parseInt(e.target.value) || 40)}
-                    className={numInp + ' flex-1'} />
+                  <NumInput value={hHebdo} onChange={v => setHHebdo(Math.round(v))} className={numInp + ' flex-1'} />
                   <span className="text-sm text-[var(--dust)]">h</span>
                 </div>
                 <div className="text-xs text-[var(--dust)] mt-2">Heures contractuelles</div>
@@ -530,6 +526,21 @@ export function LandingPage() {
       )}
 
     </div>
+  );
+}
+
+function NumInput({ value, onChange, className }: { value: number; onChange: (v: number) => void; className?: string }) {
+  const [raw, setRaw] = useState(() => value !== 0 ? String(value) : '');
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={raw}
+      placeholder="0"
+      onChange={e => { const s = e.target.value; setRaw(s); const n = parseFloat(s.replace(',', '.')); onChange(isNaN(n) ? 0 : n); }}
+      onBlur={() => { const n = parseFloat(raw.replace(',', '.')); setRaw(!isNaN(n) && n !== 0 ? String(n) : ''); onChange(isNaN(n) ? 0 : n); }}
+      className={className}
+    />
   );
 }
 
