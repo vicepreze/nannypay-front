@@ -81,7 +81,14 @@ export function LandingPage() {
   const S_MIN = 20, S_MAX = 80;
   const pProportionnel = nbEnfants === 2 ? 0.5 : 2 / 3;
   const P_AIDES = 0.6;
-  const activeOpt: 'heures' | 'aides' = nbEnfants === 3 && Math.abs(repartA - P_AIDES) < Math.abs(repartA - pProportionnel) ? 'aides' : 'heures';
+  const SNAP3 = 0.015;
+  const activeOpt: 'heures' | 'aides' | 'custom' =
+    nbEnfants !== 3 ? 'heures'
+    : Math.abs(repartA - pProportionnel) <= SNAP3 ? 'heures'
+    : Math.abs(repartA - P_AIDES) <= SNAP3 ? 'aides'
+    : 'custom';
+  const posA3 = ((pProportionnel - S_MIN / 100) / ((S_MAX - S_MIN) / 100)) * 100;
+  const posB3 = ((P_AIDES - S_MIN / 100) / ((S_MAX - S_MIN) / 100)) * 100;
   const nbA = nbEnfants === 2 ? 1 : 2;
   const nbB = 1;
 
@@ -352,31 +359,53 @@ export function LandingPage() {
                     </div>
                   )}
 
-                  {/* 3 enfants — deux marqueurs A / B */}
+                  {/* 3 enfants — marqueurs A / B + slider libre */}
                   {nbEnfants === 3 && (
                     <>
-                      <div className="relative flex items-start justify-between px-2">
+                      {/* Snap buttons */}
+                      <div className="relative flex items-start justify-between px-2 mb-3">
                         <div className="absolute left-9 right-9 top-[18px] h-0.5 bg-[var(--line)]" />
-                        {/* Marqueur A */}
                         <button onClick={() => setRepartA(pProportionnel)}
                           className="flex flex-col items-center gap-1.5 group z-10">
-                          <span className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${activeOpt === 'heures' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--line)] text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>
-                            A
-                          </span>
+                          <span className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${activeOpt === 'heures' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--line)] text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>A</span>
                           <span className="text-[9px] text-[var(--dust)] whitespace-nowrap">Selon les heures</span>
                         </button>
-                        {/* Marqueur B */}
                         <button onClick={() => setRepartA(P_AIDES)}
                           className="flex flex-col items-center gap-1.5 group z-10">
-                          <span className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${activeOpt === 'aides' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--line)] text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>
-                            B
-                          </span>
+                          <span className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${activeOpt === 'aides' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--line)] text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>B</span>
                           <span className="text-[9px] text-[var(--dust)] whitespace-nowrap">Selon les aides</span>
                         </button>
                       </div>
 
+                      {/* Slider avec repères A et B */}
+                      <div className="relative h-5 flex items-center">
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 rounded-full bg-[var(--line)]" />
+                        <span className={`absolute top-0 bottom-0 w-0.5 -translate-x-1/2 rounded-full transition-colors ${activeOpt === 'heures' ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]/40'}`}
+                          style={{ left: `${posA3}%` }} />
+                        <span className={`absolute top-0 bottom-0 w-0.5 -translate-x-1/2 rounded-full transition-colors ${activeOpt === 'aides' ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]/40'}`}
+                          style={{ left: `${posB3}%` }} />
+                        <input type="range" min={S_MIN} max={S_MAX} step={0.5}
+                          value={repartA * 100}
+                          onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
+                          className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer z-10 demo-slider3"
+                        />
+                      </div>
+                      <style jsx>{`
+                        .demo-slider3::-webkit-slider-thumb {
+                          -webkit-appearance: none; appearance: none;
+                          width: 16px; height: 16px; border-radius: 50%;
+                          background: white; border: 2px solid var(--sage);
+                          cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                        }
+                        .demo-slider3::-moz-range-thumb {
+                          width: 16px; height: 16px; border-radius: 50%;
+                          background: white; border: 2px solid var(--sage);
+                          cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                        }
+                      `}</style>
+
                       {/* Carte explicative */}
-                      <div className="mt-4 rounded-xl border bg-gray-50 border-gray-100 px-4 py-3 text-xs">
+                      <div className="mt-3 rounded-xl border bg-gray-50 border-gray-100 px-4 py-3 text-xs">
                         {activeOpt === 'heures' ? (
                           <>
                             <p className="font-semibold text-gray-600 mb-1">Proportionnel aux heures par enfant</p>
@@ -386,7 +415,7 @@ export function LandingPage() {
                               <span>B · {salNetB.toFixed(0)} €</span>
                             </div>
                           </>
-                        ) : (
+                        ) : activeOpt === 'aides' ? (
                           <>
                             <p className="font-semibold text-gray-600 mb-1">Selon les aides — environ 60 / 40</p>
                             <p className="text-gray-400 leading-snug">Les aides CAF ne sont pas proportionnelles aux heures. La répartition au reste à charge est ~60 / 40.</p>
@@ -398,6 +427,15 @@ export function LandingPage() {
                               className="text-emerald-500 font-semibold hover:underline mt-1.5 block">
                               Intégrez vos aides dans le calcul →
                             </button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-semibold text-gray-600 mb-1">Répartition personnalisée — {Math.round(repartA * 100)} % / {Math.round((1 - repartA) * 100)} %</p>
+                            <p className="text-gray-400 leading-snug">Famille A · {Math.round(repartA * 100)} %&ensp;·&ensp;Famille B · {Math.round((1 - repartA) * 100)} %</p>
+                            <div className="flex gap-4 mt-2 font-medium text-gray-500">
+                              <span>A · {salNetA.toFixed(0)} €</span>
+                              <span>B · {salNetB.toFixed(0)} €</span>
+                            </div>
                           </>
                         )}
                       </div>
