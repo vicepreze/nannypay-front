@@ -45,7 +45,6 @@ export function LandingPage() {
   const [hHebdo,    setHHebdo]    = useState(40);
   const [nbEnfants, setNbEnfants] = useState<NbEnfants>(2);
   const [repartA,   setRepartA]   = useState(0.5);
-  const [showAides, setShowAides] = useState(false);
   const [evts,      setEvts]      = useState<Evt[]>([]);
 
   // Modal événement
@@ -80,15 +79,9 @@ export function LandingPage() {
   const hasCP      = evts.some(e => e.type === 'conge_paye');
   // Slider
   const S_MIN = 20, S_MAX = 80;
-  const sPct  = (p: number) => ((p * 100 - S_MIN) / (S_MAX - S_MIN)) * 100;
   const pProportionnel = nbEnfants === 2 ? 0.5 : 2 / 3;
   const P_AIDES = 0.6;
-  const SNAP = 0.015;
-  const activeOption: 'heures' | 'aides' | 'custom' = nbEnfants === 3
-    ? (Math.abs(repartA - pProportionnel) < SNAP
-        ? 'heures'
-        : (showAides && Math.abs(repartA - P_AIDES) < SNAP ? 'aides' : 'custom'))
-    : 'heures';
+  const activeOpt: 'heures' | 'aides' = nbEnfants === 3 && Math.abs(repartA - P_AIDES) < Math.abs(repartA - pProportionnel) ? 'aides' : 'heures';
   const nbA = nbEnfants === 2 ? 1 : 2;
   const nbB = 1;
 
@@ -275,7 +268,7 @@ export function LandingPage() {
                 <div className="text-sm font-semibold text-[var(--ink)] mb-3">Nombre d&apos;enfants gardés</div>
                 <div className="flex rounded-xl overflow-hidden border border-[var(--line)] w-fit">
                   {([2, 3] as const).map(n => (
-                    <button key={n} onClick={() => { setNbEnfants(n); setRepartA(n === 2 ? 0.5 : 2/3); if (n === 2) setShowAides(false); }}
+                    <button key={n} onClick={() => { setNbEnfants(n); setRepartA(n === 2 ? 0.5 : 2/3); }}
                       className={'px-5 py-2 text-sm font-medium transition-colors ' + (nbEnfants === n ? 'bg-[var(--sage)] text-white' : 'bg-white text-[var(--dust)] hover:text-[var(--ink)]')}>
                       {n} enfants
                     </button>
@@ -326,124 +319,89 @@ export function LandingPage() {
                   </p>
                 )}
 
-                {/* Slider intégré */}
+                {/* Répartition */}
                 <div className="pt-2 border-t border-[var(--line)]">
+                  <span className="text-[10px] font-semibold text-[var(--dust)] uppercase tracking-wide block mb-4">Répartition</span>
 
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-semibold text-[var(--dust)] uppercase tracking-wide">Répartition</span>
-                      {nbEnfants === 3 && (
-                        <button
-                          onClick={() => { setShowAides(v => { const next = !v; if (!next) setRepartA(pProportionnel); return next; }); }}
-                          className={`text-[9px] px-2 py-0.5 rounded-full border transition-colors ${showAides ? 'bg-[var(--sage)] text-white border-[var(--sage)]' : 'border-[var(--line)] text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)]'}`}
-                        >
-                          Aides CAF
-                        </button>
-                      )}
-                    </div>
-                    <button onClick={() => setRepartA(pProportionnel)}
-                      className="text-[10px] text-[var(--dust)] hover:text-[var(--sage)] transition-colors">
-                      ↺ Réinitialiser
-                    </button>
-                  </div>
-
-                  {/* Track */}
-                  <div className="relative h-5">
-                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 rounded-full bg-[var(--line)]" />
-                    {/* Dot — Selon les heures (2 et 3 enfants) */}
-                    <button
-                      onClick={() => setRepartA(pProportionnel)}
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 transition-all z-10"
-                      style={{ left: `${sPct(pProportionnel)}%`, background: activeOption === 'heures' ? 'var(--sage)' : 'white', borderColor: 'var(--sage)' }}
-                    />
-                    {/* Dot — Selon vos aides (3 enfants + aides activées) */}
-                    {nbEnfants === 3 && showAides && (
-                      <button
-                        onClick={() => setRepartA(P_AIDES)}
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 transition-all z-10"
-                        style={{ left: `${sPct(P_AIDES)}%`, background: activeOption === 'aides' ? 'var(--sage)' : 'white', borderColor: 'var(--dust)' }}
-                      />
-                    )}
-                    <input type="range" min={S_MIN} max={S_MAX} step={0.1}
-                      value={repartA * 100}
-                      onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
-                      className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer demo-slider"
-                      style={{ WebkitAppearance: 'none' }}
-                    />
-                  </div>
-
-                  {/* Pills cliquables sous le slider — 3 enfants uniquement */}
-                  {nbEnfants === 3 && (
-                    <div className="flex gap-2 mt-2 mb-1">
-                      <button
-                        onClick={() => setRepartA(pProportionnel)}
-                        className={`text-[9px] px-2.5 py-1 rounded-full border transition-colors ${activeOption === 'heures' ? 'bg-[var(--sage)] text-white border-[var(--sage)]' : 'border-[var(--line)] text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)]'}`}
-                      >
-                        Selon les heures
-                      </button>
-                      {showAides && (
-                        <button
-                          onClick={() => setRepartA(P_AIDES)}
-                          className={`text-[9px] px-2.5 py-1 rounded-full border transition-colors ${activeOption === 'aides' ? 'bg-[var(--sage)] text-white border-[var(--sage)]' : 'border-[var(--line)] text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)]'}`}
-                        >
-                          Selon vos aides 🔒
-                        </button>
-                      )}
+                  {/* 2 enfants — slider simple */}
+                  {nbEnfants === 2 && (
+                    <div>
+                      <div className="relative h-5">
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 rounded-full bg-[var(--line)]" />
+                        <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[var(--dust)]" style={{ left: '50%' }} />
+                        <input type="range" min={S_MIN} max={S_MAX} step={0.1}
+                          value={repartA * 100}
+                          onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
+                          className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer demo-slider"
+                          style={{ WebkitAppearance: 'none' }}
+                        />
+                      </div>
+                      <style jsx>{`
+                        .demo-slider::-webkit-slider-thumb {
+                          -webkit-appearance: none; appearance: none;
+                          width: 16px; height: 16px; border-radius: 50%;
+                          background: white; border: 2px solid var(--sage);
+                          cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                        }
+                        .demo-slider::-moz-range-thumb {
+                          width: 16px; height: 16px; border-radius: 50%;
+                          background: white; border: 2px solid var(--sage);
+                          cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                        }
+                      `}</style>
                     </div>
                   )}
 
-                  <style jsx>{`
-                    .demo-slider::-webkit-slider-thumb {
-                      -webkit-appearance: none; appearance: none;
-                      width: 16px; height: 16px; border-radius: 50%;
-                      background: white; border: 2px solid var(--sage);
-                      cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-                    }
-                    .demo-slider::-moz-range-thumb {
-                      width: 16px; height: 16px; border-radius: 50%;
-                      background: white; border: 2px solid var(--sage);
-                      cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-                    }
-                  `}</style>
-
-                  {/* Carte contextuelle — 3 enfants uniquement */}
+                  {/* 3 enfants — deux marqueurs A / B */}
                   {nbEnfants === 3 && (
-                    <div className="mt-2 rounded-xl border bg-gray-50 border-gray-100 px-4 py-3 text-xs">
-                      {activeOption === 'heures' && (
-                        <>
-                          <p className="font-semibold text-gray-600 mb-1">Proportionnel aux heures par enfant</p>
-                          <p className="text-gray-400 leading-snug">Famille A garde 2 enfants, Famille B en garde 1. La répartition naturelle est {(pProportionnel * 100).toFixed(0)} / {((1 - pProportionnel) * 100).toFixed(0)}.</p>
-                          <div className="flex gap-4 mt-2 font-medium text-gray-500">
-                            <span>A · {salNetA.toFixed(2)} €</span>
-                            <span>B · {salNetB.toFixed(2)} €</span>
-                          </div>
-                        </>
-                      )}
-                      {activeOption === 'aides' && (
-                        <>
-                          <p className="font-semibold text-gray-600 mb-1">Selon vos aides — environ 60 / 40</p>
-                          <p className="text-gray-400 leading-snug">Les aides CAF ne sont pas proportionnelles aux heures. Au reste à charge, la répartition équitable se rapproche de 60 / 40.</p>
-                          <div className="flex gap-4 mt-2 font-medium text-gray-500">
-                            <span>A · {salNetA.toFixed(2)} €</span>
-                            <span>B · {salNetB.toFixed(2)} €</span>
-                          </div>
-                          <button onClick={() => openAuth('register')} className="text-emerald-500 font-semibold hover:underline mt-1.5 block">
-                            Calculer avec vos aides →
-                          </button>
-                        </>
-                      )}
-                      {activeOption === 'custom' && (
-                        <>
-                          <p className="font-semibold text-gray-600 mb-1">Répartition personnalisée</p>
-                          <p className="text-gray-400 leading-snug">{(repartA * 100).toFixed(1)} % pour Famille A · {((1 - repartA) * 100).toFixed(1)} % pour Famille B.</p>
-                          <div className="flex gap-4 mt-2 font-medium text-gray-500">
-                            <span>A · {salNetA.toFixed(2)} €</span>
-                            <span>B · {salNetB.toFixed(2)} €</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    <>
+                      <div className="relative flex items-start justify-between px-2">
+                        <div className="absolute left-9 right-9 top-[18px] h-0.5 bg-[var(--line)]" />
+                        {/* Marqueur A */}
+                        <button onClick={() => setRepartA(pProportionnel)}
+                          className="flex flex-col items-center gap-1.5 group z-10">
+                          <span className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${activeOpt === 'heures' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--line)] text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>
+                            A
+                          </span>
+                          <span className="text-[9px] text-[var(--dust)] whitespace-nowrap">Selon les heures</span>
+                        </button>
+                        {/* Marqueur B */}
+                        <button onClick={() => setRepartA(P_AIDES)}
+                          className="flex flex-col items-center gap-1.5 group z-10">
+                          <span className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${activeOpt === 'aides' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--line)] text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>
+                            B
+                          </span>
+                          <span className="text-[9px] text-[var(--dust)] whitespace-nowrap">Selon les aides</span>
+                        </button>
+                      </div>
+
+                      {/* Carte explicative */}
+                      <div className="mt-4 rounded-xl border bg-gray-50 border-gray-100 px-4 py-3 text-xs">
+                        {activeOpt === 'heures' ? (
+                          <>
+                            <p className="font-semibold text-gray-600 mb-1">Proportionnel aux heures par enfant</p>
+                            <p className="text-gray-400 leading-snug">Famille A garde 2 enfants, Famille B en garde 1. La répartition naturelle est 67 / 33.</p>
+                            <div className="flex gap-4 mt-2 font-medium text-gray-500">
+                              <span>A · {salNetA.toFixed(2)} €</span>
+                              <span>B · {salNetB.toFixed(2)} €</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-semibold text-gray-600 mb-1">Selon les aides — environ 60 / 40</p>
+                            <p className="text-gray-400 leading-snug">Les aides CAF ne sont pas proportionnelles aux heures. La répartition au reste à charge est ~60 / 40.</p>
+                            <div className="flex gap-4 mt-2 font-medium text-gray-500">
+                              <span>A · {salNetA.toFixed(2)} €</span>
+                              <span>B · {salNetB.toFixed(2)} €</span>
+                            </div>
+                            <button onClick={() => openAuth('register')}
+                              className="text-emerald-500 font-semibold hover:underline mt-1.5 block">
+                              Intégrez vos aides dans le calcul →
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
 
