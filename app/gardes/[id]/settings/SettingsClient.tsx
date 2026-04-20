@@ -57,12 +57,9 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
 
   const [nom,     setNom]     = useState(gardeNom);
   const [nomA,    setNomA]    = useState(famA.nomAffiche);
-  const [emailA,  setEmailA]  = useState(famA.emailContact);
   const [nomB,    setNomB]    = useState(famB.nomAffiche);
-  const [emailB,  setEmailB]  = useState(famB.emailContact);
   const [prenomN, setPrenomN] = useState(nounou?.prenom ?? '');
   const [nomN,    setNomN]    = useState(nounou?.nom ?? '');
-  const [emailN,  setEmailN]  = useState(nounou?.email ?? '');
 
   const [tauxNet,   setTauxNet]   = useState(modele?.tauxHoraireNet  ?? 0);
   const [hNorm,     setHNorm]     = useState(modele?.hNormalesSemaine ?? 0);
@@ -131,9 +128,9 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         nom,
-        familleA: { nomAffiche: nomA, emailContact: emailA || null },
-        familleB: { nomAffiche: nomB, emailContact: emailB || null },
-        nounou:   { prenom: prenomN, nom: nomN || null, email: emailN || null },
+        familleA: { nomAffiche: nomA },
+        familleB: { nomAffiche: nomB },
+        nounou:   { prenom: prenomN, nom: nomN || null },
       }),
     });
     if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Erreur'); setSaving(false); return; }
@@ -159,8 +156,8 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
           repartitionA:     repartA,
           racOptionActive:  racOption,
         },
-        familleA: { nomAffiche: nomA, emailContact: emailA || null, ...aA },
-        familleB: { nomAffiche: nomB, emailContact: emailB || null, ...aB },
+        familleA: { ...aA },
+        familleB: { ...aB },
       }),
     });
     if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Erreur'); setSaving(false); return; }
@@ -221,19 +218,12 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                 <F label="Prénom *" value={prenomN} onChange={setPrenomN} />
                 <F label="Nom"      value={nomN}    onChange={setNomN} />
               </div>
-              <F label="Email" value={emailN} onChange={setEmailN} type="email" />
             </Card>
             <Card title="Famille A">
-              <div className="grid grid-cols-2 gap-3">
-                <F label="Nom affiché *" value={nomA}   onChange={setNomA} />
-                <F label="Email"         value={emailA} onChange={setEmailA} type="email" />
-              </div>
+              <F label="Nom affiché *" value={nomA} onChange={setNomA} />
             </Card>
             <Card title="Famille B">
-              <div className="grid grid-cols-2 gap-3">
-                <F label="Nom affiché" value={nomB}   onChange={setNomB} />
-                <F label="Email"       value={emailB} onChange={setEmailB} type="email" />
-              </div>
+              <F label="Nom affiché" value={nomB} onChange={setNomB} />
             </Card>
             <div className="flex justify-end">
               <Btn onClick={saveActeurs} disabled={saving} label={saveLabel} />
@@ -547,11 +537,33 @@ function F({ label, value, onChange, type = 'text' }: { label: string; value: st
 }
 
 function FN({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const [raw, setRaw] = useState(() => (value !== 0 ? String(value) : ''));
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const s = e.target.value;
+    setRaw(s);
+    const n = parseFloat(s.replace(',', '.'));
+    onChange(isNaN(n) ? 0 : n);
+  }
+
+  function handleBlur() {
+    const n = parseFloat(raw.replace(',', '.'));
+    setRaw(!isNaN(n) && n !== 0 ? String(n) : '');
+    onChange(isNaN(n) ? 0 : n);
+  }
+
   return (
     <div>
       <label className="block text-xs font-medium mb-1 text-[var(--dust)]">{label}</label>
-      <input type="number" step="0.01" min="0" value={value} onChange={e => onChange(parseFloat(e.target.value) || 0)}
-        className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border border-[var(--line)] focus:border-[var(--sage)]" />
+      <input
+        type="text"
+        inputMode="decimal"
+        value={raw}
+        placeholder="0"
+        onChange={handleChange}
+        onBlur={handleBlur}
+        className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border border-[var(--line)] focus:border-[var(--sage)]"
+      />
     </div>
   );
 }
