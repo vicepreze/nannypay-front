@@ -290,7 +290,7 @@ export function LandingPage() {
               <div className="p-5 space-y-3">
                 <div className="bg-[#0f1923] rounded-xl px-5 py-4">
                   <div className="text-xs text-white/50 mb-1">Salaire total nounou</div>
-                  <div className="text-3xl font-bold text-white">{salNetMens.toFixed(2)} €</div>
+                  <div className="text-3xl font-bold text-white">{salNetMens.toFixed(0)} €</div>
                   {joursMal > 0 && (
                     <div className="text-xs text-red-300 mt-2">
                       − {joursMal} jour{joursMal > 1 ? 's' : ''} maladie déduit{joursMal > 1 ? 's' : ''}
@@ -301,17 +301,17 @@ export function LandingPage() {
                   <span className="w-7 h-7 rounded-full bg-[var(--sage)] text-white text-xs font-bold flex items-center justify-center shrink-0">A</span>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-[var(--ink)]">Famille A</div>
-                    <div className="text-[10px] text-[var(--dust)]">{nbA} enfant{nbA > 1 ? 's' : ''} · {(repartA * 100).toFixed(1)} %</div>
+                    <div className="text-[10px] text-[var(--dust)]">{nbA} enfant{nbA > 1 ? 's' : ''} · {(repartA * 100).toFixed(0)} %</div>
                   </div>
-                  <span className="text-[15px] font-bold text-[var(--sage)]">{salNetA.toFixed(2)} €</span>
+                  <span className="text-[15px] font-bold text-[var(--sage)]">{salNetA.toFixed(0)} €</span>
                 </div>
                 <div className="flex items-center gap-3 bg-[var(--sage-light)] rounded-xl px-4 py-3">
                   <span className="w-7 h-7 rounded-full bg-[var(--sage)] text-white text-xs font-bold flex items-center justify-center shrink-0">B</span>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-[var(--ink)]">Famille B</div>
-                    <div className="text-[10px] text-[var(--dust)]">{nbB} enfant · {((1 - repartA) * 100).toFixed(1)} %</div>
+                    <div className="text-[10px] text-[var(--dust)]">{nbB} enfant · {((1 - repartA) * 100).toFixed(0)} %</div>
                   </div>
-                  <span className="text-[15px] font-bold text-[var(--sage)]">{salNetB.toFixed(2)} €</span>
+                  <span className="text-[15px] font-bold text-[var(--sage)]">{salNetB.toFixed(0)} €</span>
                 </div>
                 {hasCP && (
                   <p className="text-[11px] text-[var(--dust)] px-1">
@@ -382,8 +382,8 @@ export function LandingPage() {
                             <p className="font-semibold text-gray-600 mb-1">Proportionnel aux heures par enfant</p>
                             <p className="text-gray-400 leading-snug">Famille A garde 2 enfants, Famille B en garde 1. La répartition naturelle est 67 / 33.</p>
                             <div className="flex gap-4 mt-2 font-medium text-gray-500">
-                              <span>A · {salNetA.toFixed(2)} €</span>
-                              <span>B · {salNetB.toFixed(2)} €</span>
+                              <span>A · {salNetA.toFixed(0)} €</span>
+                              <span>B · {salNetB.toFixed(0)} €</span>
                             </div>
                           </>
                         ) : (
@@ -391,8 +391,8 @@ export function LandingPage() {
                             <p className="font-semibold text-gray-600 mb-1">Selon les aides — environ 60 / 40</p>
                             <p className="text-gray-400 leading-snug">Les aides CAF ne sont pas proportionnelles aux heures. La répartition au reste à charge est ~60 / 40.</p>
                             <div className="flex gap-4 mt-2 font-medium text-gray-500">
-                              <span>A · {salNetA.toFixed(2)} €</span>
-                              <span>B · {salNetB.toFixed(2)} €</span>
+                              <span>A · {salNetA.toFixed(0)} €</span>
+                              <span>B · {salNetB.toFixed(0)} €</span>
                             </div>
                             <button onClick={() => openAuth('register')}
                               className="text-emerald-500 font-semibold hover:underline mt-1.5 block">
