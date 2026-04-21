@@ -47,77 +47,83 @@ export async function POST(req: NextRequest) {
   const hSup25         = planning?.hSup25Semaine    ?? 0;
   const hSup50         = planning?.hSup50Semaine    ?? 0;
 
-  const garde = await prisma.garde.create({
-    data: {
-      nom: `Garde ${acteurs.famANom}${acteurs.famBNom ? ' & ' + acteurs.famBNom : ''}`,
-      statut: 'actif',
-      proprietaireId: session.user.id,
+  try {
+    const garde = await prisma.garde.create({
+      data: {
+        nom: `Garde ${acteurs.famANom}${acteurs.famBNom ? ' & ' + acteurs.famBNom : ''}`,
+        statut: 'actif',
+        proprietaireId: session.user.id,
 
-      nounou: {
-        create: {
-          prenom: acteurs.nounouPrenom,
-          email:  acteurs.nounouEmail || null,
+        nounou: {
+          create: {
+            prenom: acteurs.nounouPrenom,
+            email:  acteurs.nounouEmail || null,
+          },
+        },
+
+        familles: {
+          create: [
+            {
+              label:        'A',
+              nomAffiche:   acteurs.famANom,
+              emailContact: acteurs.famAEmail || null,
+              statutAcces:  'proprietaire',
+              utilisateurId: session.user.id,
+              ...(paie.aidesA ? {
+                cmgCotisations:    paie.aidesA.cmgCotisations    ?? 0,
+                cmgRemuneration:   paie.aidesA.cmgRemuneration   ?? 0,
+                abattementCharges: paie.aidesA.abattementCharges ?? 0,
+                aideVille:         paie.aidesA.aideVille         ?? 0,
+                creditImpot:       paie.aidesA.creditImpot       ?? 0,
+              } : {}),
+            },
+            {
+              label:        'B',
+              nomAffiche:   acteurs.famBNom   || null,
+              emailContact: acteurs.famBEmail || null,
+              statutAcces:  'invite_en_attente',
+              ...(paie.aidesB ? {
+                cmgCotisations:    paie.aidesB.cmgCotisations    ?? 0,
+                cmgRemuneration:   paie.aidesB.cmgRemuneration   ?? 0,
+                abattementCharges: paie.aidesB.abattementCharges ?? 0,
+                aideVille:         paie.aidesB.aideVille         ?? 0,
+                creditImpot:       paie.aidesB.creditImpot       ?? 0,
+              } : {}),
+            },
+          ],
+        },
+
+        enfants: {
+          create: (acteurs.enfants ?? []).map((e: { prenom: string; fam: string }) => ({
+            prenom: e.prenom,
+            fam:    e.fam,
+          })),
+        },
+
+        modele: {
+          create: {
+            tauxHoraireNet:   paie.taux,
+            hNormalesSemaine: hNormales,
+            hSup25Semaine:    hSup25,
+            hSup50Semaine:    hSup50,
+            modeCalcul:       paie.mode ?? 'A.1',
+            repartitionA,
+            racOptionActive,
+            navigoMontant:    paie.navigo,
+            indemKm:          paie.indemKm,
+            indemEntretien:   paie.indemEntretien,
+            joursJson: JSON.stringify(planningData),
+          },
         },
       },
+    });
 
-      familles: {
-        create: [
-          {
-            label:        'A',
-            nomAffiche:   acteurs.famANom,
-            emailContact: acteurs.famAEmail || null,
-            statutAcces:  'proprietaire',
-            utilisateurId: session.user.id,
-            ...(paie.aidesA ? {
-              cmgCotisations:    paie.aidesA.cmgCotisations    ?? 0,
-              cmgRemuneration:   paie.aidesA.cmgRemuneration   ?? 0,
-              abattementCharges: paie.aidesA.abattementCharges ?? 0,
-              aideVille:         paie.aidesA.aideVille         ?? 0,
-              creditImpot:       paie.aidesA.creditImpot       ?? 0,
-            } : {}),
-          },
-          {
-            label:        'B',
-            nomAffiche:   acteurs.famBNom   || null,
-            emailContact: acteurs.famBEmail || null,
-            statutAcces:  'invite_en_attente',
-            ...(paie.aidesB ? {
-              cmgCotisations:    paie.aidesB.cmgCotisations    ?? 0,
-              cmgRemuneration:   paie.aidesB.cmgRemuneration   ?? 0,
-              abattementCharges: paie.aidesB.abattementCharges ?? 0,
-              aideVille:         paie.aidesB.aideVille         ?? 0,
-              creditImpot:       paie.aidesB.creditImpot       ?? 0,
-            } : {}),
-          },
-        ],
-      },
-
-      enfants: {
-        create: acteurs.enfants.map((e: { prenom: string; fam: string }) => ({
-          prenom: e.prenom,
-          fam:    e.fam,
-        })),
-      },
-
-      modele: {
-        create: {
-          tauxHoraireNet:          paie.taux,
-          hNormalesSemaine: hNormales,
-          hSup25Semaine:    hSup25,
-          hSup50Semaine:    hSup50,
-          modeCalcul:       paie.mode ?? 'A.1',
-          repartitionA,
-          racOptionActive,
-          navigoMontant:    paie.navigo,
-          indemKm:          paie.indemKm,
-          indemEntretien:   paie.indemEntretien,
-          joursJson: JSON.stringify(planningData),
-        },
-      },
-    },
-  });
-
-  return NextResponse.json({ garde: { id: garde.id, nom: garde.nom } }, { status: 201 });
+    return NextResponse.json({ garde: { id: garde.id, nom: garde.nom } }, { status: 201 });
+  } catch (err) {
+    console.error('[POST /api/gardes]', err);
+    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 export async function GET() {
