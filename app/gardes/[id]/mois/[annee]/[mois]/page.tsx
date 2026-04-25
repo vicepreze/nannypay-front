@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { calculerMois, calcHeuresSemaineFromPlanning, type Evt, type CalcResult } from '@/lib/calcul';
 import { useSession } from 'next-auth/react';
-import type { CongesConfig } from '@/app/api/gardes/[id]/conges/route';
+import { CalendrierMoisView } from '@/components/CalendrierMoisView';
 
 const MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
@@ -43,19 +43,19 @@ export default function MoisPage() {
   const annee   = parseInt(params.annee as string);
   const mois    = parseInt(params.mois  as string);
 
-  const [garde,   setGarde]   = useState<GardeInfo | null>(null);
-  const [moisRec, setMoisRec] = useState<MoisRec | null>(null);
-  const [evts,    setEvts]    = useState<Evt[]>([]);
-  const [result,  setResult]  = useState<CalcResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState(false);
-
+  const [garde,        setGarde]        = useState<GardeInfo | null>(null);
+  const [moisRec,      setMoisRec]      = useState<MoisRec | null>(null);
+  const [evts,         setEvts]         = useState<Evt[]>([]);
+  const [result,       setResult]       = useState<CalcResult | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [saving,       setSaving]       = useState(false);
   const [evtsSaveCount, setEvtsSaveCount] = useState(0);
 
-  // Panneau gauche — invitation + lien public
-  const [invToken,   setInvToken]   = useState<string | null>(null);
-  const [copiedInv,  setCopiedInv]  = useState(false);
-  const [copiedPub,  setCopiedPub]  = useState(false);
+  // Panneau gauche
+  const [invToken,    setInvToken]    = useState<string | null>(null);
+  const [copiedInv,   setCopiedInv]   = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
+  const [sharingPub,  setSharingPub]  = useState(false);
 
   // Modal event
   const [modalOpen,  setModalOpen]  = useState(false);
@@ -64,11 +64,9 @@ export default function MoisPage() {
   const [evtFin,     setEvtFin]     = useState('');
   const [modalError, setModalError] = useState('');
 
-  // Bornes du mois courant pour les date pickers
   const minDate = `${annee}-${String(mois).padStart(2, '0')}-01`;
   const maxDate = dateStr(new Date(annee, mois, 0));
 
-  // Chargement
   useEffect(() => {
     fetch(`/api/gardes/${gardeId}/mois/${annee}/${mois}`)
       .then(r => r.json())
@@ -76,13 +74,11 @@ export default function MoisPage() {
         setGarde(d.garde);
         setInvToken(d.garde.invitationTokenB ?? null);
         setMoisRec(d.mois);
-        const e = JSON.parse(d.mois.evenementsJson || '[]');
-        setEvts(e);
+        setEvts(JSON.parse(d.mois.evenementsJson || '[]'));
         setLoading(false);
       });
   }, [gardeId, annee, mois]);
 
-  // Recalcul dès que evts ou garde changent
   useEffect(() => {
     if (!garde?.modele) return;
     const m = garde.modele;
@@ -115,8 +111,7 @@ export default function MoisPage() {
   async function sauvegarderEvts(newEvts: Evt[]) {
     setSaving(true);
     const res = await fetch(`/api/gardes/${gardeId}/mois/${annee}/${mois}`, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ evenements: newEvts }),
     });
     const data = await res.json();
@@ -127,8 +122,7 @@ export default function MoisPage() {
   async function valider() {
     setSaving(true);
     const res = await fetch(`/api/gardes/${gardeId}/mois/${annee}/${mois}`, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ valider: true }),
     });
     const data = await res.json();
@@ -141,21 +135,23 @@ export default function MoisPage() {
     if (!evtType) { setModalError('Choisissez un type.'); return; }
     if (!evtDebut || !evtFin) { setModalError('Les deux dates sont requises.'); return; }
     if (evtFin < evtDebut) { setModalError('La fin doit être après le début.'); return; }
-    const conflict = evts.some(e => e.debut <= evtFin && e.fin >= evtDebut);
-    if (conflict) { setModalError('Cet intervalle chevauche un événement existant.'); return; }
+    if (evts.some(e => e.debut <= evtFin && e.fin >= evtDebut)) { setModalError('Cet intervalle chevauche un événement existant.'); return; }
     const newEvts = [...evts, { type: evtType, debut: evtDebut, fin: evtFin }];
     setEvts(newEvts);
     sauvegarderEvts(newEvts);
     setModalOpen(false);
   }
 
-  function removeEvt(i: number) {
-    const newEvts = evts.filter((_, idx) => idx !== i);
-    setEvts(newEvts);
-    sauvegarderEvts(newEvts);
+  function openModal(ds?: string) {
+    setEvtType(null); setEvtDebut(ds ?? ''); setEvtFin(ds ?? ''); setModalError('');
+    setModalOpen(true);
   }
 
-  // Panneau gauche — fonctions invitation + lien public
+  function removeEvt(i: number) {
+    const newEvts = evts.filter((_, idx) => idx !== i);
+    setEvts(newEvts); sauvegarderEvts(newEvts);
+  }
+
   async function genererInvitation() {
     const res = await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'POST' });
     if (res.ok) { const d = await res.json(); setInvToken(d.token); }
@@ -170,83 +166,40 @@ export default function MoisPage() {
     navigator.clipboard.writeText(`${window.location.origin}/rejoindre?token=${invToken}`);
     setCopiedInv(true); setTimeout(() => setCopiedInv(false), 2000);
   }
-  function copierLienPublic() {
-    if (!garde?.publicTokenNounou) return;
-    navigator.clipboard.writeText(`${window.location.origin}/public/nounou/${garde.publicTokenNounou}`);
-    setCopiedPub(true); setTimeout(() => setCopiedPub(false), 2000);
+  async function partagerMois() {
+    setSharingPub(true);
+    let token = garde?.publicTokenNounou;
+    if (!token) {
+      const res = await fetch(`/api/gardes/${gardeId}/public-token`, { method: 'POST' });
+      if (res.ok) {
+        const d = await res.json();
+        token = d.token;
+        setGarde(g => g ? { ...g, publicTokenNounou: token! } : g);
+      }
+    }
+    if (token) {
+      navigator.clipboard.writeText(`${window.location.origin}/public/mois/${token}/${annee}/${mois}`);
+      setCopiedShare(true); setTimeout(() => setCopiedShare(false), 2000);
+    }
+    setSharingPub(false);
   }
   async function archiverGarde() {
     if (!confirm('Archiver cette garde ?')) return;
     await fetch(`/api/gardes/${gardeId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ statut: 'archivé' }),
     });
     window.location.href = '/dashboard';
   }
 
-  // Calendrier
-  const renderCalendar = useCallback(() => {
-    const premier  = new Date(annee, mois - 1, 1);
-    const offset   = premier.getDay() === 0 ? 6 : premier.getDay() - 1;
-    const lundi    = new Date(annee, mois - 1, 1 - offset);
-    const dernier  = new Date(annee, mois, 0);
-    const dow      = dernier.getDay();
-    const vend     = new Date(dernier);
-    if (dow >= 1 && dow <= 4) vend.setDate(dernier.getDate() + (5 - dow));
-    else if (dow === 6) vend.setDate(dernier.getDate() - 1);
-    else if (dow === 0) vend.setDate(dernier.getDate() - 2);
-
-    const today = new Date();
-    const cells: React.ReactNode[] = [];
-    const cur = new Date(lundi);
-    const locked = moisRec?.statut === 'valide_ab';
-
-    while (cur <= vend) {
-      if (cur.getDay() >= 1 && cur.getDay() <= 5) {
-        const isCur   = cur.getMonth() === mois - 1;
-        const isToday = cur.toDateString() === today.toDateString();
-        const ds = dateStr(cur);
-        const chips = evts.filter(e => e.debut <= ds && e.fin >= ds).map((e, i) => (
-          <div key={i} className={'text-[9px] px-1 py-0.5 rounded mb-0.5 truncate ' + (e.type === 'conge_paye' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700')}>
-            {e.type === 'conge_paye' ? 'CP' : 'Mal.'}
-          </div>
-        ));
-        cells.push(
-          <div
-            key={ds}
-            onClick={() => isCur && !locked && openModal(ds)}
-            className={'border-r border-b border-[var(--line)] min-h-[64px] p-1.5 ' + (isCur && !locked ? 'cursor-pointer hover:bg-[var(--sage-light)]' : 'cursor-default') + (!isCur ? ' bg-[var(--paper)] opacity-30' : '')}
-          >
-            <div className={isToday ? 'w-5 h-5 rounded-full bg-[var(--sage)] text-white text-[10px] flex items-center justify-center mb-1 font-medium' : 'text-[11px] font-medium text-[var(--dust)] mb-1'}>
-              {cur.getDate()}
-            </div>
-            {chips}
-          </div>
-        );
-      }
-      cur.setDate(cur.getDate() + 1);
-    }
-    return cells;
-  }, [annee, mois, evts, moisRec]);
-
-  function openModal(ds?: string) {
-    setEvtType(null);
-    setEvtDebut(ds ?? '');
-    setEvtFin(ds ?? '');
-    setModalError('');
-    setModalOpen(true);
-  }
-
-  // Statut validation + rôle
   const estProprietaire = garde ? session?.user?.id === garde.proprietaireId : false;
   const famBActif = garde?.familles.find(f => f.label === 'B')?.statutAcces === 'invite_actif';
-  const monLabel   = garde?.familles.find(f => f.utilisateurId === session?.user?.id)?.label ?? 'A';
-  const statut     = moisRec?.statut ?? 'ouvert';
-  const jaValide   = statut === `valide_${monLabel.toLowerCase()}` || statut === 'valide_ab';
-  const locked     = statut === 'valide_ab';
-  const famA       = garde?.familles.find(f => f.label === 'A');
-  const famB       = garde?.familles.find(f => f.label === 'B');
+  const monLabel  = garde?.familles.find(f => f.utilisateurId === session?.user?.id)?.label ?? 'A';
+  const statut    = moisRec?.statut ?? 'ouvert';
+  const jaValide  = statut === `valide_${monLabel.toLowerCase()}` || statut === 'valide_ab';
+  const locked    = statut === 'valide_ab';
+  const famA      = garde?.familles.find(f => f.label === 'A');
+  const famB      = garde?.familles.find(f => f.label === 'B');
   const statutLabel: Record<string, string> = {
     'ouvert':    'En cours',
     'valide_a':  `Validé par ${famA?.nomAffiche ?? 'Fam. A'}`,
@@ -254,10 +207,9 @@ export default function MoisPage() {
     'valide_ab': 'Validé par les deux familles ✓',
   };
 
-  // Navigation mois prev/next
-  const prevMois  = mois === 1 ? [annee - 1, 12] : [annee, mois - 1];
-  const nextMois  = mois === 12 ? [annee + 1, 1] : [annee, mois + 1];
-  const isFuture  = new Date(annee, mois - 1, 1) > new Date();
+  const prevMois = mois === 1  ? [annee - 1, 12] : [annee, mois - 1];
+  const nextMois = mois === 12 ? [annee + 1, 1]  : [annee, mois + 1];
+  const isFuture = new Date(annee, mois - 1, 1) > new Date();
 
   if (loading) return <div className="min-h-screen bg-[var(--paper)] flex items-center justify-center text-[var(--dust)]">Chargement…</div>;
 
@@ -287,19 +239,17 @@ export default function MoisPage() {
         {/* ── PANNEAU GAUCHE ─────────────────────────────────── */}
         <aside className="w-52 shrink-0 sticky top-20 flex flex-col gap-3">
 
-          {/* Garde info */}
           <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
             <div className="px-3.5 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">
               {garde?.nom ?? '…'}
             </div>
             <div className="px-3.5 py-2.5 space-y-1 text-xs text-[var(--dust)]">
               {famA && <div><span className="text-[var(--blue)] font-medium">A</span> · {famA.nomAffiche ?? '—'}</div>}
-              {famB && <div><span className={famBActif ? 'text-[var(--sage)] font-medium' : 'font-medium'} style={{ color: famBActif ? 'var(--sage)' : undefined }}>B</span> · {famB.nomAffiche ?? '—'}{!famBActif && <span className="opacity-50"> · en attente</span>}</div>}
+              {famB && <div><span style={{ color: famBActif ? 'var(--sage)' : undefined }} className="font-medium">B</span> · {famB.nomAffiche ?? '—'}{!famBActif && <span className="opacity-50"> · en attente</span>}</div>}
               {garde?.nounou && <div>👩 {garde.nounou.prenom}</div>}
             </div>
           </div>
 
-          {/* Navigation mois */}
           <div className="flex gap-1">
             <Link href={`/gardes/${gardeId}/mois/${prevMois[0]}/${prevMois[1]}`}
               className="flex-1 py-1.5 text-center text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--ink)] no-underline">
@@ -313,7 +263,6 @@ export default function MoisPage() {
             )}
           </div>
 
-          {/* Invitation Famille B */}
           {estProprietaire && !famBActif && (
             <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
               <div className="px-3.5 py-2 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">Invitation Fam. B</div>
@@ -336,14 +285,14 @@ export default function MoisPage() {
             </div>
           )}
 
-          {/* Lien public nounou */}
-          {garde?.publicTokenNounou && (
-            <button onClick={copierLienPublic} className="w-full py-2 text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--sage)] transition-colors">
-              {copiedPub ? '✓ Lien copié !' : '🔗 Lien nounou'}
-            </button>
-          )}
+          <button
+            onClick={partagerMois}
+            disabled={sharingPub}
+            className="w-full py-2 text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--sage)] transition-colors disabled:opacity-50"
+          >
+            {copiedShare ? '✓ Lien copié !' : sharingPub ? '…' : '↗ Partager ce mois'}
+          </button>
 
-          {/* Paramètres + Archiver */}
           <Link href={`/gardes/${gardeId}/settings`}
             className="w-full py-2 text-xs text-center border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--ink)] hover:border-[var(--ink)] no-underline block">
             ⚙ Paramètres
@@ -357,124 +306,24 @@ export default function MoisPage() {
 
         {/* ── CONTENU PRINCIPAL ──────────────────────────────── */}
         <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
-            {statutLabel[statut] ?? statut}
-          </span>
-        </div>
-
-        <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 320px' }}>
-
-          {/* ── CALENDRIER ─────────────────────────────────────── */}
-          <div>
-            <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--line)]">
-                <span className="text-sm font-medium">Planning du mois</span>
-                {!locked && (
-                  <button onClick={() => openModal()} className="px-3 py-1.5 border-[1.5px] border-[var(--line)] rounded-lg text-xs font-medium text-[var(--ink)] hover:border-[var(--ink)] bg-white transition-colors">
-                    + Événement
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-5">
-                {['Lun','Mar','Mer','Jeu','Ven'].map(j => (
-                  <div key={j} className="py-2 text-center text-[10px] font-medium text-[var(--dust)] uppercase tracking-wide border-b border-r border-[var(--line)] last:border-r-0 bg-[var(--paper)]">{j}</div>
-                ))}
-                {renderCalendar()}
-              </div>
-            </div>
-
-            {/* Résumé calendrier */}
-            {result && (
-              <div className="mt-3 bg-white border border-[var(--line)] rounded-[var(--radius)] p-4 flex flex-wrap gap-6 text-sm">
-                <div><span className="text-[var(--dust)]">Jours ouvrables</span> <strong className="ml-2">{result.joursOuv}</strong></div>
-                {result.joursAbsMaladie > 0 && <div><span className="text-[var(--dust)]">Maladie</span> <strong className="ml-2 text-red-500">−{result.joursAbsMaladie}</strong></div>}
-                {result.joursAbsCP > 0 && <div><span className="text-[var(--dust)]">Congés payés</span> <strong className="ml-2 text-blue-600">−{result.joursAbsCP}</strong></div>}
-                <div><span className="text-[var(--dust)]">Jours travaillés</span> <strong className="ml-2">{result.joursTrav}</strong></div>
-                <div><span className="text-[var(--dust)]">Ratio salaire</span> <strong className="ml-2">{(result.ratio * 100).toFixed(0)} %</strong></div>
-              </div>
-            )}
-
-            {/* Événements */}
-            {evts.length > 0 && (
-              <div className="mt-3 bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-                <div className="px-4 py-2 border-b border-[var(--line)] text-[10px] font-medium text-[var(--dust)] uppercase tracking-wide">Événements</div>
-                {evts.map((e, i) => {
-                  const [, mo1, d1] = e.debut.split('-').map(Number);
-                  const [, mo2, d2] = e.fin.split('-').map(Number);
-                  const label = (d1 === d2 && mo1 === mo2)
-                    ? `${d1} ${MOIS_COURTS[mo1-1]}`
-                    : `${d1} ${MOIS_COURTS[mo1-1]} → ${d2} ${MOIS_COURTS[mo2-1]}`;
-                  return (
-                    <div key={i} className="flex items-center px-4 py-2.5 border-b border-[var(--line)] last:border-0 text-sm gap-3">
-                      <span className={'px-2 py-0.5 rounded text-xs ' + (e.type === 'conge_paye' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700')}>
-                        {e.type === 'conge_paye' ? '🏖 Congé payé' : '🤒 Maladie'}
-                      </span>
-                      <span className="flex-1 text-[var(--dust)]">{label}</span>
-                      {!locked && <button onClick={() => removeEvt(i)} className="text-[var(--dust)] hover:text-[var(--red)] text-base leading-none">×</button>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Congés payés — sous le calendrier */}
-            <div className="mt-3">
-              <CongesCard gardeId={gardeId} annee={annee} mois={mois} cpThisMonth={result?.joursAbsCP ?? 0} refreshKey={evtsSaveCount} />
-            </div>
+          <div className="flex items-center justify-between mb-5">
+            <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
+            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
+              {statutLabel[statut] ?? statut}
+            </span>
           </div>
 
-          {/* ── RÉSULTATS ──────────────────────────────────────── */}
-          <div className="flex flex-col gap-4">
-
-            {result && (
-              <>
-                {/* Total */}
-                <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-                  <div className="px-4 py-2.5 border-b border-[var(--line)] text-[10px] font-medium text-[var(--dust)] uppercase tracking-wide bg-[var(--paper)]">
-                    Salaire total nounou
-                  </div>
-                  <div className="flex justify-between items-center px-4 py-3 bg-[var(--paper)]">
-                    <span className="text-sm text-[var(--dust)]">Famille A + B</span>
-                    <strong className="text-[17px]">{result.totalNounou.toFixed(2)} €</strong>
-                  </div>
-                </div>
-
-                <ResultCard label="A" nom={famA?.nomAffiche ?? 'Famille A'} r={result.famA} racOptionActive={result.racOptionActive} />
-                <ResultCard label="B" nom={famB?.nomAffiche ?? 'Famille B'} r={result.famB} racOptionActive={result.racOptionActive} />
-              </>
-            )}
-
-            {/* Validation */}
-            <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-4">
-              <div className="text-xs font-medium text-[var(--dust)] uppercase tracking-wide mb-3">Validation</div>
-              <div className="space-y-2 mb-4 text-sm">
-                <ValidLine label={famA?.nomAffiche ?? 'Famille A'} done={statut === 'valide_a' || statut === 'valide_ab'} />
-                <ValidLine label={famB?.nomAffiche ?? 'Famille B'} done={statut === 'valide_b' || statut === 'valide_ab'} />
-              </div>
-              {!locked && !jaValide && (
-                <button
-                  onClick={valider}
-                  disabled={saving}
-                  className="w-full py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors disabled:opacity-50"
-                >
-                  {saving ? 'Validation…' : `Valider pour ${monLabel === 'A' ? (famA?.nomAffiche ?? 'Fam. A') : (famB?.nomAffiche ?? 'Fam. B')}`}
-                </button>
-              )}
-              {!locked && jaValide && (
-                <p className="text-xs text-center text-[var(--sage)]">Vous avez validé ce mois — en attente de l&apos;autre famille.</p>
-              )}
-              {locked && (
-                <p className="text-xs text-center text-[var(--sage)] font-medium">✓ Mois validé par les deux familles</p>
-              )}
-            </div>
-
-
-          </div>
+          <CalendrierMoisView
+            annee={annee} mois={mois} evts={evts} result={result} statut={statut}
+            nomFamA={famA?.nomAffiche} nomFamB={famB?.nomAffiche}
+            readonly={false}
+            gardeId={gardeId} evtsSaveCount={evtsSaveCount}
+            locked={locked} jaValide={jaValide} saving={saving} monLabel={monLabel}
+            onOpenModal={openModal} onRemoveEvt={removeEvt} onValider={valider}
+          />
         </div>
-        </div>{/* fin contenu principal */}
-        </div>{/* fin flex gap-5 */}
+
+        </div>
       </div>
 
       {/* Modal événement */}
@@ -494,14 +343,9 @@ export default function MoisPage() {
               {([['Début', evtDebut, setEvtDebut], ['Fin', evtFin, setEvtFin]] as [string, string, (v: string) => void][]).map(([lbl, val, fn]) => (
                 <div key={lbl}>
                   <label className="text-xs text-[var(--dust)] block mb-1">{lbl}</label>
-                  <input
-                    type="date"
-                    value={val}
-                    min={minDate}
-                    max={maxDate}
+                  <input type="date" value={val} min={minDate} max={maxDate}
                     onChange={e => { fn(e.target.value); setModalError(''); }}
-                    className="w-full px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm outline-none focus:border-[var(--sage)] bg-white"
-                  />
+                    className="w-full px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm outline-none focus:border-[var(--sage)] bg-white" />
                 </div>
               ))}
             </div>
@@ -510,291 +354,6 @@ export default function MoisPage() {
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm bg-white hover:border-[var(--ink)] transition-colors">Annuler</button>
               <button onClick={addEvt} className="px-4 py-2 bg-[var(--sage)] text-white rounded-lg text-sm font-medium hover:bg-[#3a5431] transition-colors">Ajouter</button>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ResultCard({ label, nom, r, racOptionActive }: {
-  label: string; nom: string;
-  r: ReturnType<typeof calculerMois>['famA'];
-  racOptionActive: boolean;
-}) {
-  const color = label === 'A' ? 'text-[var(--blue)]' : 'text-[var(--sage)]';
-  return (
-    <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-      <div className={`px-4 py-2.5 border-b border-[var(--line)] text-[10px] font-medium uppercase tracking-wide bg-[var(--paper)] ${color} flex justify-between items-center`}>
-        <span>{nom} — Pajemploi</span>
-        <span className="font-mono">{(r.qp * 100).toFixed(1)} %</span>
-      </div>
-      {[
-        ['Heures normales', r.hNorm  + ' h',               false],
-        ['Heures sup +25%', r.hSup25 + ' h',               r.hSup25 === 0],
-        ['Heures sup +50%', r.hSup50 + ' h',               r.hSup50 === 0],
-        ['Salaire net',     r.salNet.toFixed(2)    + ' €',  false],
-        ['Transport',       r.transport.toFixed(2) + ' €',  false],
-        ['Entretien',       r.entretien.toFixed(2) + ' €',  false],
-        ['Frais km',        r.km.toFixed(2)        + ' €',  r.km === 0],
-      ].map(([l, v, dim]) => (
-        <div key={String(l)} className={'flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs ' + (dim ? 'opacity-40' : '')}>
-          <span className="text-[var(--dust)]">{l}</span>
-          <span className="font-medium font-mono">{v}</span>
-        </div>
-      ))}
-      <div className="flex justify-between px-4 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] font-semibold text-sm">
-        <span>Total à verser</span>
-        <span>{r.total.toFixed(2)} €</span>
-      </div>
-      {racOptionActive && (
-        <>
-          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
-            <span>Charges salariales (21,88 %)</span>
-            <span className="font-medium font-mono">{r.chargesSalariales.toFixed(2)} €</span>
-          </div>
-          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
-            <span>Charges patronales (44,70 %)</span>
-            <span className="font-medium font-mono">{r.chargesPatronales.toFixed(2)} €</span>
-          </div>
-          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
-            <span>Aides CAF (mensuel)</span>
-            <span className="font-medium font-mono">− {r.aidesTotal.toFixed(2)} €</span>
-          </div>
-          <div className="flex justify-between px-4 py-2.5 bg-[var(--sage-light)] font-semibold text-sm text-[var(--sage)]">
-            <span>Reste à charge estimé</span>
-            <span>{r.resteCharge.toFixed(2)} €</span>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function ValidLine({ label, done }: { label: string; done: boolean }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 ${done ? 'bg-[var(--sage)] text-white' : 'border-2 border-[var(--line)]'}`}>
-        {done ? '✓' : ''}
-      </span>
-      <span className={done ? 'text-[var(--sage)] font-medium' : 'text-[var(--dust)]'}>{label}</span>
-    </div>
-  );
-}
-
-// ── CARTE CONGÉS PAYÉS ─────────────────────────────────────────────
-const MOIS_COURTS_CP = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-
-function CongesCard({ gardeId, annee, mois, cpThisMonth, refreshKey }: {
-  gardeId: string;
-  annee: number;
-  mois: number;
-  cpThisMonth: number;   // CP jours du mois consulté, calculé en temps réel côté client
-  refreshKey: number;
-}) {
-  const now  = new Date();
-  const nowY = now.getFullYear(), nowM = now.getMonth() + 1;
-
-  type Summary = { joursCumules: number; joursConsoHisto: number };
-
-  const [config,       setConfig]       = useState<CongesConfig | null>(null);
-  const [summary,      setSummary]      = useState<Summary | null>(null);
-  const [loading,      setLoading]      = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [saving,       setSaving]       = useState(false);
-
-  // Form state
-  const [regle,        setRegle]        = useState<'semaines' | 'jours_par_mois'>('semaines');
-  const [nbSemaines,   setNbSemaines]   = useState(5);
-  const [cycleDebut,   setCycleDebut]   = useState(`${nowY}-09-01`);
-  const [joursParMois, setJoursParMois] = useState(2.5);
-  const [debutSuivi,   setDebutSuivi]   = useState(`${nowY}-01-01`);
-  const [depAnnee,     setDepAnnee]     = useState(nowY);
-  const [depMois,      setDepMois]      = useState(nowM);
-  const [depJousConso, setDepJousConso] = useState(0);
-
-  const fetchData = useCallback(() => {
-    setLoading(true);
-    fetch(`/api/gardes/${gardeId}/conges?annee=${annee}&mois=${mois}`)
-      .then(r => r.json())
-      .then(d => {
-        setConfig(d.config);
-        setSummary(d.summary);
-        if (d.config) populateForm(d.config);
-        setLoading(false);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gardeId, annee, mois, refreshKey]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  function populateForm(c: CongesConfig) {
-    setRegle(c.regle);
-    setNbSemaines(c.nbSemaines ?? 5);
-    setCycleDebut(c.cycleDebut ?? `${nowY}-09-01`);
-    setJoursParMois(c.joursParMois ?? 2.5);
-    setDebutSuivi(c.debutSuivi ?? `${nowY}-01-01`);
-    setDepAnnee(c.decompteDepart?.annee ?? nowY);
-    setDepMois(c.decompteDepart?.mois ?? nowM);
-    setDepJousConso(c.decompteDepart?.jousConso ?? 0);
-  }
-
-  async function sauvegarder() {
-    setSaving(true);
-    const newConfig: CongesConfig = {
-      regle, nbSemaines, cycleDebut, joursParMois, debutSuivi,
-      decompteDepart: { annee: depAnnee, mois: depMois, jousConso: depJousConso },
-    };
-    const res = await fetch(`/api/gardes/${gardeId}/conges`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ config: newConfig }),
-    });
-    if (res.ok) {
-      const d = await fetch(`/api/gardes/${gardeId}/conges?annee=${annee}&mois=${mois}`).then(r => r.json());
-      setConfig(d.config); setSummary(d.summary);
-      setSettingsOpen(false);
-    }
-    setSaving(false);
-  }
-
-  const inp = 'w-full px-2.5 py-1.5 border-[1.5px] border-[var(--line)] rounded-lg text-xs outline-none focus:border-[var(--sage)] bg-white';
-  const total     = summary?.joursCumules   ?? 0;
-  const conso     = Math.round(((summary?.joursConsoHisto ?? 0) + cpThisMonth) * 10) / 10;
-  const reste     = Math.max(0, Math.round((total - conso) * 10) / 10);
-  const consoPct  = total > 0 ? Math.min(100, (conso / total) * 100) : 0;
-  const restePct  = total > 0 ? Math.min(100 - consoPct, (reste / total) * 100) : 0;
-  const moisLabel = MOIS_COURTS_CP[mois - 1];
-
-  return (
-    <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
-        <span className="text-[10px] font-medium text-[var(--dust)] uppercase tracking-wide">🏖 Congés payés</span>
-        <button
-          onClick={() => { if (!settingsOpen && !config) { setSettingsOpen(true); } else setSettingsOpen(s => !s); }}
-          className="text-[var(--dust)] hover:text-[var(--ink)] transition-colors text-sm leading-none"
-          title="Paramètres"
-        >⚙</button>
-      </div>
-
-      {loading ? (
-        <div className="px-4 py-3 text-xs text-[var(--dust)]">Chargement…</div>
-      ) : settingsOpen || !config ? (
-        /* ── Formulaire settings ── */
-        <div className="p-4 space-y-4">
-          <div>
-            <div className="text-[10px] font-semibold text-[var(--dust)] uppercase tracking-wide mb-2">Règle d&apos;acquisition</div>
-            <div className="space-y-2">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input type="radio" name="regle" value="semaines" checked={regle === 'semaines'}
-                  onChange={() => setRegle('semaines')} className="mt-0.5 accent-[var(--sage)]" />
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-[var(--ink)]">Semaines par an</div>
-                  {regle === 'semaines' && (
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input type="number" min={1} max={10} step={0.5} value={nbSemaines}
-                          onChange={e => setNbSemaines(parseFloat(e.target.value) || 5)}
-                          className={inp + ' w-16'} />
-                        <span className="text-xs text-[var(--dust)]">{(nbSemaines * 5).toFixed(0)} j ouvrés/an</span>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-[var(--dust)] block mb-1">Début du cycle CP</label>
-                        <input type="date" value={cycleDebut} onChange={e => setCycleDebut(e.target.value)} className={inp} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </label>
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input type="radio" name="regle" value="jours_par_mois" checked={regle === 'jours_par_mois'}
-                  onChange={() => setRegle('jours_par_mois')} className="mt-0.5 accent-[var(--sage)]" />
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-[var(--ink)]">Jours par mois travaillé</div>
-                  {regle === 'jours_par_mois' && (
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input type="number" min={0.5} max={5} step={0.5} value={joursParMois}
-                          onChange={e => setJoursParMois(parseFloat(e.target.value) || 2.5)}
-                          className={inp + ' w-16'} />
-                        <span className="text-xs text-[var(--dust)]">j/mois</span>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-[var(--dust)] block mb-1">Début du suivi</label>
-                        <input type="date" value={debutSuivi} onChange={e => setDebutSuivi(e.target.value)} className={inp} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[10px] font-semibold text-[var(--dust)] uppercase tracking-wide mb-1">Décompte de départ</div>
-            <p className="text-[10px] text-[var(--dust)] mb-2">Jours déjà consommés à fin du mois de référence.</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-[var(--dust)] block mb-1">Mois de référence</label>
-                <select value={`${depAnnee}-${depMois}`}
-                  onChange={e => { const [y,m] = e.target.value.split('-').map(Number); setDepAnnee(y); setDepMois(m); }}
-                  className={inp}>
-                  {Array.from({ length: 24 }, (_, i) => {
-                    const d = new Date(nowY, nowM - 1 - i, 1);
-                    const y = d.getFullYear(), m = d.getMonth() + 1;
-                    return <option key={i} value={`${y}-${m}`}>{MOIS_COURTS_CP[m-1]} {y}</option>;
-                  })}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-[var(--dust)] block mb-1">Jours consommés</label>
-                <input type="number" min={0} max={100} step={0.5} value={depJousConso}
-                  onChange={e => setDepJousConso(parseFloat(e.target.value) || 0)} className={inp} />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button onClick={sauvegarder} disabled={saving}
-              className="flex-1 py-2 bg-[var(--sage)] text-white rounded-lg text-xs font-medium hover:bg-[#3a5431] transition-colors disabled:opacity-50">
-              {saving ? 'Enregistrement…' : 'Enregistrer'}
-            </button>
-            {config && (
-              <button onClick={() => { populateForm(config); setSettingsOpen(false); }}
-                className="px-3 py-2 border border-[var(--line)] rounded-lg text-xs text-[var(--dust)] hover:border-[var(--ink)] transition-colors">
-                Annuler
-              </button>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* ── Vue résumé avec progress bar ── */
-        <div className="px-4 py-3">
-          {/* Labels */}
-          <div className="flex justify-between items-baseline mb-2">
-            <div className="text-xs">
-              <span className="font-semibold text-orange-500">{conso} j</span>
-              <span className="text-[var(--dust)] ml-1">pris</span>
-            </div>
-            <div className="text-[10px] text-[var(--dust)]">{total} j acquis fin {moisLabel}</div>
-            <div className="text-xs">
-              <span className="font-semibold text-[var(--sage)]">{reste} j</span>
-              <span className="text-[var(--dust)] ml-1">restants</span>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="h-3 rounded-full bg-[var(--paper)] border border-[var(--line)] overflow-hidden flex">
-            <div className="h-full bg-orange-400 transition-all duration-300" style={{ width: `${consoPct}%` }} />
-            <div className="h-full bg-[var(--sage)] transition-all duration-300" style={{ width: `${restePct}%` }} />
-          </div>
-
-          {/* Légende règle */}
-          <div className="mt-2 text-[10px] text-[var(--dust)]">
-            {config.regle === 'semaines'
-              ? `${config.nbSemaines} sem./an · cycle depuis ${config.cycleDebut?.slice(0,7)}`
-              : `${config.joursParMois} j/mois · depuis ${config.debutSuivi?.slice(0,7)}`}
           </div>
         </div>
       )}
