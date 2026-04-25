@@ -50,9 +50,11 @@ export default function MoisPage() {
   const [saving,  setSaving]  = useState(false);
 
   // Panneau gauche — invitation + lien public
-  const [invToken,   setInvToken]   = useState<string | null>(null);
-  const [copiedInv,  setCopiedInv]  = useState(false);
-  const [copiedPub,  setCopiedPub]  = useState(false);
+  const [invToken,    setInvToken]    = useState<string | null>(null);
+  const [copiedInv,   setCopiedInv]   = useState(false);
+  const [copiedPub,   setCopiedPub]   = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
+  const [sharingPub,  setSharingPub]  = useState(false);
 
   // Modal event
   const [modalOpen,  setModalOpen]  = useState(false);
@@ -171,6 +173,23 @@ export default function MoisPage() {
     if (!garde?.publicTokenNounou) return;
     navigator.clipboard.writeText(`${window.location.origin}/public/nounou/${garde.publicTokenNounou}`);
     setCopiedPub(true); setTimeout(() => setCopiedPub(false), 2000);
+  }
+  async function partagerMois() {
+    setSharingPub(true);
+    let token = garde?.publicTokenNounou;
+    if (!token) {
+      const res = await fetch(`/api/gardes/${gardeId}/public-token`, { method: 'POST' });
+      if (res.ok) {
+        const d = await res.json();
+        token = d.token;
+        setGarde(g => g ? { ...g, publicTokenNounou: token! } : g);
+      }
+    }
+    if (token) {
+      navigator.clipboard.writeText(`${window.location.origin}/public/mois/${token}/${annee}/${mois}`);
+      setCopiedShare(true); setTimeout(() => setCopiedShare(false), 2000);
+    }
+    setSharingPub(false);
   }
   async function archiverGarde() {
     if (!confirm('Archiver cette garde ?')) return;
@@ -339,6 +358,15 @@ export default function MoisPage() {
               {copiedPub ? '✓ Lien copié !' : '🔗 Lien nounou'}
             </button>
           )}
+
+          {/* Partager ce mois */}
+          <button
+            onClick={partagerMois}
+            disabled={sharingPub}
+            className="w-full py-2 text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--sage)] transition-colors disabled:opacity-50"
+          >
+            {copiedShare ? '✓ Lien copié !' : sharingPub ? '…' : '↗ Partager ce mois'}
+          </button>
 
           {/* Paramètres + Archiver */}
           <Link href={`/gardes/${gardeId}/settings`}
