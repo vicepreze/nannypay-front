@@ -373,12 +373,12 @@ export function LandingPage() {
                           className={`absolute inset-x-0 top-0 h-7 w-full appearance-none bg-transparent cursor-pointer z-10 demo-slider3${activeOpt !== 'custom' ? ' snap-thumb' : ''}`}
                         />
 
-                        {/* Marqueur A */}
+                        {/* Marqueur A — label au-dessus pour éviter le chevauchement avec B */}
                         <button onClick={() => setRepartA(pProportionnel)}
                           style={{ left: `${posA3}%` }}
-                          className="absolute top-0 -translate-x-1/2 z-20 group flex flex-col items-center">
+                          className="absolute -top-4 -translate-x-1/2 z-20 group flex flex-col items-center">
+                          <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mb-1">Selon les heures</span>
                           <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${activeOpt === 'heures' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--dust)]/50 text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>A</span>
-                          <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mt-1">Selon les heures</span>
                         </button>
 
                         {/* Marqueur B */}
