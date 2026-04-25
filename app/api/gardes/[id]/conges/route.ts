@@ -58,19 +58,24 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const config: CongesConfig | null = garde.congesJson ? JSON.parse(garde.congesJson) : null;
   if (!config) return NextResponse.json({ config: null, summary: null });
 
-  const now = new Date();
-  const nowY = now.getFullYear(), nowM = now.getMonth() + 1;
+  const url   = new URL(_req.url);
+  const qA    = parseInt(url.searchParams.get('annee') ?? '0');
+  const qM    = parseInt(url.searchParams.get('mois')  ?? '0');
+  const now   = new Date();
+  // Pro-rata jusqu'à la fin du mois consulté (ou mois courant si non spécifié)
+  const refY  = qA || now.getFullYear();
+  const refM  = qM || now.getMonth() + 1;
 
   // Jours cumulés depuis le début du cycle / du suivi
   let joursCumules = 0;
   if (config.regle === 'semaines' && config.cycleDebut) {
     const [cy, cm] = config.cycleDebut.split('-').map(Number);
     const total   = (config.nbSemaines ?? 5) * 5;
-    const elapsed = Math.max(1, monthN(nowY, nowM) - monthN(cy, cm) + 1);
+    const elapsed = Math.max(1, monthN(refY, refM) - monthN(cy, cm) + 1);
     joursCumules  = Math.min(total, elapsed * (total / 12));
   } else if (config.regle === 'jours_par_mois' && config.debutSuivi) {
     const [sy, sm] = config.debutSuivi.split('-').map(Number);
-    const elapsed  = Math.max(1, monthN(nowY, nowM) - monthN(sy, sm) + 1);
+    const elapsed  = Math.max(1, monthN(refY, refM) - monthN(sy, sm) + 1);
     joursCumules   = elapsed * (config.joursParMois ?? 2.5);
   }
 
