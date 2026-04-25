@@ -79,24 +79,23 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     joursCumules   = elapsed * (config.joursParMois ?? 2.5);
   }
 
-  // Jours CP depuis le mois de décompte (exclu) jusqu'à maintenant
+  // Jours CP historiques : après le décompte ET strictement avant le mois consulté
+  // Le mois consulté est ajouté côté client (depuis evts en temps réel)
   const dep = config.decompteDepart;
-  let joursConsoSinceDepart = 0;
+  let joursConsoHisto = 0;
   for (const moisRec of garde.mois) {
-    if (monthN(moisRec.annee, moisRec.mois) > monthN(dep.annee, dep.mois)) {
+    const mn = monthN(moisRec.annee, moisRec.mois);
+    if (mn > monthN(dep.annee, dep.mois) && mn < monthN(refY, refM)) {
       const evts = JSON.parse(moisRec.evenementsJson || '[]');
-      joursConsoSinceDepart += cpDaysInMonth(evts, moisRec.annee, moisRec.mois);
+      joursConsoHisto += cpDaysInMonth(evts, moisRec.annee, moisRec.mois);
     }
   }
-  const joursConsoTotal = dep.jousConso + joursConsoSinceDepart;
-  const joursRestants   = Math.max(0, joursCumules - joursConsoTotal);
 
   return NextResponse.json({
     config,
     summary: {
-      joursCumules:   Math.round(joursCumules   * 10) / 10,
-      joursConsoTotal: Math.round(joursConsoTotal * 10) / 10,
-      joursRestants:  Math.round(joursRestants   * 10) / 10,
+      joursCumules:    Math.round(joursCumules                      * 10) / 10,
+      joursConsoHisto: Math.round((dep.jousConso + joursConsoHisto) * 10) / 10,
     },
   });
 }

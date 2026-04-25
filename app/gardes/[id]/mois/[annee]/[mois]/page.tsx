@@ -421,7 +421,7 @@ export default function MoisPage() {
 
             {/* Congés payés — sous le calendrier */}
             <div className="mt-3">
-              <CongesCard gardeId={gardeId} annee={annee} mois={mois} refreshKey={evtsSaveCount} />
+              <CongesCard gardeId={gardeId} annee={annee} mois={mois} cpThisMonth={result?.joursAbsCP ?? 0} refreshKey={evtsSaveCount} />
             </div>
           </div>
 
@@ -585,16 +585,17 @@ function ValidLine({ label, done }: { label: string; done: boolean }) {
 // ── CARTE CONGÉS PAYÉS ─────────────────────────────────────────────
 const MOIS_COURTS_CP = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 
-function CongesCard({ gardeId, annee, mois, refreshKey }: {
+function CongesCard({ gardeId, annee, mois, cpThisMonth, refreshKey }: {
   gardeId: string;
   annee: number;
   mois: number;
+  cpThisMonth: number;   // CP jours du mois consulté, calculé en temps réel côté client
   refreshKey: number;
 }) {
   const now  = new Date();
   const nowY = now.getFullYear(), nowM = now.getMonth() + 1;
 
-  type Summary = { joursCumules: number; joursConsoTotal: number; joursRestants: number };
+  type Summary = { joursCumules: number; joursConsoHisto: number };
 
   const [config,       setConfig]       = useState<CongesConfig | null>(null);
   const [summary,      setSummary]      = useState<Summary | null>(null);
@@ -659,8 +660,8 @@ function CongesCard({ gardeId, annee, mois, refreshKey }: {
 
   const inp = 'w-full px-2.5 py-1.5 border-[1.5px] border-[var(--line)] rounded-lg text-xs outline-none focus:border-[var(--sage)] bg-white';
   const total     = summary?.joursCumules   ?? 0;
-  const conso     = summary?.joursConsoTotal ?? 0;
-  const reste     = summary?.joursRestants  ?? 0;
+  const conso     = Math.round(((summary?.joursConsoHisto ?? 0) + cpThisMonth) * 10) / 10;
+  const reste     = Math.max(0, Math.round((total - conso) * 10) / 10);
   const consoPct  = total > 0 ? Math.min(100, (conso / total) * 100) : 0;
   const restePct  = total > 0 ? Math.min(100 - consoPct, (reste / total) * 100) : 0;
   const moisLabel = MOIS_COURTS_CP[mois - 1];
