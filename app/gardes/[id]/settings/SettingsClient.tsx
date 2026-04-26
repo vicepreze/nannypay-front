@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SignOutButton } from '@/components/SignOutButton';
-import { calcBModeRepartition, calcEquitableRatioA, K_SAL, K_PAT } from '@/lib/calcul';
+import { calcBModeRepartition, calcEquitableRatioA, K_SAL, K_PAT, K_TOTAL } from '@/lib/calcul';
 
 type Tab = 'acteurs' | 'planning' | 'paie';
 
@@ -333,14 +333,21 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                       <AidesColumn label={nomB || 'Famille B'} a={aB} setA={setAB} total={aidesBMens} />
                     </div>
 
-                    {salNetTotalMens > 0 && (aidesAMens > 0 || aidesBMens > 0) && (
-                      <div className="m-5 p-4 rounded-[var(--radius)] bg-[var(--sage-light)] text-xs text-[var(--ink)] leading-relaxed">
-                        💡 <strong>Suggestion :</strong> Pour que le RAC de chaque famille soit proportionnel à sa part d&apos;heures ({(pProportionnel * 100).toFixed(1)} % / {((1-pProportionnel) * 100).toFixed(1)} %), placez le slider sur <strong>{(pEquitable * 100).toFixed(1)} %</strong> (marqueur <em>Équitable RAC</em>).
-                      </div>
-                    )}
                   </>
                 )}
               </div>
+
+              {racOption && salNetTotalMens > 0 && (
+                <CalcDetaille
+                  nomA={nomA || 'Famille A'}
+                  nomB={nomB || 'Famille B'}
+                  salNetTotalMens={salNetTotalMens}
+                  pProportionnel={pProportionnel}
+                  pEquitable={pEquitable}
+                  aidesA={aidesAMens}
+                  aidesB={aidesBMens}
+                />
+              )}
 
               <div className="flex justify-end">
                 <Btn onClick={savePaie} disabled={saving} label={saveLabel} />
@@ -480,6 +487,107 @@ function Line({ l, v, bold }: { l: string; v: string; bold?: boolean }) {
     <div className="flex justify-between">
       <span className="text-[var(--dust)]">{l}</span>
       <span className={`font-mono ${bold ? 'font-semibold' : ''}`}>{v}</span>
+    </div>
+  );
+}
+
+function CalcDetaille({ nomA, nomB, salNetTotalMens, pProportionnel, pEquitable, aidesA, aidesB }: {
+  nomA: string; nomB: string;
+  salNetTotalMens: number;
+  pProportionnel: number; pEquitable: number;
+  aidesA: number; aidesB: number;
+}) {
+  const RAC_MIN = 0.15;
+
+  // ── Valeurs classiques (proportionnelles aux heures) ──
+  const salNetA_prop = Math.round(pProportionnel * salNetTotalMens);
+  const salNetB_prop = Math.round((1 - pProportionnel) * salNetTotalMens);
+  const brutA        = Math.round(salNetA_prop / 0.7812);
+  const brutB        = Math.round(salNetB_prop / 0.7812);
+  const cotisA       = Math.round(salNetA_prop * (K_SAL + K_PAT));
+  const cotisB       = Math.round(salNetB_prop * (K_SAL + K_PAT));
+  const coutA_prop   = salNetA_prop * K_TOTAL;
+  const coutB_prop   = salNetB_prop * K_TOTAL;
+  const racA_prop    = Math.round(Math.max(coutA_prop - aidesA, RAC_MIN * coutA_prop));
+  const racB_prop    = Math.round(Math.max(coutB_prop - aidesB, RAC_MIN * coutB_prop));
+
+  // ── Valeurs optimisées (RAC équitable) ──
+  const salNetA_eq = Math.round(pEquitable * salNetTotalMens);
+  const salNetB_eq = Math.round((1 - pEquitable) * salNetTotalMens);
+  const coutA_eq   = salNetA_eq * K_TOTAL;
+  const coutB_eq   = salNetB_eq * K_TOTAL;
+  const racA_eq    = Math.round(Math.max(coutA_eq - aidesA, RAC_MIN * coutA_eq));
+  const racB_eq    = Math.round(Math.max(coutB_eq - aidesB, RAC_MIN * coutB_eq));
+
+  const aidesAr = Math.round(aidesA);
+  const aidesBr = Math.round(aidesB);
+
+  return (
+    <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
+      <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] text-sm font-semibold text-[var(--ink)]">
+        Détail du calcul — Avant / Après optimisation RAC
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-[var(--line)] bg-[var(--paper)]">
+              <th className="px-4 py-2.5 text-left font-medium text-[var(--dust)]">Intitulé</th>
+              <th className="px-4 py-2.5 text-right font-semibold text-[var(--sage)] w-28">{nomA}</th>
+              <th className="px-4 py-2.5 text-right font-semibold text-blue-600 w-28">{nomB}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-[var(--line)]">
+              <td className="px-4 py-2.5 text-[var(--ink)]">Salaire net classique (au réel/prorata)</td>
+              <td className="px-4 py-2.5 text-right font-mono text-[var(--sage)]">{salNetA_prop} €</td>
+              <td className="px-4 py-2.5 text-right font-mono text-blue-600">{salNetB_prop} €</td>
+            </tr>
+            <tr className="border-b border-[var(--line)] bg-[var(--paper)]">
+              <td className="px-4 py-2.5 text-[var(--ink)]">Salaire brut équivalent</td>
+              <td className="px-4 py-2.5 text-right font-mono text-[var(--sage)]">{brutA} €</td>
+              <td className="px-4 py-2.5 text-right font-mono text-blue-600">{brutB} €</td>
+            </tr>
+            <tr className="border-b border-[var(--line)]">
+              <td className="px-4 py-2.5 text-[var(--ink)]">Cotisations Urssaf (Patronales &amp; Salariales)</td>
+              <td className="px-4 py-2.5 text-right font-mono text-[var(--sage)]">{cotisA} €</td>
+              <td className="px-4 py-2.5 text-right font-mono text-blue-600">{cotisB} €</td>
+            </tr>
+            <tr className="border-b border-[var(--line)] bg-[var(--paper)]">
+              <td className="px-4 py-2.5 text-[var(--ink)]">Aides déduites (CMG CAF + Mairie)</td>
+              <td className="px-4 py-2.5 text-right font-mono text-[var(--sage)]">− {aidesAr} €</td>
+              <td className="px-4 py-2.5 text-right font-mono text-blue-600">− {aidesBr} €</td>
+            </tr>
+            <tr className="border-b-2 border-[var(--line)]">
+              <td className="px-4 py-2.5 font-semibold text-[var(--ink)]">Reste à charge classique (Avant optimisation)</td>
+              <td className="px-4 py-2.5 text-right font-mono font-semibold text-[var(--sage)]">{racA_prop} €</td>
+              <td className="px-4 py-2.5 text-right font-mono font-semibold text-blue-600">{racB_prop} €</td>
+            </tr>
+
+            {/* Séparateur */}
+            <tr className="border-b border-[var(--line)] bg-[var(--paper)]">
+              <td colSpan={3} className="px-4 py-2 text-[10px] text-[var(--dust)] tracking-wide uppercase">
+                Après optimisation équitable
+              </td>
+            </tr>
+
+            <tr className="border-b border-[var(--line)] bg-[var(--sage-light)]">
+              <td className="px-4 py-3 text-[var(--ink)]">✨ Nouveau salaire net à verser</td>
+              <td className="px-4 py-3 text-right font-mono font-bold text-[var(--sage)]">{salNetA_eq} €</td>
+              <td className="px-4 py-3 text-right font-mono font-bold text-blue-600">{salNetB_eq} €</td>
+            </tr>
+            <tr className="border-b border-[var(--line)] bg-[var(--sage-light)]">
+              <td className="px-4 py-3 text-[var(--ink)]">Nouvelle répartition du salaire</td>
+              <td className="px-4 py-3 text-right font-mono font-bold text-[var(--sage)]">{Math.round(pEquitable * 100)} %</td>
+              <td className="px-4 py-3 text-right font-mono font-bold text-blue-600">{Math.round((1 - pEquitable) * 100)} %</td>
+            </tr>
+            <tr className="bg-[var(--sage-light)]">
+              <td className="px-4 py-3 font-bold text-[var(--ink)]">🎯 Nouveau Reste à charge équitable</td>
+              <td className="px-4 py-3 text-right font-mono font-bold text-[var(--sage)] text-sm">{racA_eq} €</td>
+              <td className="px-4 py-3 text-right font-mono font-bold text-blue-600 text-sm">{racB_eq} €</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
