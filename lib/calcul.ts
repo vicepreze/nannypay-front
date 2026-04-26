@@ -193,9 +193,34 @@ export function calcEquitableRatioA(
   aidesBMens:   number,   // total aides mensuelles famille B
 ): number {
   if (salNetTotal <= 0) return ratioA;
-  const ratioB = 1 - ratioA;
-  const p = ratioA + (aidesAMens * ratioB - aidesBMens * ratioA) / (salNetTotal * K_TOTAL);
-  return Math.min(1, Math.max(0, Math.round(p * 10000) / 10000));
+
+  // Règle CAF : le RAC de chaque famille ne peut pas descendre
+  // sous 15 % du coût employeur total qui lui est imputé.
+  const RAC_MIN_RATIO = 0.15;
+
+  let bestPercent = ratioA;
+  let bestDiff    = Infinity;
+
+  for (let i = 10; i <= 990; i++) {
+    const pA = i / 1000;
+    const salNetA = salNetTotal * pA;
+    const salNetB = salNetTotal * (1 - pA);
+
+    const coutA = salNetA * K_TOTAL;   // salNet + charges sal + charges pat
+    const coutB = salNetB * K_TOTAL;
+
+    // RAC brut = coût total - aides, plancher à 15 % du coût
+    const racA = Math.max(coutA - aidesAMens, RAC_MIN_RATIO * coutA);
+    const racB = Math.max(coutB - aidesBMens, RAC_MIN_RATIO * coutB);
+
+    const diff = Math.abs(racA / (racA + racB) - ratioA);
+    if (diff < bestDiff) {
+      bestDiff    = diff;
+      bestPercent = pA;
+    }
+  }
+
+  return bestPercent;
 }
 
 function unionMin(intervals: { s: number; e: number }[]): number {
