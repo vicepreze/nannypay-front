@@ -11,11 +11,8 @@ export default function ActeursPage() {
   const router = useRouter();
 
   const [nounouPrenom, setNounouPrenom] = useState('');
-  const [nounouEmail,  setNounouEmail]  = useState('');
   const [famANom,  setFamANom]  = useState('');
-  const [famAEmail, setFamAEmail] = useState('');
   const [famBNom,  setFamBNom]  = useState('');
-  const [famBEmail, setFamBEmail] = useState('');
   const [enfants, setEnfants]   = useState<Enfant[]>([
     { prenom: '', fam: 'A' },
     { prenom: '', fam: 'B' },
@@ -28,11 +25,8 @@ export default function ActeursPage() {
     if (!saved) return;
     const d = JSON.parse(saved);
     setNounouPrenom(d.nounouPrenom ?? '');
-    setNounouEmail(d.nounouEmail ?? '');
     setFamANom(d.famANom ?? '');
-    setFamAEmail(d.famAEmail ?? '');
     setFamBNom(d.famBNom ?? '');
-    setFamBEmail(d.famBEmail ?? '');
     setEnfants(d.enfants ?? [{ prenom: '', fam: 'A' }, { prenom: '', fam: 'B' }]);
   }, []);
 
@@ -54,7 +48,7 @@ export default function ActeursPage() {
     if (enfantsValides.length < 2) { setError('Au moins 2 enfants sont requis.'); return; }
 
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-      nounouPrenom, nounouEmail, famANom, famAEmail, famBNom, famBEmail,
+      nounouPrenom, famANom, famBNom,
       enfants: enfantsValides,
     }));
     router.push('/nouvelle-garde/planning');
@@ -68,18 +62,12 @@ export default function ActeursPage() {
         <Field label="Prénom" required>
           <input className={input} value={nounouPrenom} onChange={e => setNounouPrenom(e.target.value)} placeholder="Marie" />
         </Field>
-        <Field label="Email" hint="Pour lui envoyer les récapitulatifs">
-          <input className={input} type="email" value={nounouEmail} onChange={e => setNounouEmail(e.target.value)} placeholder="marie@exemple.fr" />
-        </Field>
       </Card>
 
       {/* Famille A */}
       <Card title="Famille A" accent="blue">
         <Field label="Nom de famille" required>
           <input className={input} value={famANom} onChange={e => setFamANom(e.target.value)} placeholder="Dupont" />
-        </Field>
-        <Field label="Email">
-          <input className={input} type="email" value={famAEmail} onChange={e => setFamAEmail(e.target.value)} placeholder="dupont@exemple.fr" />
         </Field>
       </Card>
 
@@ -90,9 +78,6 @@ export default function ActeursPage() {
         </p>
         <Field label="Nom de famille" hint="Optionnel — vous pourrez le modifier plus tard">
           <input className={input} value={famBNom} onChange={e => setFamBNom(e.target.value)} placeholder="Martin" />
-        </Field>
-        <Field label="Email">
-          <input className={input} type="email" value={famBEmail} onChange={e => setFamBEmail(e.target.value)} placeholder="martin@exemple.fr" />
         </Field>
       </Card>
 

@@ -30,7 +30,6 @@ export default async function SettingsPage({ params }: Props) {
       famA={{
         id:           famA?.id ?? '',
         nomAffiche:   famA?.nomAffiche ?? '',
-        emailContact: famA?.emailContact ?? '',
         cmgCotisations:    famA?.cmgCotisations    ?? 0,
         cmgRemuneration:   famA?.cmgRemuneration   ?? 0,
         abattementCharges: famA?.abattementCharges ?? 0,
@@ -40,14 +39,13 @@ export default async function SettingsPage({ params }: Props) {
       famB={{
         id:           famB?.id ?? '',
         nomAffiche:   famB?.nomAffiche ?? '',
-        emailContact: famB?.emailContact ?? '',
         cmgCotisations:    famB?.cmgCotisations    ?? 0,
         cmgRemuneration:   famB?.cmgRemuneration   ?? 0,
         abattementCharges: famB?.abattementCharges ?? 0,
         aideVille:         famB?.aideVille         ?? 0,
         creditImpot:       famB?.creditImpot       ?? 0,
       }}
-      nounou={garde.nounou ? { prenom: garde.nounou.prenom, nom: garde.nounou.nom ?? '', email: garde.nounou.email ?? '' } : null}
+      nounou={garde.nounou ? { prenom: garde.nounou.prenom, nom: garde.nounou.nom ?? '' } : null}
       modele={garde.modele ? {
         tauxHoraireNet:    garde.modele.tauxHoraireNet,
         hNormalesSemaine:  garde.modele.hNormalesSemaine,

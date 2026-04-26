@@ -17,7 +17,7 @@ type Aides = {
 };
 
 type FamProps = {
-  id: string; nomAffiche: string; emailContact: string;
+  id: string; nomAffiche: string;
 } & Aides;
 
 type Props = {
@@ -26,7 +26,7 @@ type Props = {
   moisUrl: string;
   famA: FamProps;
   famB: FamProps;
-  nounou: { prenom: string; nom: string; email: string } | null;
+  nounou: { prenom: string; nom: string } | null;
   modele: {
     tauxHoraireNet:    number;
     hNormalesSemaine:  number;
