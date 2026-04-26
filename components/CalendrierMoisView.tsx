@@ -233,11 +233,11 @@ function ResultCard({ label, nom, r, racOptionActive }: {
       {racOptionActive && (
         <>
           <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
-            <span>Charges salariales (21,88 %)</span>
+            <span>Charges salariales (21,88 % du brut)</span>
             <span className="font-medium font-mono">{r.chargesSalariales.toFixed(2)} €</span>
           </div>
           <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
-            <span>Charges patronales (44,70 %)</span>
+            <span>Charges patronales (44,70 % du brut)</span>
             <span className="font-medium font-mono">{r.chargesPatronales.toFixed(2)} €</span>
           </div>
           <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
