@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SignOutButton } from '@/components/SignOutButton';
-import { calcBModeRepartition, calcEquitableRatioA, K_SAL, K_PAT } from '@/lib/calcul';
+import { calcBModeRepartition, calcEquitableRatioA, calcHeuresSemaineFromPlanning, K_SAL, K_PAT } from '@/lib/calcul';
 
 type Tab = 'acteurs' | 'planning' | 'paie';
 
@@ -105,6 +105,16 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   const pEquitable = useMemo(
     () => calcEquitableRatioA(pProportionnel, salNetTotalMens, aidesAMens, aidesBMens),
     [pProportionnel, salNetTotalMens, aidesAMens, aidesBMens]
+  );
+
+  const joursActifsParSemaine = useMemo(() => {
+    try { return calcHeuresSemaineFromPlanning(modele?.joursJson ?? '{}').joursActifsParSemaine; }
+    catch { return 0; }
+  }, [modele?.joursJson]);
+
+  const entretienMensuel = useMemo(
+    () => Math.round(joursActifsParSemaine * 52 / 12 * entretien),
+    [joursActifsParSemaine, entretien]
   );
 
   const preview = useMemo(() => {
@@ -289,18 +299,16 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                       percent={repartA}
                       color="sage"
                       salNet={preview.salNetA}
-                      chSal={preview.chSalA} chPat={preview.chPatA}
-                      aides={aidesAMens} rac={preview.racA}
-                      racOption={racOption}
+                      navigoFam={Math.round(navigo / 2)}
+                      entretienFam={Math.round(entretienMensuel / 2)}
                     />
                     <FamPreview
                       label={nomB || 'Famille B'}
                       percent={1 - repartA}
                       color="blue"
                       salNet={preview.salNetB}
-                      chSal={preview.chSalB} chPat={preview.chPatB}
-                      aides={aidesBMens} rac={preview.racB}
-                      racOption={racOption}
+                      navigoFam={Math.round(navigo / 2)}
+                      entretienFam={Math.round(entretienMensuel / 2)}
                     />
                   </div>
 
@@ -341,6 +349,20 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                   </>
                 )}
               </div>
+
+              {racOption && salNetTotalMens > 0 && (
+                <CalcDetaille
+                  nomA={nomA || 'Famille A'}
+                  nomB={nomB || 'Famille B'}
+                  salNetTotalMens={salNetTotalMens}
+                  pProportionnel={pProportionnel}
+                  pEquitable={pEquitable}
+                  navigoFam={Math.round(navigo / 2)}
+                  entretienFam={Math.round(entretienMensuel / 2)}
+                  aidesA={Math.round(aidesAMens)}
+                  aidesB={Math.round(aidesBMens)}
+                />
+              )}
 
               <div className="flex justify-end">
                 <Btn onClick={savePaie} disabled={saving} label={saveLabel} />
@@ -444,42 +466,87 @@ function SliderRow({ value, onChange, min, max, markers, pct }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, chSal, chPat, aides, rac, racOption }: {
+function FamPreview({ label, percent, color, salNet, navigoFam, entretienFam }: {
   label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; chSal: number; chPat: number; aides: number; rac: number;
-  racOption: boolean;
+  salNet: number; navigoFam: number; entretienFam: number;
 }) {
-  const bg   = color === 'sage' ? 'bg-[var(--sage-light)]'      : 'bg-blue-50';
-  const text = color === 'sage' ? 'text-[var(--sage)]'          : 'text-blue-700';
+  const salNetR = Math.round(salNet);
+  const total   = salNetR + navigoFam + entretienFam;
+  const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
+  const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
+  const parts = [
+    `${salNetR} € salaire`,
+    ...(navigoFam > 0   ? [`${navigoFam} € transport`]  : []),
+    ...(entretienFam > 0 ? [`${entretienFam} € entretien`] : []),
+  ].join(' + ');
   return (
     <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
       <div className="flex items-center justify-between mb-2">
         <span className={`text-sm font-semibold ${text}`}>{label}</span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{Math.round(percent * 100)} %</span>
       </div>
-      <div className="text-[11px] text-[var(--dust)]">Salaire net à verser</div>
-      <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
-
-      {racOption && (
-        <div className="mt-3 pt-3 border-t border-white/70 text-xs space-y-1">
-          <Line l="Charges salariales (21,88 %)" v={`${chSal.toFixed(2)} €`} />
-          <Line l="Charges patronales (44,70 %)" v={`${chPat.toFixed(2)} €`} />
-          <Line l="Total aides CAF" v={`− ${aides.toFixed(2)} €`} bold />
-          <div className="flex justify-between pt-1 border-t border-white/70 font-semibold">
-            <span>Reste à charge estimé</span>
-            <span>{rac.toFixed(2)} €</span>
-          </div>
-        </div>
-      )}
+      <div className="text-[11px] text-[var(--dust)] mb-0.5">Total à verser</div>
+      <div className={`text-xl font-bold ${text}`}>{total} €</div>
+      <div className="text-[10px] text-[var(--dust)] mt-1 leading-relaxed">{parts}</div>
     </div>
   );
 }
 
-function Line({ l, v, bold }: { l: string; v: string; bold?: boolean }) {
+function CalcDetaille({ nomA, nomB, salNetTotalMens, pProportionnel, pEquitable, navigoFam, entretienFam, aidesA, aidesB }: {
+  nomA: string; nomB: string;
+  salNetTotalMens: number;
+  pProportionnel: number; pEquitable: number;
+  navigoFam: number; entretienFam: number;
+  aidesA: number; aidesB: number;
+}) {
+  const salNetA_prop = Math.round(pProportionnel * salNetTotalMens);
+  const salNetB_prop = Math.round((1 - pProportionnel) * salNetTotalMens);
+  const brutA  = Math.round(salNetA_prop / 0.7812);
+  const brutB  = Math.round(salNetB_prop / 0.7812);
+  const chSalA = Math.round(salNetA_prop * K_SAL);
+  const chSalB = Math.round(salNetB_prop * K_SAL);
+  const chPatA = Math.round(salNetA_prop * K_PAT);
+  const chPatB = Math.round(salNetB_prop * K_PAT);
+  const salNetA_eq = Math.round(pEquitable * salNetTotalMens);
+  const salNetB_eq = Math.round((1 - pEquitable) * salNetTotalMens);
+
+  const rows: [string, string, string, boolean][] = [
+    ['Répartition du salaire en fonction des heures par enfant', `${salNetA_prop} €`, `${salNetB_prop} €`, false],
+    ['Salaire brut', `${brutA} €`, `${brutB} €`, false],
+    ['Charges salariales (21,88 % du brut)', `${chSalA} €`, `${chSalB} €`, false],
+    ['Charges patronales (44,70 % du brut)', `${chPatA} €`, `${chPatB} €`, false],
+    ['Transport (50 %)', `${navigoFam} €`, `${navigoFam} €`, false],
+    ['Indemnité entretien (50 %)', `${entretienFam} €`, `${entretienFam} €`, false],
+    ['Aides', `− ${aidesA} €`, `− ${aidesB} €`, false],
+    ['Nouveau salaire à verser (RAC équitable)', `${salNetA_eq} €`, `${salNetB_eq} €`, true],
+    ['Nouveau % de répartition', `${Math.round(pEquitable * 100)} %`, `${Math.round((1 - pEquitable) * 100)} %`, true],
+  ];
+
   return (
-    <div className="flex justify-between">
-      <span className="text-[var(--dust)]">{l}</span>
-      <span className={`font-mono ${bold ? 'font-semibold' : ''}`}>{v}</span>
+    <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
+      <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] text-sm font-semibold text-[var(--ink)]">
+        Calcul détaillé — Reste à charge équitable
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-[var(--line)] bg-[var(--paper)]">
+              <th className="px-4 py-2 text-left font-medium text-[var(--dust)]">Intitulé</th>
+              <th className="px-4 py-2 text-right font-medium text-[var(--sage)] w-28">{nomA}</th>
+              <th className="px-4 py-2 text-right font-medium text-blue-600 w-28">{nomB}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, valA, valB, highlight], i) => (
+              <tr key={i} className={`border-b border-[var(--line)] ${highlight ? 'bg-[var(--sage-light)]' : i % 2 === 1 ? 'bg-[var(--paper)]' : ''}`}>
+                <td className={`px-4 py-2.5 text-[var(--ink)] ${highlight ? 'font-semibold' : ''}`}>{label}</td>
+                <td className={`px-4 py-2.5 text-right font-mono text-[var(--sage)] ${highlight ? 'font-bold' : ''}`}>{valA}</td>
+                <td className={`px-4 py-2.5 text-right font-mono text-blue-600 ${highlight ? 'font-bold' : ''}`}>{valB}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
