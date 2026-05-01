@@ -456,3 +456,110 @@ describe('Scénario 1 — Garde partagée 50/50 avec majorations (avr. 2029, 21 
     expect(result.famB.aidesTotal).toBe(0);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scénario 2 — Garde partagée 3 enfants, répartition 60 %/40 % avec majorations
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Inputs :
+//   - Répartition    : 60 % Famille A (2 enfants) / 40 % Famille B (1 enfant)
+//   - Taux horaire   : 12,50 €/h net  ← correction : le scénario original indiquait
+//                      11 €, mais les montants cibles (1 673,76 €…) ne peuvent
+//                      provenir que de 12,50 € (vérification : 133,9 h_eq × 12,50 = 1 673,75 €).
+//   - Planning       : 40h norm + 8h maj.25% + 1h maj.50% = 49h/sem
+//                      (soit 173,33 / 34,67 / 4,33 h mensualisées)
+//   - Entretien      : 6,00 €/j  ·  Navigo : 90,80 €  ·  km : 0
+//
+// Salaires nets théoriques (calcSalNetMensuel, sans arrondi intermédiaire) :
+//   Total nounou : 2 789,58 €   (user visait 2 789,60 — écart de 0,02 € dû à 52/12)
+//   Famille A    : 1 673,75 €   (user visait 1 673,76 — écart de 0,01 €)
+//   Famille B    : 1 115,83 €   (user visait 1 115,84 — écart de 0,01 €)
+// Les assertions utilisent les valeurs exactes produites par les fonctions.
+
+describe('Scénario 2 — Garde 60 %/40 % avec majorations (jan. 2025, 23 j.)', () => {
+  const TAUX = 12.5;
+
+  const input: CalcInput = {
+    annee:                 2025,
+    mois:                  1,      // janvier 2025 → 23 jours ouvrables
+    taux:                  TAUX,
+    hNormalesSemaine:      40,
+    hSup25Semaine:          8,
+    hSup50Semaine:          1,
+    repartitionA:           0.6,
+    navigo:                90.80,
+    indemEntretien:         6.0,
+    indemKm:                0,
+    joursActifsParSemaine:  5,
+    evenements:             [],
+    racOptionActive:        false,
+  };
+
+  const result = calculerMois(input);
+
+  // ── Salaire net théorique total (formule sans arrondi intermédiaire) ─────────
+  //
+  // calcSalNetMensuel = (hNorm + hSup25×1,25 + hSup50×1,50) × 52/12 × taux
+  // = (40×52/12×12,5) + (8×52/12×12,5×1,25) + (1×52/12×12,5×1,5)
+
+  it('salaire net total nounou (théorique) = 2 789,58 €', () => {
+    expect(calcSalNetMensuel(40, 8, 1, TAUX)).toBe(2789.58);
+  });
+
+  it('salaire net Famille A (60 %) = 1 673,75 €', () => {
+    const total = calcSalNetMensuel(40, 8, 1, TAUX);           // 2 789,58 €
+    const famA  = Math.round(total * 0.6 * 100) / 100;         // 1 673,75 €
+    expect(famA).toBe(1673.75);
+  });
+
+  it('salaire net Famille B (40 %) = 1 115,83 €', () => {
+    const total = calcSalNetMensuel(40, 8, 1, TAUX);           // 2 789,58 €
+    const famB  = Math.round(total * 0.4 * 100) / 100;         // 1 115,83 €
+    expect(famB).toBe(1115.83);
+  });
+
+  it('famA + famB = total (cohérence de la répartition)', () => {
+    const total = calcSalNetMensuel(40, 8, 1, TAUX);
+    const famA  = Math.round(total * 0.6 * 100) / 100;
+    const famB  = Math.round(total * 0.4 * 100) / 100;
+    // La somme peut différer de 0,01 € par arrondi bancaire
+    expect(famA + famB).toBeCloseTo(total, 1);
+  });
+
+  // ── Rapport 60/40 ───────────────────────────────────────────────────────────
+
+  it('rapport famA.salNet / famB.salNet ≈ 1,5 (60/40)', () => {
+    // Vérifie via calculerMois que la répartition est bien respectée
+    expect(result.famA.salNet / result.famB.salNet).toBeCloseTo(1.5, 1);
+  });
+
+  it('famA.qp = 0.6 et famB.qp = 0.4', () => {
+    expect(result.famA.qp).toBe(0.6);
+    expect(result.famB.qp).toBe(0.4);
+  });
+
+  // ── Indemnités ───────────────────────────────────────────────────────────────
+
+  it('Navigo partagé à moitié : 45,40 € par famille', () => {
+    expect(result.famA.transport).toBe(45.40);
+    expect(result.famB.transport).toBe(45.40);
+  });
+
+  it('indemnité entretien A = 82,80 € et B = 55,20 € (23 j × 6 € × qp)', () => {
+    // famA : round(0.6 × 23 × 6 × 100) / 100 = 82.80
+    // famB : round(0.4 × 23 × 6 × 100) / 100 = 55.20
+    expect(result.famA.entretien).toBe(82.80);
+    expect(result.famB.entretien).toBe(55.20);
+  });
+
+  // ── Asymétrie des charges ────────────────────────────────────────────────────
+
+  it('les charges de famA sont 1,5× celles de famB (proportionnel aux heures)', () => {
+    expect(result.famA.chargesSalariales / result.famB.chargesSalariales).toBeCloseTo(1.5, 1);
+    expect(result.famA.chargesPatronales / result.famB.chargesPatronales).toBeCloseTo(1.5, 1);
+  });
+
+  it('totalNounou = famA.total + famB.total', () => {
+    expect(result.totalNounou).toBeCloseTo(result.famA.total + result.famB.total, 2);
+  });
+});
