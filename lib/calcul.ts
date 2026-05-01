@@ -198,6 +198,23 @@ export function calcEquitableRatioA(
   return Math.min(1, Math.max(0, Math.round(p * 10000) / 10000));
 }
 
+/**
+ * Salaire net mensuel total (pour la nounou complète), sans arrondi intermédiaire
+ * sur les heures mensualisées. Correspond à `salNetTotalMens` affiché dans l'interface.
+ * À diviser par la répartition (qp) pour obtenir la part par famille.
+ */
+export function calcSalNetMensuel(
+  hNorm:  number,
+  hSup25: number,
+  hSup50: number,
+  taux:   number,
+): number {
+  const base  = hNorm  * (52 / 12) * taux;
+  const sup25 = hSup25 * (52 / 12) * taux * 1.25;
+  const sup50 = hSup50 * (52 / 12) * taux * 1.50;
+  return Math.round((base + sup25 + sup50) * 100) / 100;
+}
+
 function unionMin(intervals: { s: number; e: number }[]): number {
   if (!intervals.length) return 0;
   const sorted = [...intervals].sort((a, b) => a.s - b.s);
