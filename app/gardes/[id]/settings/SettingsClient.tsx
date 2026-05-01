@@ -48,6 +48,16 @@ function totalAidesMens(a: Aides): number {
   ) / 100;
 }
 
+// Aides appliquées silencieusement au 1er clic sur le toggle RAC
+// (CMG standard + crédit d'impôt typique). Modifiables via "Affiner".
+const DEFAULT_AIDES: Aides = {
+  cmgCotisations:    319,
+  cmgRemuneration:   0,
+  abattementCharges: 0,
+  aideVille:         0,
+  creditImpot:       2300,   // annuel → 191,67 €/mois
+};
+
 export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou, modele, enfants }: Props) {
   const router = useRouter();
   const [tab, setTab]       = useState<Tab>('acteurs');
@@ -69,8 +79,9 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   const [km,        setKm]        = useState(modele?.indemKm         ?? 0);
   const [entretien, setEntretien] = useState(modele?.indemEntretien  ?? 0);
 
-  const [repartA,   setRepartA]   = useState(modele?.repartitionA    ?? 0.5);
-  const [racOption, setRacOption] = useState(modele?.racOptionActive ?? false);
+  const [repartA,          setRepartA]          = useState(modele?.repartitionA    ?? 0.5);
+  const [racOption,        setRacOption]        = useState(modele?.racOptionActive ?? false);
+  const [showAdvancedAides, setShowAdvancedAides] = useState(false);
 
   const [aA, setAA] = useState<Aides>({
     cmgCotisations:    famA.cmgCotisations,
@@ -120,6 +131,16 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   }, [repartA, salNetTotalMens, aidesAMens, aidesBMens]);
 
   function flash() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+
+  function handleRacToggle(on: boolean) {
+    setRacOption(on);
+    setShowAdvancedAides(false);
+    if (on) {
+      // Injecte les valeurs par défaut uniquement si aucune aide n'est configurée
+      if (totalAidesMens(aA) === 0) setAA(DEFAULT_AIDES);
+      if (totalAidesMens(aB) === 0) setAB(DEFAULT_AIDES);
+    }
+  }
 
   async function saveActeurs() {
     setSaving(true); setError('');
@@ -315,27 +336,46 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
 
               {/* ── B — Option RAC ─────────────────────────────────── */}
               <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
+                {/* Header + toggle */}
                 <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
                       Répartition du salaire en fonction du reste à charge par famille
                     </div>
-                    <p className="text-xs text-[var(--dust)] mt-1 ml-7">Renseignez les aides CAF par famille pour affiner la répartition.</p>
+                    <p className="text-xs text-[var(--dust)] mt-1 ml-7">
+                      {racOption
+                        ? 'Point d\'équilibre calculé automatiquement — affinez vos aides si besoin.'
+                        : 'Activez pour calculer le point d\'équilibre RAC selon vos aides CAF.'}
+                    </p>
                   </div>
-                  <Toggle checked={racOption} onChange={setRacOption} />
+                  <Toggle checked={racOption} onChange={handleRacToggle} />
                 </div>
 
                 {racOption && (
                   <>
-                    <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
-                      <AidesColumn label={nomA || 'Famille A'} a={aA} setA={setAA} total={aidesAMens} />
-                      <AidesColumn label={nomB || 'Famille B'} a={aB} setA={setAB} total={aidesBMens} />
-                    </div>
+                    {/* Tableau du point d'équilibre — visible immédiatement */}
+                    {salNetTotalMens > 0 && (
+                      <div className="mx-5 mt-5 p-4 rounded-[var(--radius)] bg-[var(--sage-light)] text-xs text-[var(--ink)] leading-relaxed">
+                        💡 <strong>Point d&apos;équilibre calculé :</strong> Pour que le RAC de chaque famille soit proportionnel à sa part d&apos;heures ({(pProportionnel * 100).toFixed(1)} % / {((1 - pProportionnel) * 100).toFixed(1)} %), placez le slider sur <strong>{(pEquitable * 100).toFixed(1)} %</strong> (marqueur <em>Équitable RAC</em>).
+                      </div>
+                    )}
 
-                    {salNetTotalMens > 0 && (aidesAMens > 0 || aidesBMens > 0) && (
-                      <div className="m-5 p-4 rounded-[var(--radius)] bg-[var(--sage-light)] text-xs text-[var(--ink)] leading-relaxed">
-                        💡 <strong>Suggestion :</strong> Pour que le RAC de chaque famille soit proportionnel à sa part d&apos;heures ({(pProportionnel * 100).toFixed(1)} % / {((1-pProportionnel) * 100).toFixed(1)} %), placez le slider sur <strong>{(pEquitable * 100).toFixed(1)} %</strong> (marqueur <em>Équitable RAC</em>).
+                    {/* Bouton d'affinage — masqué une fois le mode avancé ouvert */}
+                    {!showAdvancedAides ? (
+                      <div className="px-5 py-4">
+                        <button
+                          onClick={() => setShowAdvancedAides(true)}
+                          className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
+                        >
+                          ⚙️ Affiner mes aides et mes revenus (Optionnel)
+                        </button>
+                      </div>
+                    ) : (
+                      /* Colonnes d'aides — révélées en mode avancé */
+                      <div className="grid grid-cols-2 divide-x divide-[var(--line)] mt-4">
+                        <AidesColumn label={nomA || 'Famille A'} a={aA} setA={setAA} total={aidesAMens} />
+                        <AidesColumn label={nomB || 'Famille B'} a={aB} setA={setAB} total={aidesBMens} />
                       </div>
                     )}
                   </>
