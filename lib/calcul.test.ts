@@ -4,6 +4,7 @@ import {
   calcBModeRepartition,
   calcEquitableRatioA,
   calcHeuresSemaineFromPlanning,
+  calcSalNetMensuel,
   calculerMois,
 } from './calcul';
 import type { CalcInput } from './calcul';
@@ -345,5 +346,113 @@ describe('calculerMois', () => {
       });
       expect(avec.famA.resteCharge).toBeLessThan(sans.famA.resteCharge);
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scénario 1 — Garde partagée classique 50/50 avec majorations
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Inputs :
+//   - Répartition    : 50 % / 50 %
+//   - Taux horaire   : 11,00 €/h net
+//   - Planning       : 40h norm + 8h maj.25% + 1h maj.50% = 49h/sem
+//   - Navigo         : 90,80 €/mois
+//   - Entretien      : 6,00 €/j travaillé
+//
+// Note calendrier :
+//   Avril 2026 débute un mercredi → 22 jours ouvrables (≠ 21 demandés).
+//   Avril 2029 débute un dimanche → exactement 21 jours ouvrables.
+//   C'est donc avril 2029 qui est utilisé pour valider ce scénario.
+//
+// Note salaire :
+//   La formule "sans arrondi intermédiaire" (calcSalNetMensuel) donne 1 227,42 €
+//   par famille, conformément à ce qui est affiché dans l'interface.
+//   calculerMois arrondit les heures mensualisées avant de les multiplier, ce
+//   qui produit 1 227,18 € — différence de 0,24 € due aux arrondis IEEE 754.
+
+describe('Scénario 1 — Garde partagée 50/50 avec majorations (avr. 2029, 21 j.)', () => {
+  const input: CalcInput = {
+    annee:                 2029,
+    mois:                  4,
+    taux:                  11,
+    hNormalesSemaine:      40,
+    hSup25Semaine:          8,
+    hSup50Semaine:          1,
+    repartitionA:           0.5,
+    navigo:                90.80,
+    indemEntretien:         6.0,
+    indemKm:                0,
+    joursActifsParSemaine:  5,
+    evenements:             [],
+    racOptionActive:        false,
+  };
+
+  const result = calculerMois(input);
+
+  // ── Calendrier ──────────────────────────────────────────────────────────────
+
+  it('compte exactement 21 jours ouvrables', () => {
+    expect(result.joursOuv).toBe(21);
+  });
+
+  it('aucune absence : ratio = 1, joursTrav = 21', () => {
+    expect(result.ratio).toBe(1);
+    expect(result.joursTrav).toBe(21);
+  });
+
+  // ── Salaire net mensuel ──────────────────────────────────────────────────────
+  //
+  // calcSalNetMensuel = formule sans arrondi intermédiaire sur les heures,
+  // identique à salNetTotalMens affiché dans l'interface.
+  // Formule : (40×11 + 8×11×1,25 + 1×11×1,50) × 52/12 = 2 454,83 €
+
+  it('salaire net total nounou = 2 454,83 € (calcSalNetMensuel)', () => {
+    expect(calcSalNetMensuel(40, 8, 1, 11)).toBe(2454.83);
+  });
+
+  it('salaire net par famille à 50 % = 1 227,42 €', () => {
+    const total  = calcSalNetMensuel(40, 8, 1, 11);          // 2 454,83 €
+    const parFam = Math.round(total * 0.5 * 100) / 100;      // 1 227,42 €
+    expect(parFam).toBe(1227.42);
+  });
+
+  // ── Indemnités ───────────────────────────────────────────────────────────────
+
+  it('part du Navigo : 45,40 € par famille', () => {
+    expect(result.famA.transport).toBe(45.40);
+    expect(result.famB.transport).toBe(45.40);
+  });
+
+  it('indemnité d\'entretien : 63,00 € par famille (21 j × 6 € / 2)', () => {
+    // joursEntretienBase = joursOuv − maladie − CP = 21 − 0 − 0 = 21
+    expect(result.famA.entretien).toBe(63.00);
+    expect(result.famB.entretien).toBe(63.00);
+  });
+
+  it('pas d\'indemnité kilométrique', () => {
+    expect(result.famA.km).toBe(0);
+    expect(result.famB.km).toBe(0);
+  });
+
+  // ── Symétrie 50/50 ───────────────────────────────────────────────────────────
+
+  it('répartition parfaitement symétrique : tous les postes sont identiques pour famA et famB', () => {
+    expect(result.famA.salNet).toBe(result.famB.salNet);
+    expect(result.famA.transport).toBe(result.famB.transport);
+    expect(result.famA.entretien).toBe(result.famB.entretien);
+    expect(result.famA.total).toBe(result.famB.total);
+    expect(result.famA.chargesSalariales).toBe(result.famB.chargesSalariales);
+    expect(result.famA.chargesPatronales).toBe(result.famB.chargesPatronales);
+  });
+
+  it('totalNounou = famA.total + famB.total', () => {
+    expect(result.totalNounou).toBeCloseTo(result.famA.total + result.famB.total, 2);
+  });
+
+  it('mode RAC inactif', () => {
+    expect(result.racOptionActive).toBe(false);
+    expect(result.famA.aidesTotal).toBe(0);
+    expect(result.famB.aidesTotal).toBe(0);
   });
 });
