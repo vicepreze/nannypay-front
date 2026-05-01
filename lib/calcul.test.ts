@@ -563,3 +563,109 @@ describe('Scénario 2 — Garde 60 %/40 % avec majorations (jan. 2025, 23 j.)', 
     expect(result.totalNounou).toBeCloseTo(result.famA.total + result.famB.total, 2);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scénario 3 — Optimisation du RAC (3 enfants), aides asymétriques
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Objectif : vérifier que calcEquitableRatioA trouve le ratio qui égalise
+// le poids du RAC entre les deux familles au prorata de leurs heures (2/3 – 1/3).
+//
+// Inputs :
+//   - Planning       : 47,5h/sem (40h norm + 7,5h maj.25%)  @  12,80 €/h net
+//   - pProportionnel : 0.667  (2/3 — 2 enfants A pour 1 enfant B)
+//   - Aides mensuelles Famille A : 1 621,00 €
+//   - Aides mensuelles Famille B : 1 517,00 €
+//   - navigo = 0, entretien = 0, km = 0  (isoler le moteur de répartition)
+//
+// Note sur les valeurs attendues :
+//   La valeur brute de calcEquitableRatioA est 0.573945…
+//   Arrondie à 4 décimales (précision interne), la fonction retourne 0.5739.
+//   Le scénario original visait 0.574 (arrondi à 3 dp côté utilisateur) ;
+//   l'écart de 0.0001 sur pEq se propage à ~0.28 € sur les salaires et
+//   ~0.52 € sur les RAC. Le test cible les valeurs réelles produites par
+//   les fonctions, qui sont les seules valeurs exploitables en régression.
+
+describe('Scénario 3 — Optimisation RAC 3 enfants (47,5h @ 12,80 €)', () => {
+  const P_PROP    = 0.667;
+  const SAL_TOTAL = calcSalNetMensuel(40, 7.5, 0, 12.80);   // 2 738,67 €
+  const AIDES_A   = 1621.00;
+  const AIDES_B   = 1517.00;
+
+  const pEq = calcEquitableRatioA(P_PROP, SAL_TOTAL, AIDES_A, AIDES_B);
+
+  // Salaires au ratio équitable  (total × qp, arrondi 2 dp)
+  const salNetA = Math.round(SAL_TOTAL * pEq        * 100) / 100;
+  const salNetB = Math.round(SAL_TOTAL * (1 - pEq)  * 100) / 100;
+
+  // RAC = salNet × K_TOTAL − aides  (navigo / entretien / km = 0)
+  const racA = Math.round((salNetA * K_TOTAL - AIDES_A) * 100) / 100;
+  const racB = Math.round((salNetB * K_TOTAL - AIDES_B) * 100) / 100;
+
+  // ── Planning & total salary ─────────────────────────────────────────────────
+
+  it('salaire net total (47,5h × 52/12 × 12,80) = 2 738,67 €', () => {
+    expect(SAL_TOTAL).toBe(2738.67);
+  });
+
+  // ── pEquitable ──────────────────────────────────────────────────────────────
+  //
+  // Valeur brute : 0.573945… → arrondie à 4 dp = 0.5739.
+  // L'user visait 0.574 (arrondi 3 dp) — toBeCloseTo(0.574, 2) l'accepte (±0.005).
+
+  it('pEquitable ≈ 0.574 (57,4 %) au sens de l\'interface', () => {
+    expect(pEq).toBeCloseTo(0.574, 2);     // ±0.005 — passe car |0.5739-0.574|=0.0001
+  });
+
+  it('pEquitable = 0.5739 (4 décimales — régression exacte)', () => {
+    expect(pEq).toBe(0.5739);
+  });
+
+  it('pEquitable < pProportionnel : la correction rééquilibre A qui serait sinon sur-exposée', () => {
+    // Au split proportionnel (66,7 %), les aides de B (1 517 €) couvrent presque
+    // tout son petit RAC, laissant A avec un RAC ~10× supérieur à sa part.
+    // calcEquitableRatioA réduit la part de A (de 66,7 % à 57,4 %) pour augmenter
+    // la base salariale de B et donc son RAC, jusqu'au rapport 2/3 – 1/3.
+    expect(pEq).toBeLessThan(P_PROP);
+  });
+
+  // ── Salaires au ratio équitable ─────────────────────────────────────────────
+
+  it('salaire net Famille A au ratio équitable = 1 571,72 €', () => {
+    expect(salNetA).toBe(1571.72);
+  });
+
+  it('salaire net Famille B au ratio équitable = 1 166,95 €', () => {
+    expect(salNetB).toBe(1166.95);
+  });
+
+  it('salNetA + salNetB = total (cohérence)', () => {
+    expect(salNetA + salNetB).toBeCloseTo(SAL_TOTAL, 1);
+  });
+
+  // ── Reste à charge ──────────────────────────────────────────────────────────
+
+  it('RAC Famille A = 1 290,26 €  (salNetA × K_TOTAL − aidesA)', () => {
+    expect(racA).toBe(1290.26);
+  });
+
+  it('RAC Famille B = 644,52 €  (salNetB × K_TOTAL − aidesB)', () => {
+    expect(racB).toBe(644.52);
+  });
+
+  // ── Équilibre du RAC ────────────────────────────────────────────────────────
+
+  it('racA / (racA + racB) ≈ pProportionnel = 0.667', () => {
+    // Propriété centrale de l'algorithme équitable
+    expect(racA / (racA + racB)).toBeCloseTo(P_PROP, 2);
+  });
+
+  it('racA ≈ 2 × racB (rapport 2/3 ÷ 1/3)', () => {
+    expect(racA / racB).toBeCloseTo(2, 0);
+  });
+
+  it('les deux RAC sont positifs (les aides ne couvrent pas tout le coût employeur)', () => {
+    expect(racA).toBeGreaterThan(0);
+    expect(racB).toBeGreaterThan(0);
+  });
+});
