@@ -4,7 +4,13 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SignOutButton } from '@/components/SignOutButton';
-import { calcBModeRepartition, calcEquitableRatioA, K_SAL, K_PAT } from '@/lib/calcul';
+import {
+  calcBModeRepartition,
+  calcEquitableRatioIteratif,
+  estimerCMG2025,
+  ciPlafondMensuel,
+  K_SAL, K_PAT, K_TOTAL,
+} from '@/lib/calcul';
 
 type Tab = 'acteurs' | 'planning' | 'paie';
 
@@ -48,16 +54,6 @@ function totalAidesMens(a: Aides): number {
   ) / 100;
 }
 
-// Aides appliquées silencieusement au 1er clic sur le toggle RAC
-// (CMG standard + crédit d'impôt typique). Modifiables via "Affiner".
-const DEFAULT_AIDES: Aides = {
-  cmgCotisations:    319,
-  cmgRemuneration:   0,
-  abattementCharges: 0,
-  aideVille:         0,
-  creditImpot:       2300,   // annuel → 191,67 €/mois
-};
-
 export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou, modele, enfants }: Props) {
   const router = useRouter();
   const [tab, setTab]       = useState<Tab>('acteurs');
@@ -79,10 +75,13 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   const [km,        setKm]        = useState(modele?.indemKm         ?? 0);
   const [entretien, setEntretien] = useState(modele?.indemEntretien  ?? 0);
 
-  const [repartA,          setRepartA]          = useState(modele?.repartitionA    ?? 0.5);
-  const [racOption,        setRacOption]        = useState(modele?.racOptionActive ?? false);
-  const [showAdvancedAides, setShowAdvancedAides] = useState(false);
+  const [repartA,    setRepartA]    = useState(modele?.repartitionA    ?? 0.5);
+  const [racOption,  setRacOption]  = useState(modele?.racOptionActive ?? false);
+  const [modeExpert, setModeExpert] = useState(false);
+  const [revFiscauxA, setRevFiscauxA] = useState(80_000);
+  const [revFiscauxB, setRevFiscauxB] = useState(80_000);
 
+  // Kept for DB persistence (backward compat); not used in computation
   const [aA, setAA] = useState<Aides>({
     cmgCotisations:    famA.cmgCotisations,
     cmgRemuneration:   famA.cmgRemuneration,
@@ -103,42 +102,66 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
     [modele?.joursJson, enfants]
   );
 
+  const nbEnfantsA = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'A').length), [enfants]);
+  const nbEnfantsB = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'B').length), [enfants]);
+
   const salNetTotalMens = useMemo(() => {
-    const baseNet  = hNorm  * 52/12 * tauxNet;
-    const sup25Net = hSup25 * 52/12 * tauxNet * 1.25;
-    const sup50Net = hSup50 * 52/12 * tauxNet * 1.50;
-    return Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
+    const base  = hNorm  * 52/12 * tauxNet;
+    const sup25 = hSup25 * 52/12 * tauxNet * 1.25;
+    const sup50 = hSup50 * 52/12 * tauxNet * 1.50;
+    return Math.round((base + sup25 + sup50) * 100) / 100;
   }, [hNorm, hSup25, hSup50, tauxNet]);
 
-  const aidesAMens = useMemo(() => totalAidesMens(aA), [aA]);
-  const aidesBMens = useMemo(() => totalAidesMens(aB), [aB]);
+  const racOptimal = useMemo(() => {
+    if (!racOption || salNetTotalMens <= 0) return null;
+    return calcEquitableRatioIteratif(
+      salNetTotalMens,
+      { nbEnfants: nbEnfantsA, revenusFiscaux: revFiscauxA, autresAidesMens: 0 },
+      { nbEnfants: nbEnfantsB, revenusFiscaux: revFiscauxB, autresAidesMens: 0 },
+      pProportionnel,
+    );
+  }, [racOption, salNetTotalMens, nbEnfantsA, nbEnfantsB, revFiscauxA, revFiscauxB, pProportionnel]);
 
-  const pEquitable = useMemo(
-    () => calcEquitableRatioA(pProportionnel, salNetTotalMens, aidesAMens, aidesBMens),
-    [pProportionnel, salNetTotalMens, aidesAMens, aidesBMens]
-  );
-
+  // Live preview at current slider position
   const preview = useMemo(() => {
     const salNetA = Math.round(repartA * salNetTotalMens * 100) / 100;
     const salNetB = Math.round((1 - repartA) * salNetTotalMens * 100) / 100;
-    const chSalA  = Math.round(salNetA * K_SAL * 100) / 100;
-    const chPatA  = Math.round(salNetA * K_PAT * 100) / 100;
-    const chSalB  = Math.round(salNetB * K_SAL * 100) / 100;
-    const chPatB  = Math.round(salNetB * K_PAT * 100) / 100;
-    const racA    = Math.round((salNetA + chSalA + chPatA - aidesAMens) * 100) / 100;
-    const racB    = Math.round((salNetB + chSalB + chPatB - aidesBMens) * 100) / 100;
-    return { salNetA, salNetB, chSalA, chPatA, chSalB, chPatB, racA, racB };
-  }, [repartA, salNetTotalMens, aidesAMens, aidesBMens]);
+    return { salNetA, salNetB };
+  }, [repartA, salNetTotalMens]);
+
+  // Live RAC at current repartA (engine formula)
+  const liveRac = useMemo(() => {
+    if (!racOption) return { racA: 0, racB: 0, totalRac: 0 };
+    const salA = preview.salNetA;
+    const salB = preview.salNetB;
+    const coutA = salA * K_TOTAL;
+    const coutB = salB * K_TOTAL;
+    const cmgA = estimerCMG2025(revFiscauxA, nbEnfantsA, salA, coutA - salA);
+    const cmgB = estimerCMG2025(revFiscauxB, nbEnfantsB, salB, coutB - salB);
+    const eligA = Math.max(0, coutA - cmgA);
+    const eligB = Math.max(0, coutB - cmgB);
+    const ciA = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
+    const ciB = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
+    const racA = Math.round((coutA - cmgA - ciA) * 100) / 100;
+    const racB = Math.round((coutB - cmgB - ciB) * 100) / 100;
+    return { racA, racB, totalRac: racA + racB };
+  }, [racOption, preview.salNetA, preview.salNetB, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB]);
 
   function flash() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
 
   function handleRacToggle(on: boolean) {
     setRacOption(on);
-    setShowAdvancedAides(false);
-    if (on) {
-      // Injecte les valeurs par défaut uniquement si aucune aide n'est configurée
-      if (totalAidesMens(aA) === 0) setAA(DEFAULT_AIDES);
-      if (totalAidesMens(aB) === 0) setAB(DEFAULT_AIDES);
+    setModeExpert(false);
+    setRevFiscauxA(80_000);
+    setRevFiscauxB(80_000);
+    if (on && salNetTotalMens > 0) {
+      const res = calcEquitableRatioIteratif(
+        salNetTotalMens,
+        { nbEnfants: nbEnfantsA, revenusFiscaux: 80_000, autresAidesMens: 0 },
+        { nbEnfants: nbEnfantsB, revenusFiscaux: 80_000, autresAidesMens: 0 },
+        pProportionnel,
+      );
+      setRepartA(res.meilleurRatio);
     }
   }
 
@@ -299,7 +322,7 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                     min={SLIDER_MIN} max={SLIDER_MAX}
                     markers={[
                       { value: 0.5, label: '50/50' },
-                      ...(racOption ? [{ value: pEquitable, label: 'Équitable RAC', highlight: true }] : []),
+                      ...(racOption && racOptimal ? [{ value: racOptimal.meilleurRatio, label: 'Équitable RAC', highlight: true }] : []),
                     ]}
                     pct={pct}
                   />
@@ -310,8 +333,8 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                       percent={repartA}
                       color="sage"
                       salNet={preview.salNetA}
-                      chSal={preview.chSalA} chPat={preview.chPatA}
-                      aides={aidesAMens} rac={preview.racA}
+                      rac={liveRac.racA}
+                      totalRac={liveRac.totalRac}
                       racOption={racOption}
                     />
                     <FamPreview
@@ -319,8 +342,8 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                       percent={1 - repartA}
                       color="blue"
                       salNet={preview.salNetB}
-                      chSal={preview.chSalB} chPat={preview.chPatB}
-                      aides={aidesBMens} rac={preview.racB}
+                      rac={liveRac.racB}
+                      totalRac={liveRac.totalRac}
                       racOption={racOption}
                     />
                   </div>
@@ -336,49 +359,44 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
 
               {/* ── B — Option RAC ─────────────────────────────────── */}
               <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
-                {/* Header + toggle */}
                 <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
-                      Répartition du salaire en fonction du reste à charge par famille
-                    </div>
-                    <p className="text-xs text-[var(--dust)] mt-1 ml-7">
-                      {racOption
-                        ? 'Point d\'équilibre calculé automatiquement — affinez vos aides si besoin.'
-                        : 'Activez pour calculer le point d\'équilibre RAC selon vos aides CAF.'}
-                    </p>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
+                    Reste à charge par famille
                   </div>
                   <Toggle checked={racOption} onChange={handleRacToggle} />
                 </div>
 
                 {racOption && (
-                  <>
-                    {/* Tableau du point d'équilibre — visible immédiatement */}
-                    {salNetTotalMens > 0 && (
-                      <div className="mx-5 mt-5 p-4 rounded-[var(--radius)] bg-[var(--sage-light)] text-xs text-[var(--ink)] leading-relaxed">
-                        💡 <strong>Point d&apos;équilibre calculé :</strong> Pour que le RAC de chaque famille soit proportionnel à sa part d&apos;heures ({(pProportionnel * 100).toFixed(1)} % / {((1 - pProportionnel) * 100).toFixed(1)} %), placez le slider sur <strong>{(pEquitable * 100).toFixed(1)} %</strong> (marqueur <em>Équitable RAC</em>).
+                  <div className="p-5 space-y-4">
+                    {!modeExpert ? (
+                      <p className="text-xs text-[var(--dust)]">
+                        Calcul automatique — revenus fiscaux : <strong>80 000 €</strong> (Tranche 3 CAF, aides minimales).
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <FN label={`Revenus fiscaux ${nomA || 'Famille A'} (€/an)`} value={revFiscauxA} onChange={setRevFiscauxA} />
+                        <FN label={`Revenus fiscaux ${nomB || 'Famille B'} (€/an)`} value={revFiscauxB} onChange={setRevFiscauxB} />
                       </div>
                     )}
-
-                    {/* Bouton d'affinage — masqué une fois le mode avancé ouvert */}
-                    {!showAdvancedAides ? (
-                      <div className="px-5 py-4">
+                    <div className="flex items-center gap-4">
+                      {!modeExpert ? (
                         <button
-                          onClick={() => setShowAdvancedAides(true)}
+                          onClick={() => setModeExpert(true)}
                           className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
                         >
-                          ⚙️ Affiner mes aides et mes revenus (Optionnel)
+                          ⚙️ Passer en mode expert
                         </button>
-                      </div>
-                    ) : (
-                      /* Colonnes d'aides — révélées en mode avancé */
-                      <div className="grid grid-cols-2 divide-x divide-[var(--line)] mt-4">
-                        <AidesColumn label={nomA || 'Famille A'} a={aA} setA={setAA} total={aidesAMens} />
-                        <AidesColumn label={nomB || 'Famille B'} a={aB} setA={setAB} total={aidesBMens} />
-                      </div>
-                    )}
-                  </>
+                      ) : (
+                        <button
+                          onClick={() => { setModeExpert(false); setRevFiscauxA(80_000); setRevFiscauxB(80_000); }}
+                          className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
+                        >
+                          ↩ Revenir au mode automatique
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -411,7 +429,6 @@ function SliderRow({ value, onChange, min, max, markers, pct }: {
 }) {
   return (
     <div>
-      {/* Labels markers au-dessus */}
       <div className="relative h-5 mb-1">
         {markers.map((m, i) => {
           const p = pct(m.value);
@@ -428,7 +445,6 @@ function SliderRow({ value, onChange, min, max, markers, pct }: {
         })}
       </div>
 
-      {/* Track + markers + input range */}
       <div className="relative h-6">
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[var(--line)]" />
         {markers.map((m, i) => {
@@ -452,7 +468,6 @@ function SliderRow({ value, onChange, min, max, markers, pct }: {
         />
       </div>
 
-      {/* Bornes */}
       <div className="flex justify-between text-[10px] text-[var(--dust)] mt-1">
         <span>{min} %</span>
         <span>{max} %</span>
@@ -484,13 +499,15 @@ function SliderRow({ value, onChange, min, max, markers, pct }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, chSal, chPat, aides, rac, racOption }: {
+function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption }: {
   label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; chSal: number; chPat: number; aides: number; rac: number;
+  salNet: number; rac: number; totalRac: number;
   racOption: boolean;
 }) {
-  const bg   = color === 'sage' ? 'bg-[var(--sage-light)]'      : 'bg-blue-50';
-  const text = color === 'sage' ? 'text-[var(--sage)]'          : 'text-blue-700';
+  const bg   = color === 'sage' ? 'bg-[var(--sage-light)]'  : 'bg-blue-50';
+  const text = color === 'sage' ? 'text-[var(--sage)]'       : 'text-blue-700';
+  const pctRac = totalRac > 0 ? rac / totalRac : percent;
+
   return (
     <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
       <div className="flex items-center justify-between mb-2">
@@ -501,25 +518,14 @@ function FamPreview({ label, percent, color, salNet, chSal, chPat, aides, rac, r
       <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
 
       {racOption && (
-        <div className="mt-3 pt-3 border-t border-white/70 text-xs space-y-1">
-          <Line l="Charges salariales (21,88 %)" v={`${chSal.toFixed(2)} €`} />
-          <Line l="Charges patronales (44,70 %)" v={`${chPat.toFixed(2)} €`} />
-          <Line l="Total aides CAF" v={`− ${aides.toFixed(2)} €`} bold />
-          <div className="flex justify-between pt-1 border-t border-white/70 font-semibold">
-            <span>Reste à charge estimé</span>
-            <span>{rac.toFixed(2)} €</span>
+        <div className="mt-3 pt-3 border-t border-white/70">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[11px] text-[var(--dust)]">Reste à charge</span>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(pctRac * 100).toFixed(1)} %</span>
           </div>
+          <div className={`text-lg font-bold ${text}`}>{rac.toFixed(2)} €</div>
         </div>
       )}
-    </div>
-  );
-}
-
-function Line({ l, v, bold }: { l: string; v: string; bold?: boolean }) {
-  return (
-    <div className="flex justify-between">
-      <span className="text-[var(--dust)]">{l}</span>
-      <span className={`font-mono ${bold ? 'font-semibold' : ''}`}>{v}</span>
     </div>
   );
 }
@@ -566,11 +572,11 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function F({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
+function F({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
       <label className="block text-xs font-medium mb-1 text-[var(--dust)]">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)}
+      <input type="text" value={value} onChange={e => onChange(e.target.value)}
         className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border border-[var(--line)] focus:border-[var(--sage)]" />
     </div>
   );

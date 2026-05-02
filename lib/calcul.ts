@@ -215,6 +215,15 @@ export function calcSalNetMensuel(
   return Math.round((base + sup25 + sup50) * 100) / 100;
 }
 
+/**
+ * Plafond mensuel de Crédit d'Impôt (50 % des dépenses nettes après CMG).
+ * Plafond légal : 6 750 €/an pour 1 enfant, 7 500 €/an pour 2+ enfants.
+ */
+export function ciPlafondMensuel(nbEnfants: number): number {
+  return (nbEnfants >= 2 ? 7_500 : 6_750) / 12;
+  // 1 enfant → 562,50 €/mois   2+ enfants → 625,00 €/mois
+}
+
 // ── CMG Emploi direct 2025 ────────────────────────────────────────
 
 const CMG_PLAFONDS_2025 = [
@@ -279,6 +288,9 @@ export function calcEquitableRatioIteratif(
   let bestCmgA = 0, bestCmgB = 0;
   let bestCiA  = 0, bestCiB  = 0;
 
+  const ciPlafA = ciPlafondMensuel(configA.nbEnfants);
+  const ciPlafB = ciPlafondMensuel(configB.nbEnfants);
+
   for (let i = 10; i <= 990; i++) {
     const ratioA = i / 1000;
 
@@ -293,12 +305,12 @@ export function calcEquitableRatioIteratif(
     const cmgA = estimerCMG2025(configA.revenusFiscaux, configA.nbEnfants, salA, coutA - salA);
     const cmgB = estimerCMG2025(configB.revenusFiscaux, configB.nbEnfants, salB, coutB - salB);
 
-    // CI = 50 % des dépenses nettes après CMG et autres aides
+    // CI = 50 % des dépenses nettes après CMG et autres aides, plafonné légalement
     const eligA = Math.max(0, coutA - cmgA - configA.autresAidesMens);
     const eligB = Math.max(0, coutB - cmgB - configB.autresAidesMens);
 
-    const ciA = Math.round(eligA * 0.5 * 100) / 100;
-    const ciB = Math.round(eligB * 0.5 * 100) / 100;
+    const ciA = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafA);
+    const ciB = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafB);
 
     const racA = Math.round((coutA - cmgA - ciA - configA.autresAidesMens) * 100) / 100;
     const racB = Math.round((coutB - cmgB - ciB - configB.autresAidesMens) * 100) / 100;

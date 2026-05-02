@@ -7,6 +7,7 @@ import {
   calcHeuresSemaineFromPlanning,
   calcSalNetMensuel,
   calculerMois,
+  ciPlafondMensuel,
   estimerCMG2025,
 } from './calcul';
 import type { CalcInput, FamilleRACConfig } from './calcul';
@@ -713,46 +714,75 @@ describe('estimerCMG2025', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ciPlafondMensuel
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ciPlafondMensuel', () => {
+  it('1 enfant → 562,50 €/mois (6 750 €/an ÷ 12)', () => {
+    expect(ciPlafondMensuel(1)).toBe(562.5);
+  });
+
+  it('2 enfants → 625 €/mois (7 500 €/an ÷ 12)', () => {
+    expect(ciPlafondMensuel(2)).toBe(625);
+  });
+
+  it('3 enfants → 625 €/mois (même plafond que 2+)', () => {
+    expect(ciPlafondMensuel(3)).toBe(625);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // calcEquitableRatioIteratif
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // Scénario : 3 enfants, 47,5h @ 12,80 €, pProp = 2/3
-//   Famille A : 2 enfants, revenus 45 000 € (tranche 2 → CMG plafond 1 132 €)
-//   Famille B : 1 enfant,  revenus 25 000 € (tranche 1 → CMG plafond 1 075 €)
+//   Famille A : 2 enfants, revenus 80 000 € (tranche 3 → CMG plafonné à 855 €)
+//   Famille B : 1 enfant,  revenus 80 000 € (tranche 3 → CMG plafonné à 570 €)
 //   autresAidesMens = 0 pour chacune
 //
-// Valeurs de référence (simulation Node.js) :
-//   meilleurRatio = 0.612
-//   racA = 986.27    racB = 492.06
-//   cmgA = 1 132     cmgB = 984.12
-//   ciAMens = 986.27 ciBMens = 492.06
+// Avec le CI légalement plafonné (625 €/mois famille A, 562,50 €/mois famille B),
+// le ratio d'équilibre se situe autour de 61,5 %.
+//
+// Valeurs de référence (simulation moteur) :
+//   meilleurRatio = 0.615
+//   cmgA = 855       cmgB = 570
+//   ciAMens = 625    ciBMens = 562,5
+//   racA ≈ 1 639 €   racB ≈ 820 €
 
-describe('calcEquitableRatioIteratif — scénario 3 enfants (47,5h @ 12,80 €)', () => {
+describe('calcEquitableRatioIteratif — scénario 3 enfants (47,5h @ 12,80 €, rev. 80k/80k)', () => {
   const SAL_TOTAL = calcSalNetMensuel(40, 7.5, 0, 12.80);   // 2 738,67 €
 
-  const famA: FamilleRACConfig = { nbEnfants: 2, revenusFiscaux: 45_000, autresAidesMens: 0 };
-  const famB: FamilleRACConfig = { nbEnfants: 1, revenusFiscaux: 25_000, autresAidesMens: 0 };
+  const famA: FamilleRACConfig = { nbEnfants: 2, revenusFiscaux: 80_000, autresAidesMens: 0 };
+  const famB: FamilleRACConfig = { nbEnfants: 1, revenusFiscaux: 80_000, autresAidesMens: 0 };
 
   const res = calcEquitableRatioIteratif(SAL_TOTAL, famA, famB, 2 / 3);
 
-  it('meilleurRatio = 0.612', () => {
-    expect(res.meilleurRatio).toBe(0.612);
+  it('meilleurRatio = 0.615', () => {
+    expect(res.meilleurRatio).toBe(0.615);
   });
 
-  it('cmgA atteint le plafond tranche 2 (1 132 €)', () => {
-    expect(res.cmgA).toBe(1_132);
+  it('cmgA atteint le plafond tranche 3, 2 enfants (855 €)', () => {
+    expect(res.cmgA).toBe(855);
   });
 
-  it('cmgB = 984.12 € (50 % du coût employeur B, sous plafond 1 075 €)', () => {
-    expect(res.cmgB).toBe(984.12);
+  it('cmgB atteint le plafond tranche 3, 1 enfant (570 €)', () => {
+    expect(res.cmgB).toBe(570);
   });
 
-  it('racA ≈ 986.27 € (régression exacte)', () => {
-    expect(res.racA).toBe(986.27);
+  it('ciAMens plafonnée à 625 €/mois (7 500 €/an ÷ 12, 2 enfants)', () => {
+    expect(res.ciAMens).toBe(625);
   });
 
-  it('racB ≈ 492.06 € (régression exacte)', () => {
-    expect(res.racB).toBe(492.06);
+  it('ciBMens plafonnée à 562,5 €/mois (6 750 €/an ÷ 12, 1 enfant)', () => {
+    expect(res.ciBMens).toBe(562.5);
+  });
+
+  it('racA = 1 639,76 € (régression exacte)', () => {
+    expect(res.racA).toBe(1639.76);
+  });
+
+  it('racB = 820,52 € (régression exacte)', () => {
+    expect(res.racB).toBe(820.52);
   });
 
   it('racA ≈ 2 × racB — rapport proportionnel au nombre d\'enfants', () => {
@@ -761,14 +791,6 @@ describe('calcEquitableRatioIteratif — scénario 3 enfants (47,5h @ 12,80 €)
 
   it('racA/(racA+racB) ≈ 2/3 — objectif de répartition respecté', () => {
     expect(res.racA / (res.racA + res.racB)).toBeCloseTo(2 / 3, 2);
-  });
-
-  it('CI famille A = 50 % des dépenses nettes (racA = ciAMens)', () => {
-    expect(res.ciAMens).toBe(res.racA);
-  });
-
-  it('CI famille B = 50 % des dépenses nettes (racB = ciBMens)', () => {
-    expect(res.ciBMens).toBe(res.racB);
   });
 
   it('les deux RAC sont strictement positifs', () => {
