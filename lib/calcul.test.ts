@@ -3,11 +3,13 @@ import {
   K_SAL, K_PAT, K_TOTAL,
   calcBModeRepartition,
   calcEquitableRatioA,
+  calcEquitableRatioIteratif,
   calcHeuresSemaineFromPlanning,
   calcSalNetMensuel,
   calculerMois,
+  estimerCMG2025,
 } from './calcul';
-import type { CalcInput } from './calcul';
+import type { CalcInput, FamilleRACConfig } from './calcul';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -667,5 +669,110 @@ describe('Scénario 3 — Optimisation RAC 3 enfants (47,5h @ 12,80 €)', () =>
   it('les deux RAC sont positifs (les aides ne couvrent pas tout le coût employeur)', () => {
     expect(racA).toBeGreaterThan(0);
     expect(racB).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// estimerCMG2025
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('estimerCMG2025', () => {
+  it('couvre 50 % du coût employeur quand sous le plafond (1 enfant, tranche 1)', () => {
+    // Famille à revenus ≤ 31 000 €, 1 enfant, plafond = 1 075 €
+    // coutTotal = 800 + 200 = 1 000 → 50 % = 500 < 1 075 → CMG = 500
+    expect(estimerCMG2025(25_000, 1, 800, 200)).toBe(500);
+  });
+
+  it('plafonné à 1 075 € (1 enfant, tranche 1, coût élevé)', () => {
+    // 50 % de 3 000 = 1 500 > 1 075 → clampé à 1 075
+    expect(estimerCMG2025(25_000, 1, 2_400, 600)).toBe(1_075);
+  });
+
+  it('plafond 1 132 € (2 enfants, tranche 2 : 31k < rev ≤ 57k)', () => {
+    // 50 % de 3 000 = 1 500 > 1 132 → clampé à 1 132
+    expect(estimerCMG2025(45_000, 2, 2_400, 600)).toBe(1_132);
+  });
+
+  it('plafond 855 € (2 enfants, tranche 3 : rev > 57k)', () => {
+    // 50 % de 3 000 = 1 500 > 855 → clampé à 855
+    expect(estimerCMG2025(70_000, 2, 2_400, 600)).toBe(855);
+  });
+
+  it('plafond 570 € (1 enfant, tranche 3 : rev > 57k)', () => {
+    // 50 % de 3 000 > 570 → clampé
+    expect(estimerCMG2025(70_000, 1, 2_400, 600)).toBe(570);
+  });
+
+  it('frontière tranche 1/2 : 31 000 € → tranche 1, plafond 1 075', () => {
+    expect(estimerCMG2025(31_000, 1, 2_400, 600)).toBe(1_075);
+  });
+
+  it('frontière tranche 2/3 : 57 000 € → tranche 2, plafond 1 132', () => {
+    expect(estimerCMG2025(57_000, 2, 2_400, 600)).toBe(1_132);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calcEquitableRatioIteratif
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Scénario : 3 enfants, 47,5h @ 12,80 €, pProp = 2/3
+//   Famille A : 2 enfants, revenus 45 000 € (tranche 2 → CMG plafond 1 132 €)
+//   Famille B : 1 enfant,  revenus 25 000 € (tranche 1 → CMG plafond 1 075 €)
+//   autresAidesMens = 0 pour chacune
+//
+// Valeurs de référence (simulation Node.js) :
+//   meilleurRatio = 0.612
+//   racA = 986.27    racB = 492.06
+//   cmgA = 1 132     cmgB = 984.12
+//   ciAMens = 986.27 ciBMens = 492.06
+
+describe('calcEquitableRatioIteratif — scénario 3 enfants (47,5h @ 12,80 €)', () => {
+  const SAL_TOTAL = calcSalNetMensuel(40, 7.5, 0, 12.80);   // 2 738,67 €
+
+  const famA: FamilleRACConfig = { nbEnfants: 2, revenusFiscaux: 45_000, autresAidesMens: 0 };
+  const famB: FamilleRACConfig = { nbEnfants: 1, revenusFiscaux: 25_000, autresAidesMens: 0 };
+
+  const res = calcEquitableRatioIteratif(SAL_TOTAL, famA, famB, 2 / 3);
+
+  it('meilleurRatio = 0.612', () => {
+    expect(res.meilleurRatio).toBe(0.612);
+  });
+
+  it('cmgA atteint le plafond tranche 2 (1 132 €)', () => {
+    expect(res.cmgA).toBe(1_132);
+  });
+
+  it('cmgB = 984.12 € (50 % du coût employeur B, sous plafond 1 075 €)', () => {
+    expect(res.cmgB).toBe(984.12);
+  });
+
+  it('racA ≈ 986.27 € (régression exacte)', () => {
+    expect(res.racA).toBe(986.27);
+  });
+
+  it('racB ≈ 492.06 € (régression exacte)', () => {
+    expect(res.racB).toBe(492.06);
+  });
+
+  it('racA ≈ 2 × racB — rapport proportionnel au nombre d\'enfants', () => {
+    expect(res.racA / res.racB).toBeCloseTo(2, 1);
+  });
+
+  it('racA/(racA+racB) ≈ 2/3 — objectif de répartition respecté', () => {
+    expect(res.racA / (res.racA + res.racB)).toBeCloseTo(2 / 3, 2);
+  });
+
+  it('CI famille A = 50 % des dépenses nettes (racA = ciAMens)', () => {
+    expect(res.ciAMens).toBe(res.racA);
+  });
+
+  it('CI famille B = 50 % des dépenses nettes (racB = ciBMens)', () => {
+    expect(res.ciBMens).toBe(res.racB);
+  });
+
+  it('les deux RAC sont strictement positifs', () => {
+    expect(res.racA).toBeGreaterThan(0);
+    expect(res.racB).toBeGreaterThan(0);
   });
 });

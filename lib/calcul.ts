@@ -215,6 +215,114 @@ export function calcSalNetMensuel(
   return Math.round((base + sup25 + sup50) * 100) / 100;
 }
 
+// ── CMG Emploi direct 2025 ────────────────────────────────────────
+
+const CMG_PLAFONDS_2025 = [
+  { maxRevFiscaux:  31_000, un: 1_075, deux: 1_612 },
+  { maxRevFiscaux:  57_000, un:   755, deux: 1_132 },
+  { maxRevFiscaux: Infinity, un:  570, deux:   855 },
+] as const;
+
+/**
+ * Estime le montant mensuel de CMG Emploi direct 2025.
+ * Couvre 50 % du coût employeur (salNetMois + chargesMois), plafonné selon
+ * les revenus fiscaux et le nombre d'enfants gardés par cette famille.
+ */
+export function estimerCMG2025(
+  revenusFiscaux: number,
+  nbEnfants:      number,
+  salNetMois:     number,
+  chargesMois:    number,
+): number {
+  const tranche = CMG_PLAFONDS_2025.find(t => revenusFiscaux <= t.maxRevFiscaux)!;
+  const plafond  = nbEnfants >= 2 ? tranche.deux : tranche.un;
+  const coutTotal = salNetMois + chargesMois;
+  return Math.min(Math.round(coutTotal * 0.5 * 100) / 100, plafond);
+}
+
+// ── Moteur itératif RAC équitable ────────────────────────────────
+
+export interface FamilleRACConfig {
+  nbEnfants:       number;
+  revenusFiscaux:  number;
+  autresAidesMens: number;  // aides fixes mensuelles hors CMG/CI
+}
+
+export interface EquitableRACResult {
+  meilleurRatio: number;   // part de salaire allouée à famille A (0–1)
+  racA:          number;
+  racB:          number;
+  cmgA:          number;
+  cmgB:          number;
+  ciAMens:       number;   // CI mensuel estimé famille A
+  ciBMens:       number;
+}
+
+/**
+ * Trouve par balayage (1 %→99 %, pas 0,1 %) la répartition salariale
+ * qui minimise |racA/(racA+racB) − targetRatioA|.
+ *
+ * CMG calculé dynamiquement via estimerCMG2025 ; CI = 50 % des dépenses
+ * nettes restantes (après CMG et autresAidesMens).
+ *
+ * À appeler uniquement côté client (calcul intensif, ~990 itérations).
+ */
+export function calcEquitableRatioIteratif(
+  salNetTotal:  number,
+  configA:      FamilleRACConfig,
+  configB:      FamilleRACConfig,
+  targetRatioA: number,
+): EquitableRACResult {
+  let meilleurRatio = targetRatioA;
+  let meilleurEcart = Infinity;
+  let bestRacA = 0, bestRacB = 0;
+  let bestCmgA = 0, bestCmgB = 0;
+  let bestCiA  = 0, bestCiB  = 0;
+
+  for (let i = 10; i <= 990; i++) {
+    const ratioA = i / 1000;
+
+    const salA = salNetTotal * ratioA;
+    const salB = salNetTotal * (1 - ratioA);
+
+    // Coût employeur : salNet × K_TOTAL
+    const coutA = salA * K_TOTAL;
+    const coutB = salB * K_TOTAL;
+
+    // chargesMois = coutEmpl − salNet (pour respecter la définition de estimerCMG2025)
+    const cmgA = estimerCMG2025(configA.revenusFiscaux, configA.nbEnfants, salA, coutA - salA);
+    const cmgB = estimerCMG2025(configB.revenusFiscaux, configB.nbEnfants, salB, coutB - salB);
+
+    // CI = 50 % des dépenses nettes après CMG et autres aides
+    const eligA = Math.max(0, coutA - cmgA - configA.autresAidesMens);
+    const eligB = Math.max(0, coutB - cmgB - configB.autresAidesMens);
+
+    const ciA = Math.round(eligA * 0.5 * 100) / 100;
+    const ciB = Math.round(eligB * 0.5 * 100) / 100;
+
+    const racA = Math.round((coutA - cmgA - ciA - configA.autresAidesMens) * 100) / 100;
+    const racB = Math.round((coutB - cmgB - ciB - configB.autresAidesMens) * 100) / 100;
+
+    if (racA <= 0 || racB <= 0) continue;
+
+    const ecart = Math.abs(racA / (racA + racB) - targetRatioA);
+    if (ecart < meilleurEcart) {
+      meilleurEcart = ecart;
+      meilleurRatio = ratioA;
+      bestRacA = racA;  bestRacB = racB;
+      bestCmgA = cmgA;  bestCmgB = cmgB;
+      bestCiA  = ciA;   bestCiB  = ciB;
+    }
+  }
+
+  return {
+    meilleurRatio,
+    racA: bestRacA, racB: bestRacB,
+    cmgA: bestCmgA, cmgB: bestCmgB,
+    ciAMens: bestCiA, ciBMens: bestCiB,
+  };
+}
+
 function unionMin(intervals: { s: number; e: number }[]): number {
   if (!intervals.length) return 0;
   const sorted = [...intervals].sort((a, b) => a.s - b.s);
