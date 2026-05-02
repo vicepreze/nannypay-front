@@ -9,7 +9,7 @@ import {
   calcEquitableRatioIteratif,
   estimerCMG2025,
   ciPlafondMensuel,
-  K_SAL, K_PAT, K_TOTAL,
+  K_TOTAL,
 } from '@/lib/calcul';
 
 type Tab = 'acteurs' | 'planning' | 'paie';
@@ -48,12 +48,6 @@ type Props = {
   enfants: { prenom: string; fam: string }[];
 };
 
-function totalAidesMens(a: Aides): number {
-  return Math.round(
-    (a.cmgCotisations + a.cmgRemuneration + a.abattementCharges + a.aideVille + a.creditImpot / 12) * 100
-  ) / 100;
-}
-
 export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou, modele, enfants }: Props) {
   const router = useRouter();
   const [tab, setTab]       = useState<Tab>('acteurs');
@@ -80,22 +74,6 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   const [modeExpert, setModeExpert] = useState(false);
   const [revFiscauxA, setRevFiscauxA] = useState(80_000);
   const [revFiscauxB, setRevFiscauxB] = useState(80_000);
-
-  // Kept for DB persistence (backward compat); not used in computation
-  const [aA, setAA] = useState<Aides>({
-    cmgCotisations:    famA.cmgCotisations,
-    cmgRemuneration:   famA.cmgRemuneration,
-    abattementCharges: famA.abattementCharges,
-    aideVille:         famA.aideVille,
-    creditImpot:       famA.creditImpot,
-  });
-  const [aB, setAB] = useState<Aides>({
-    cmgCotisations:    famB.cmgCotisations,
-    cmgRemuneration:   famB.cmgRemuneration,
-    abattementCharges: famB.abattementCharges,
-    aideVille:         famB.aideVille,
-    creditImpot:       famB.creditImpot,
-  });
 
   const pProportionnel = useMemo(
     () => calcBModeRepartition(modele?.joursJson ?? '{}', enfants),
@@ -200,8 +178,14 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
           repartitionA:     repartA,
           racOptionActive:  racOption,
         },
-        familleA: { ...aA },
-        familleB: { ...aB },
+        familleA: {
+          cmgCotisations: famA.cmgCotisations, cmgRemuneration: famA.cmgRemuneration,
+          abattementCharges: famA.abattementCharges, aideVille: famA.aideVille, creditImpot: famA.creditImpot,
+        },
+        familleB: {
+          cmgCotisations: famB.cmgCotisations, cmgRemuneration: famB.cmgRemuneration,
+          abattementCharges: famB.abattementCharges, aideVille: famB.aideVille, creditImpot: famB.creditImpot,
+        },
       }),
     });
     if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Erreur'); setSaving(false); return; }
@@ -526,26 +510,6 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption }:
           <div className={`text-lg font-bold ${text}`}>{rac.toFixed(2)} €</div>
         </div>
       )}
-    </div>
-  );
-}
-
-function AidesColumn({ label, a, setA, total }: {
-  label: string; a: Aides; setA: (v: Aides) => void; total: number;
-}) {
-  const upd = (k: keyof Aides) => (v: number) => setA({ ...a, [k]: v });
-  return (
-    <div className="p-5 space-y-3">
-      <div className="text-xs font-semibold text-[var(--ink)] uppercase tracking-wide">{label}</div>
-      <FN label="Abattement charges patronales"     value={a.abattementCharges} onChange={upd('abattementCharges')} />
-      <FN label="CMG cotisations sociales CAF"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
-      <FN label="CMG rémunération CAF"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
-      <FN label="Aide ville (ex : St-Ouen)"         value={a.aideVille}         onChange={upd('aideVille')} />
-      <FN label="Crédit d'impôt (annuel)"           value={a.creditImpot}       onChange={upd('creditImpot')} />
-      <div className="flex justify-between pt-3 border-t border-[var(--line)] text-xs font-semibold">
-        <span>Total aides / mois</span>
-        <span className="font-mono text-[var(--sage)]">− {total.toFixed(2)} €</span>
-      </div>
     </div>
   );
 }
