@@ -297,8 +297,10 @@ export function calcEquitableRatioIteratif(
     const eligA = Math.max(0, coutA - cmgA - configA.autresAidesMens);
     const eligB = Math.max(0, coutB - cmgB - configB.autresAidesMens);
 
-    const ciA = Math.round(eligA * 0.5 * 100) / 100;
-    const ciB = Math.round(eligB * 0.5 * 100) / 100;
+    const ciCapA = configA.nbEnfants >= 2 ? 625 : 562.50;
+    const ciCapB = configB.nbEnfants >= 2 ? 625 : 562.50;
+    const ciA = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciCapA);
+    const ciB = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciCapB);
 
     const racA = Math.round((coutA - cmgA - ciA - configA.autresAidesMens) * 100) / 100;
     const racB = Math.round((coutB - cmgB - ciB - configB.autresAidesMens) * 100) / 100;
