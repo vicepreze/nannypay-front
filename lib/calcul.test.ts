@@ -201,7 +201,7 @@ describe('calcHeuresSemaineFromPlanning', () => {
     expect(r.hNormalesSemaine + r.hSup25Semaine + r.hSup50Semaine).toBeLessThanOrEqual(50);
   });
 
-  it('mode per-child : union des créneaux par jour', () => {
+  it('mode per-child avec prénoms texte : union des créneaux par jour', () => {
     // Léa et Tom ont le même créneau → union = un seul créneau de 10h
     const joursJson = perChildPlanning({
       Léa: { '1': { debut: '08:00', fin: '18:00' } },
@@ -210,6 +210,28 @@ describe('calcHeuresSemaineFromPlanning', () => {
     const r = calcHeuresSemaineFromPlanning(joursJson);
     expect(r.hNormalesSemaine).toBe(10);
     expect(r.joursActifsParSemaine).toBe(1);
+  });
+
+  it('mode per-child avec prénoms numériques "1","2","3" (données réelles)', () => {
+    // Cas exact de l'utilisateur : 3 enfants avec prénoms numériques
+    // Lun–Jeu 08:30–18:30 (10h), Ven 08:30–16:00 (7.5h) → union = même plage → 47.5h
+    const joursJson = '{"1":{"1":{"actif":true,"debut":"08:30","fin":"18:30"},"2":{"actif":true,"debut":"08:30","fin":"18:30"},"3":{"actif":true,"debut":"08:30","fin":"18:30"},"4":{"actif":true,"debut":"08:30","fin":"18:30"},"5":{"actif":true,"debut":"08:30","fin":"16:00"}},"2":{"1":{"actif":true,"debut":"08:30","fin":"18:30"},"2":{"actif":true,"debut":"08:30","fin":"18:30"},"3":{"actif":true,"debut":"08:30","fin":"18:30"},"4":{"actif":true,"debut":"08:30","fin":"18:30"},"5":{"actif":true,"debut":"08:30","fin":"16:00"}},"3":{"1":{"actif":true,"debut":"08:30","fin":"18:30"},"2":{"actif":true,"debut":"08:30","fin":"18:30"},"3":{"actif":true,"debut":"08:30","fin":"18:30"},"4":{"actif":true,"debut":"08:30","fin":"18:30"},"5":{"actif":true,"debut":"08:30","fin":"16:00"}}}';
+    const r = calcHeuresSemaineFromPlanning(joursJson);
+    expect(r.hNormalesSemaine).toBe(40);
+    expect(r.hSup25Semaine).toBe(7.5);
+    expect(r.hSup50Semaine).toBe(0);
+    expect(r.joursActifsParSemaine).toBe(5);
+  });
+
+  it('mode per-day avec 5 jours numériques reste per-day (pas de régression)', () => {
+    // Format per-day : valeur directement { actif, hDebut, hFin }
+    const planning: Record<string, object> = {};
+    for (const j of ['1','2','3','4','5']) {
+      planning[j] = { actif: true, hDebut: '09:00', hFin: '17:00' };
+    }
+    const r = calcHeuresSemaineFromPlanning(JSON.stringify(planning));
+    expect(r.hNormalesSemaine).toBe(40);
+    expect(r.hSup25Semaine).toBe(0);
   });
 });
 
