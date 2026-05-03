@@ -85,7 +85,8 @@ export function calcHeuresSemaineFromPlanning(joursJson: string): {
   try { planning = JSON.parse(joursJson || '{}'); } catch { planning = {}; }
 
   const keys = Object.keys(planning as object);
-  const isPerChild = keys.length > 0 && !keys.every(k => ['1','2','3','4','5'].includes(k));
+  const firstValue = keys.length > 0 ? (planning as Record<string, unknown>)[keys[0]] : null;
+  const isPerChild = firstValue !== null && typeof firstValue === 'object' && !('actif' in (firstValue as object));
 
   let totalMin = 0;
   const joursActifsSet = new Set<string>();
@@ -144,7 +145,8 @@ export function calcBModeRepartition(
   try { planning = JSON.parse(joursJson || '{}'); } catch { planning = {}; }
 
   const keys = Object.keys(planning as object);
-  const isPerChild = keys.length > 0 && !keys.every(k => ['1','2','3','4','5'].includes(k));
+  const firstValue = keys.length > 0 ? (planning as Record<string, unknown>)[keys[0]] : null;
+  const isPerChild = firstValue !== null && typeof firstValue === 'object' && !('actif' in (firstValue as object));
 
   if (!isPerChild) {
     const nbA = enfants.filter(e => e.fam === 'A').length;
