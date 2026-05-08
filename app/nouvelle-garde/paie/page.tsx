@@ -167,14 +167,12 @@ export default function PaiePage() {
   }, [racOption, modeExpert, preview.salNetA, preview.salNetB, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB, aA, aB]);
 
   const racPctA = useMemo(() => {
-    const cout = preview.salNetA * K_TOTAL;
-    return cout > 0 ? Math.round((liveRac.racA / cout) * 100) : 0;
-  }, [preview.salNetA, liveRac.racA]);
+    return liveRac.totalRac > 0 ? Math.round((liveRac.racA / liveRac.totalRac) * 100) : 0;
+  }, [liveRac.racA, liveRac.totalRac]);
 
   const racPctB = useMemo(() => {
-    const cout = preview.salNetB * K_TOTAL;
-    return cout > 0 ? Math.round((liveRac.racB / cout) * 100) : 0;
-  }, [preview.salNetB, liveRac.racB]);
+    return liveRac.totalRac > 0 ? Math.round((liveRac.racB / liveRac.totalRac) * 100) : 0;
+  }, [liveRac.racB, liveRac.totalRac]);
 
   function handleRacToggle(on: boolean) {
     setRacOption(on);
@@ -505,7 +503,7 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, m
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className={`text-xl font-bold ${text}`}>{rac.toFixed(0)} €</span>
             {racPct !== undefined && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>{racPct} % du coût</span>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>{racPct} % du RAC total</span>
             )}
           </div>
         </div>
