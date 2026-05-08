@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   calcBModeRepartition,
   calcEquitableRatioIteratif,
+  calcHeuresSemaineFromPlanning,
   estimerCMG2025,
   ciPlafondMensuel,
   K_TOTAL,
@@ -41,9 +42,6 @@ export default function PaiePage() {
   const [nomA,      setNomA]      = useState('Famille A');
   const [nomB,      setNomB]      = useState('Famille B');
   const [joursJson, setJoursJson] = useState('{}');
-  const [hNorm,     setHNorm]     = useState(40);
-  const [hSup25,    setHSup25]    = useState(0);
-  const [hSup50,    setHSup50]    = useState(0);
 
   const [taux,      setTaux]      = useState(11);
   const [navigo,    setNavigo]    = useState(90.80);
@@ -80,14 +78,11 @@ export default function PaiePage() {
       const planningData = planning?.planning ?? planning ?? {};
       const joursStr = JSON.stringify(planningData);
       setJoursJson(joursStr);
-      if (typeof planning?.hNormalesSemaine === 'number') setHNorm(planning.hNormalesSemaine);
-      if (typeof planning?.hSup25Semaine    === 'number') setHSup25(planning.hSup25Semaine);
-      if (typeof planning?.hSup50Semaine    === 'number') setHSup50(planning.hSup50Semaine);
 
       if (saved) {
         if (typeof saved.repartitionA   === 'number')  setRepartA(saved.repartitionA);
         if (typeof saved.racOptionActive === 'boolean') setRacOption(saved.racOptionActive);
-        if (typeof saved.taux           === 'number')  setTaux(saved.taux);
+        if (typeof saved.taux           === 'number' && saved.taux > 0) setTaux(saved.taux);
         if (typeof saved.navigo         === 'number')  setNavigo(saved.navigo);
         if (typeof saved.indemKm        === 'number')  setIndemKm(saved.indemKm);
         if (typeof saved.indemEntretien === 'number')  setEntretien(saved.indemEntretien);
@@ -106,12 +101,14 @@ export default function PaiePage() {
   const nbEnfantsA = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'A').length), [enfants]);
   const nbEnfantsB = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'B').length), [enfants]);
 
+  const planningHours = useMemo(() => calcHeuresSemaineFromPlanning(joursJson), [joursJson]);
+
   const salNetTotalMens = useMemo(() => {
-    const base  = hNorm  * 52/12 * taux;
-    const sup25 = hSup25 * 52/12 * taux * 1.25;
-    const sup50 = hSup50 * 52/12 * taux * 1.50;
+    const base  = planningHours.hNormalesSemaine * 52/12 * taux;
+    const sup25 = planningHours.hSup25Semaine    * 52/12 * taux * 1.25;
+    const sup50 = planningHours.hSup50Semaine    * 52/12 * taux * 1.50;
     return Math.round((base + sup25 + sup50) * 100) / 100;
-  }, [hNorm, hSup25, hSup50, taux]);
+  }, [planningHours, taux]);
 
   // Résultat du moteur itératif (actif quand racOption est on)
   const racOptimal = useMemo(() => {
