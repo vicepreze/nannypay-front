@@ -10,6 +10,7 @@ import {
   estimerCMG2025,
   ciPlafondMensuel,
   K_TOTAL,
+  K_PAT,
 } from '@/lib/calcul';
 
 type Tab = 'acteurs' | 'planning' | 'paie';
@@ -114,6 +115,11 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
     return Math.round((base + sup25 + sup50) * 100) / 100;
   }, [hNorm, hSup25, hSup50, tauxNet]);
 
+  // Heures physiques totales mensualisées (sans pondération sup) pour la formule CMG
+  const totalHeuresMensPhys = useMemo(() => {
+    return (hNorm + hSup25 + hSup50) * 52/12;
+  }, [hNorm, hSup25, hSup50]);
+
   // Résultat du moteur itératif (actif quand racOption est on, pour pre-fill et reset)
   const racOptimal = useMemo(() => {
     if (!racOption || salNetTotalMens <= 0) return null;
@@ -122,8 +128,10 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
       { nbEnfants: nbEnfantsA, revenusFiscaux: revFiscauxA, autresAidesMens: 0 },
       { nbEnfants: nbEnfantsB, revenusFiscaux: revFiscauxB, autresAidesMens: 0 },
       pProportionnel,
+      tauxNet,
+      totalHeuresMensPhys,
     );
-  }, [racOption, salNetTotalMens, nbEnfantsA, nbEnfantsB, revFiscauxA, revFiscauxB, pProportionnel]);
+  }, [racOption, salNetTotalMens, nbEnfantsA, nbEnfantsB, revFiscauxA, revFiscauxB, pProportionnel, tauxNet, totalHeuresMensPhys]);
 
   // Applique le ratio optimal au slider uniquement en Mode Magique
   useEffect(() => {
@@ -148,18 +156,18 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
       const racB = Math.round((salB * K_TOTAL - aidesB) * 100) / 100;
       return { racA, racB, totalRac: racA + racB };
     }
-    const coutA = salA * K_TOTAL;
-    const coutB = salB * K_TOTAL;
-    const cmgA = estimerCMG2025(revFiscauxA, nbEnfantsA, salA, coutA - salA);
-    const cmgB = estimerCMG2025(revFiscauxB, nbEnfantsB, salB, coutB - salB);
-    const eligA = Math.max(0, coutA - cmgA);
-    const eligB = Math.max(0, coutB - cmgB);
-    const ciA = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
-    const ciB = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
-    const racA = Math.round((coutA - cmgA - ciA) * 100) / 100;
-    const racB = Math.round((coutB - cmgB - ciB) * 100) / 100;
+    const coutA   = salA * K_TOTAL;
+    const coutB   = salB * K_TOTAL;
+    const cmgA    = estimerCMG2025(revFiscauxA, nbEnfantsA, tauxNet, totalHeuresMensPhys * repartA, salA * K_PAT);
+    const cmgB    = estimerCMG2025(revFiscauxB, nbEnfantsB, tauxNet, totalHeuresMensPhys * (1 - repartA), salB * K_PAT);
+    const eligA   = Math.max(0, coutA - cmgA);
+    const eligB   = Math.max(0, coutB - cmgB);
+    const ciA     = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
+    const ciB     = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
+    const racA    = Math.round((coutA - cmgA - ciA) * 100) / 100;
+    const racB    = Math.round((coutB - cmgB - ciB) * 100) / 100;
     return { racA, racB, totalRac: racA + racB };
-  }, [racOption, modeExpert, preview.salNetA, preview.salNetB, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB, aA, aB]);
+  }, [racOption, modeExpert, preview.salNetA, preview.salNetB, repartA, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB, tauxNet, totalHeuresMensPhys, aA, aB]);
 
   const racPctA = useMemo(() => {
     return liveRac.totalRac > 0 ? Math.round((liveRac.racA / liveRac.totalRac) * 100) : 0;
@@ -180,6 +188,8 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
         { nbEnfants: nbEnfantsA, revenusFiscaux: 80_000, autresAidesMens: 0 },
         { nbEnfants: nbEnfantsB, revenusFiscaux: 80_000, autresAidesMens: 0 },
         pProportionnel,
+        tauxNet,
+        totalHeuresMensPhys,
       );
       setRepartA(res.meilleurRatio);
     }
@@ -187,16 +197,16 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
 
   function handleOpenExpert() {
     if (racOptimal) {
-      setAA({ cmgCotisations: racOptimal.cmgA, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
-      setAB({ cmgCotisations: racOptimal.cmgB, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
+      setAA({ cmgCotisations: racOptimal.cmgCotA, cmgRemuneration: racOptimal.cmgRemuA, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
+      setAB({ cmgCotisations: racOptimal.cmgCotB, cmgRemuneration: racOptimal.cmgRemuB, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
     }
     setModeExpert(true);
   }
 
   function handleResetToMagic() {
     if (racOptimal) {
-      setAA({ cmgCotisations: racOptimal.cmgA, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
-      setAB({ cmgCotisations: racOptimal.cmgB, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
+      setAA({ cmgCotisations: racOptimal.cmgCotA, cmgRemuneration: racOptimal.cmgRemuA, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
+      setAB({ cmgCotisations: racOptimal.cmgCotB, cmgRemuneration: racOptimal.cmgRemuB, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
     }
   }
 

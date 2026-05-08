@@ -3,9 +3,12 @@ import {
   K_SAL, K_PAT, K_TOTAL,
   calcBModeRepartition,
   calcEquitableRatioA,
+  calcEquitableRatioIteratif,
   calcHeuresSemaineFromPlanning,
   calcSalNetMensuel,
   calculerMois,
+  ciPlafondMensuel,
+  estimerCMG2025,
 } from './calcul';
 import type { CalcInput } from './calcul';
 
@@ -667,5 +670,165 @@ describe('Scénario 3 — Optimisation RAC 3 enfants (47,5h @ 12,80 €)', () =>
   it('les deux RAC sont positifs (les aides ne couvrent pas tout le coût employeur)', () => {
     expect(racA).toBeGreaterThan(0);
     expect(racB).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ciPlafondMensuel
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ciPlafondMensuel', () => {
+  it('1 enfant → 6 750 €/an ÷ 12 = 562,50 €/mois', () => {
+    expect(ciPlafondMensuel(1)).toBe(562.5);
+  });
+
+  it('2 enfants → 7 500 €/an ÷ 12 = 625 €/mois', () => {
+    expect(ciPlafondMensuel(2)).toBe(625);
+  });
+
+  it('3 enfants → même plafond que 2+ = 625 €/mois', () => {
+    expect(ciPlafondMensuel(3)).toBe(625);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// estimerCMG2025 — formule linéaire 2025
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Formule : CMG = rémunération + cotisations
+//   rémunération = max(0, nbH × tarifActif × (1 − ressources × te / 10,38))
+//   cotisations  = min(chargesPatronales × 0,5 ; 524 €)
+//   tarifActif   = min(tauxHoraire ; 15,00 €/h)
+//   ressources   = clamp(revenusFiscaux/12 ; 815 ; 8 500)
+//   te           = 0,1238 % (1 enf) ou 0,1032 % (2 enf)
+
+describe('estimerCMG2025 — formule linéaire 2025', () => {
+  // Référence : 80 000 €/an (ressources = 6 666,67 €/mois)
+  // chargesPatronales = salNet × K_PAT
+  const h = 100;
+  const taux = 12.80;
+  const salNet = h * taux;             // 1 280 €
+  const chargesPat = salNet * K_PAT;   // ≈ 732,41 €
+
+  it('1 enfant, 80k, 12,80€/h, 100h → 628,46 € (remu + cot)', () => {
+    expect(estimerCMG2025(80_000, 1, taux, h, chargesPat)).toBe(628.46);
+  });
+
+  it('2 enfants, 80k, 12,80€/h, 100h → 797,81 € (te plus bas → remu plus haute)', () => {
+    expect(estimerCMG2025(80_000, 2, taux, h, chargesPat)).toBe(797.81);
+  });
+
+  it('tarif > 15 €/h : clampé à 15 €/h pour le calcul CMG', () => {
+    // tarifActif = 15 €/h même si tarif réel = 20 €/h
+    const salNet20 = h * 20;
+    const cp20 = salNet20 * K_PAT;
+    expect(estimerCMG2025(80_000, 2, 20, h, cp20)).toBe(1029.78);
+  });
+
+  it('revenu très élevé (200k) → factor négatif → remu = 0 → seulement cotisations', () => {
+    // ressources clampé à 8 500 → factor < 0 → remu = 0
+    expect(estimerCMG2025(200_000, 1, taux, h, chargesPat)).toBe(366.21);
+  });
+
+  it('revenu très bas (5k) → plancher 815 €/mois → remu maximale', () => {
+    expect(estimerCMG2025(5_000, 1, taux, h, chargesPat)).toBe(1521.79);
+  });
+
+  it('cotisations plafonnées à 524 €/mois même si 50 % des charges > 524', () => {
+    // salNet élevé → chargesPat élevées → cotisations = 524
+    const bigSal = 2000;
+    const bigCp = bigSal * K_PAT;  // ≈ 1 144 € → 50 % = 572 > 524 → plafonné
+    expect(estimerCMG2025(80_000, 2, taux, 2000/taux, bigCp)).toBe(
+      estimerCMG2025(80_000, 2, taux, 2000/taux, bigCp)
+    );
+    const result = estimerCMG2025(80_000, 2, taux, 2000/taux, bigCp);
+    expect(result).toBeGreaterThan(0);
+    // CMG cotisations ne peut pas dépasser 524 €
+    const remuOnly = estimerCMG2025(80_000, 2, taux, 2000/taux, 0);
+    expect(result - remuOnly).toBeLessThanOrEqual(524);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calcEquitableRatioIteratif — scénario 3 enfants (47,5h @ 12,80 €, 80k/an)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Inputs :
+//   - Planning  : 40h norm + 7,5h maj.25%  →  salNet = 2 738,67 €/mois
+//   - FamA      : 2 enfants, 80 000 €/an
+//   - FamB      : 1 enfant,  80 000 €/an
+//   - cible     : racA / (racA+racB) ≈ 2/3
+//
+// Valeurs "pinned" obtenues par balayage (pas 0,001) — régression exacte.
+
+describe('calcEquitableRatioIteratif — scénario 3 enfants (47,5h @ 12,80 €)', () => {
+  const SAL_TOTAL  = calcSalNetMensuel(40, 7.5, 0, 12.80);   // 2 738,67 €
+  const TOTAL_H    = (40 + 7.5 + 0) * 52 / 12;              // heures physiques/mois
+  const TARGET     = 2 / 3;
+
+  const res = calcEquitableRatioIteratif(
+    SAL_TOTAL,
+    { nbEnfants: 2, revenusFiscaux: 80_000, autresAidesMens: 0 },
+    { nbEnfants: 1, revenusFiscaux: 80_000, autresAidesMens: 0 },
+    TARGET,
+    12.80,
+    TOTAL_H,
+  );
+
+  it('meilleurRatio = 0.642 (régression exacte)', () => {
+    expect(res.meilleurRatio).toBe(0.642);
+  });
+
+  it('racA = 1 558,35 €', () => {
+    expect(res.racA).toBe(1558.35);
+  });
+
+  it('racB = 779,81 €', () => {
+    expect(res.racB).toBe(779.81);
+  });
+
+  it('racA / (racA + racB) ≈ 2/3', () => {
+    expect(res.racA / (res.racA + res.racB)).toBeCloseTo(TARGET, 2);
+  });
+
+  it('cmgA = 1 073,37 € (total CMG famille A)', () => {
+    expect(res.cmgA).toBe(1073.37);
+  });
+
+  it('cmgB = 473,75 € (total CMG famille B)', () => {
+    expect(res.cmgB).toBe(473.75);
+  });
+
+  it('cmgA = cmgRemuA + cmgCotA', () => {
+    expect(res.cmgRemuA + res.cmgCotA).toBeCloseTo(res.cmgA, 2);
+  });
+
+  it('cmgB = cmgRemuB + cmgCotB', () => {
+    expect(res.cmgRemuB + res.cmgCotB).toBeCloseTo(res.cmgB, 2);
+  });
+
+  it('cmgRemuA = 570,34 € (composante rémunération fam A)', () => {
+    expect(res.cmgRemuA).toBe(570.34);
+  });
+
+  it('cmgCotA = 503,03 € (composante cotisations fam A)', () => {
+    expect(res.cmgCotA).toBe(503.03);
+  });
+
+  it('ciAMens = 625 € (plafond 2 enfants)', () => {
+    expect(res.ciAMens).toBe(625);
+  });
+
+  it('ciBMens = 562,50 € (plafond 1 enfant)', () => {
+    expect(res.ciBMens).toBe(562.5);
+  });
+
+  it('les deux RAC sont positifs', () => {
+    expect(res.racA).toBeGreaterThan(0);
+    expect(res.racB).toBeGreaterThan(0);
+  });
+
+  it('meilleurRatio < targetRatioA (CMG A > CMG B donc A peut absorber moins)', () => {
+    expect(res.meilleurRatio).toBeLessThan(TARGET);
   });
 });
