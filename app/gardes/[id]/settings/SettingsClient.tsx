@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SignOutButton } from '@/components/SignOutButton';
@@ -48,6 +48,12 @@ type Props = {
   enfants: { prenom: string; fam: string }[];
 };
 
+function totalAidesMens(a: Aides): number {
+  return Math.round(
+    (a.cmgCotisations + a.cmgRemuneration + a.abattementCharges + a.aideVille + a.creditImpot / 12) * 100
+  ) / 100;
+}
+
 export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou, modele, enfants }: Props) {
   const router = useRouter();
   const [tab, setTab]       = useState<Tab>('acteurs');
@@ -72,8 +78,26 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   const [repartA,    setRepartA]    = useState(modele?.repartitionA    ?? 0.5);
   const [racOption,  setRacOption]  = useState(modele?.racOptionActive ?? false);
   const [modeExpert, setModeExpert] = useState(false);
-  const [revFiscauxA, setRevFiscauxA] = useState(80_000);
-  const [revFiscauxB, setRevFiscauxB] = useState(80_000);
+
+  // Revenus fiscaux internes — 80 000 € par défaut, non exposés en UI Mode Magique
+  const [revFiscauxA] = useState(80_000);
+  const [revFiscauxB] = useState(80_000);
+
+  // Aides manuelles pour le Mode Expert
+  const [aA, setAA] = useState<Aides>({
+    cmgCotisations:    famA.cmgCotisations,
+    cmgRemuneration:   famA.cmgRemuneration,
+    abattementCharges: famA.abattementCharges,
+    aideVille:         famA.aideVille,
+    creditImpot:       famA.creditImpot,
+  });
+  const [aB, setAB] = useState<Aides>({
+    cmgCotisations:    famB.cmgCotisations,
+    cmgRemuneration:   famB.cmgRemuneration,
+    abattementCharges: famB.abattementCharges,
+    aideVille:         famB.aideVille,
+    creditImpot:       famB.creditImpot,
+  });
 
   const pProportionnel = useMemo(
     () => calcBModeRepartition(modele?.joursJson ?? '{}', enfants),
@@ -90,6 +114,7 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
     return Math.round((base + sup25 + sup50) * 100) / 100;
   }, [hNorm, hSup25, hSup50, tauxNet]);
 
+  // Résultat du moteur itératif (toujours actif quand racOption est on, pour pre-fill et reset)
   const racOptimal = useMemo(() => {
     if (!racOption || salNetTotalMens <= 0) return null;
     return calcEquitableRatioIteratif(
@@ -100,18 +125,30 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
     );
   }, [racOption, salNetTotalMens, nbEnfantsA, nbEnfantsB, revFiscauxA, revFiscauxB, pProportionnel]);
 
-  // Live preview at current slider position
+  // Applique le ratio optimal au slider uniquement en Mode Magique
+  useEffect(() => {
+    if (racOptimal && !modeExpert) setRepartA(racOptimal.meilleurRatio);
+  }, [racOptimal, modeExpert]);
+
+  // Preview salaires nets
   const preview = useMemo(() => {
     const salNetA = Math.round(repartA * salNetTotalMens * 100) / 100;
     const salNetB = Math.round((1 - repartA) * salNetTotalMens * 100) / 100;
     return { salNetA, salNetB };
   }, [repartA, salNetTotalMens]);
 
-  // Live RAC at current repartA (engine formula)
+  // RAC live — Mode Magique : moteur CMG/CI ; Mode Expert : aides manuelles
   const liveRac = useMemo(() => {
     if (!racOption) return { racA: 0, racB: 0, totalRac: 0 };
     const salA = preview.salNetA;
     const salB = preview.salNetB;
+    if (modeExpert) {
+      const aidesA = totalAidesMens(aA);
+      const aidesB = totalAidesMens(aB);
+      const racA = Math.round((salA * K_TOTAL - aidesA) * 100) / 100;
+      const racB = Math.round((salB * K_TOTAL - aidesB) * 100) / 100;
+      return { racA, racB, totalRac: racA + racB };
+    }
     const coutA = salA * K_TOTAL;
     const coutB = salB * K_TOTAL;
     const cmgA = estimerCMG2025(revFiscauxA, nbEnfantsA, salA, coutA - salA);
@@ -123,15 +160,24 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
     const racA = Math.round((coutA - cmgA - ciA) * 100) / 100;
     const racB = Math.round((coutB - cmgB - ciB) * 100) / 100;
     return { racA, racB, totalRac: racA + racB };
-  }, [racOption, preview.salNetA, preview.salNetB, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB]);
+  }, [racOption, modeExpert, preview.salNetA, preview.salNetB, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB, aA, aB]);
+
+  // % du coût total que représente le RAC
+  const racPctA = useMemo(() => {
+    const cout = preview.salNetA * K_TOTAL;
+    return cout > 0 ? Math.round((liveRac.racA / cout) * 100) : 0;
+  }, [preview.salNetA, liveRac.racA]);
+
+  const racPctB = useMemo(() => {
+    const cout = preview.salNetB * K_TOTAL;
+    return cout > 0 ? Math.round((liveRac.racB / cout) * 100) : 0;
+  }, [preview.salNetB, liveRac.racB]);
 
   function flash() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
 
   function handleRacToggle(on: boolean) {
     setRacOption(on);
     setModeExpert(false);
-    setRevFiscauxA(80_000);
-    setRevFiscauxB(80_000);
     if (on && salNetTotalMens > 0) {
       const res = calcEquitableRatioIteratif(
         salNetTotalMens,
@@ -140,6 +186,21 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
         pProportionnel,
       );
       setRepartA(res.meilleurRatio);
+    }
+  }
+
+  function handleOpenExpert() {
+    if (racOptimal) {
+      setAA({ cmgCotisations: racOptimal.cmgA, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
+      setAB({ cmgCotisations: racOptimal.cmgB, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
+    }
+    setModeExpert(true);
+  }
+
+  function handleResetToMagic() {
+    if (racOptimal) {
+      setAA({ cmgCotisations: racOptimal.cmgA, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
+      setAB({ cmgCotisations: racOptimal.cmgB, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
     }
   }
 
@@ -163,6 +224,9 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   async function savePaie() {
     if (!modele) return;
     setSaving(true); setError('');
+    // En Mode Expert, on sauvegarde les aides saisies manuellement
+    const savedAA = modeExpert ? aA : { cmgCotisations: famA.cmgCotisations, cmgRemuneration: famA.cmgRemuneration, abattementCharges: famA.abattementCharges, aideVille: famA.aideVille, creditImpot: famA.creditImpot };
+    const savedAB = modeExpert ? aB : { cmgCotisations: famB.cmgCotisations, cmgRemuneration: famB.cmgRemuneration, abattementCharges: famB.abattementCharges, aideVille: famB.aideVille, creditImpot: famB.creditImpot };
     const res = await fetch(`/api/gardes/${gardeId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -178,14 +242,8 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
           repartitionA:     repartA,
           racOptionActive:  racOption,
         },
-        familleA: {
-          cmgCotisations: famA.cmgCotisations, cmgRemuneration: famA.cmgRemuneration,
-          abattementCharges: famA.abattementCharges, aideVille: famA.aideVille, creditImpot: famA.creditImpot,
-        },
-        familleB: {
-          cmgCotisations: famB.cmgCotisations, cmgRemuneration: famB.cmgRemuneration,
-          abattementCharges: famB.abattementCharges, aideVille: famB.aideVille, creditImpot: famB.creditImpot,
-        },
+        familleA: savedAA,
+        familleB: savedAB,
       }),
     });
     if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Erreur'); setSaving(false); return; }
@@ -197,6 +255,7 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   const SLIDER_MIN = 20;
   const SLIDER_MAX = 80;
   const pct = (p: number) => ((p * 100 - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
+  const isMagicMode = racOption && !modeExpert;
 
   return (
     <div className="min-h-screen bg-[var(--paper)]">
@@ -320,6 +379,8 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                       rac={liveRac.racA}
                       totalRac={liveRac.totalRac}
                       racOption={racOption}
+                      magicMode={isMagicMode}
+                      racPct={racPctA}
                     />
                     <FamPreview
                       label={nomB || 'Famille B'}
@@ -329,6 +390,8 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                       rac={liveRac.racB}
                       totalRac={liveRac.totalRac}
                       racOption={racOption}
+                      magicMode={isMagicMode}
+                      racPct={racPctB}
                     />
                   </div>
 
@@ -344,43 +407,70 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
               {/* ── B — Option RAC ─────────────────────────────────── */}
               <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
                 <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
-                    Reste à charge par famille
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
+                      🪄 Calculer selon le Reste à Charge <span className="text-[var(--dust)] font-normal">(Recommandé)</span>
+                    </div>
+                    <p className="text-xs text-[var(--dust)] mt-1 ml-7">
+                      {racOption
+                        ? modeExpert
+                          ? 'Mode Expert — ajustez vos aides pour affiner le point d\'équilibre.'
+                          : 'Mode Magique — point d\'équilibre calculé selon le barème CAF 2025.'
+                        : 'Activez pour calculer le point d\'équilibre RAC selon vos aides CAF.'}
+                    </p>
                   </div>
                   <Toggle checked={racOption} onChange={handleRacToggle} />
                 </div>
 
                 {racOption && (
-                  <div className="p-5 space-y-4">
+                  <>
                     {!modeExpert ? (
-                      <p className="text-xs text-[var(--dust)]">
-                        Calcul automatique — revenus fiscaux : <strong>80 000 €</strong> (Tranche 3 CAF, aides minimales).
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-3">
-                        <FN label={`Revenus fiscaux ${nomA || 'Famille A'} (€/an)`} value={revFiscauxA} onChange={setRevFiscauxA} />
-                        <FN label={`Revenus fiscaux ${nomB || 'Famille B'} (€/an)`} value={revFiscauxB} onChange={setRevFiscauxB} />
+                      /* ── Mode Magique ── */
+                      <div className="px-5 py-4">
+                        {salNetTotalMens <= 0 ? (
+                          <p className="text-xs text-[var(--dust)]">
+                            Configurez le taux horaire et les heures dans la section Rémunération pour activer le calcul.
+                          </p>
+                        ) : (
+                          <p className="text-xs text-[var(--dust)]">
+                            Ratio optimal calculé automatiquement — aides CAF (CMG + CI) intégrées selon le barème 2025.
+                          </p>
+                        )}
+                        <button
+                          onClick={handleOpenExpert}
+                          disabled={!racOptimal}
+                          className="mt-3 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                        >
+                          ⚙️ Ajuster mes aides manuellement (Mode Expert)
+                        </button>
                       </div>
+                    ) : (
+                      /* ── Mode Expert ── */
+                      <>
+                        <div className="grid grid-cols-2 divide-x divide-[var(--line)] mt-4">
+                          <AidesColumn label={nomA || 'Famille A'} a={aA} setA={setAA} total={totalAidesMens(aA)} />
+                          <AidesColumn label={nomB || 'Famille B'} a={aB} setA={setAB} total={totalAidesMens(aB)} />
+                        </div>
+
+                        <div className="px-5 pb-4 flex items-center gap-5">
+                          <button
+                            onClick={handleResetToMagic}
+                            disabled={!racOptimal}
+                            className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                          >
+                            ↺ Rétablir l&apos;estimation magique
+                          </button>
+                          <button
+                            onClick={() => setModeExpert(false)}
+                            className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
+                          >
+                            ← Mode Magique
+                          </button>
+                        </div>
+                      </>
                     )}
-                    <div className="flex items-center gap-4">
-                      {!modeExpert ? (
-                        <button
-                          onClick={() => setModeExpert(true)}
-                          className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
-                        >
-                          ⚙️ Passer en mode expert
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => { setModeExpert(false); setRevFiscauxA(80_000); setRevFiscauxB(80_000); }}
-                          className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
-                        >
-                          ↩ Revenir au mode automatique
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  </>
                 )}
               </div>
 
@@ -483,15 +573,37 @@ function SliderRow({ value, onChange, min, max, markers, pct }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption }: {
+function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, magicMode, racPct }: {
   label: string; percent: number; color: 'sage' | 'blue';
   salNet: number; rac: number; totalRac: number;
-  racOption: boolean;
+  racOption: boolean; magicMode?: boolean; racPct?: number;
 }) {
-  const bg   = color === 'sage' ? 'bg-[var(--sage-light)]'  : 'bg-blue-50';
-  const text = color === 'sage' ? 'text-[var(--sage)]'       : 'text-blue-700';
-  const pctRac = totalRac > 0 ? rac / totalRac : percent;
+  const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
+  const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
 
+  if (magicMode && racOption) {
+    return (
+      <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
+        <div className="flex items-center justify-between mb-3">
+          <span className={`text-sm font-semibold ${text}`}>{label}</span>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
+        </div>
+        <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
+        <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
+        <div className="pt-3 border-t border-white/70">
+          <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className={`text-xl font-bold ${text}`}>{rac.toFixed(0)} €</span>
+            {racPct !== undefined && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>{racPct} % du coût</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const pctRac = totalRac > 0 ? rac / totalRac : percent;
   return (
     <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
       <div className="flex items-center justify-between mb-2">
@@ -510,6 +622,26 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption }:
           <div className={`text-lg font-bold ${text}`}>{rac.toFixed(2)} €</div>
         </div>
       )}
+    </div>
+  );
+}
+
+function AidesColumn({ label, a, setA, total }: {
+  label: string; a: Aides; setA: (v: Aides) => void; total: number;
+}) {
+  const upd = (k: keyof Aides) => (v: number) => setA({ ...a, [k]: v });
+  return (
+    <div className="p-5 space-y-3">
+      <div className="text-xs font-semibold text-[var(--ink)] uppercase tracking-wide">{label}</div>
+      <FN label="Abattement charges patronales"       value={a.abattementCharges} onChange={upd('abattementCharges')} />
+      <FN label="CMG cotisations sociales (CAF)"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
+      <FN label="CMG rémunération (CAF)"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
+      <FN label="Aide locale (ex : Ville de St Ouen)" value={a.aideVille}         onChange={upd('aideVille')} />
+      <FN label="Crédit d'impôt (annuel)"             value={a.creditImpot}       onChange={upd('creditImpot')} />
+      <div className="flex justify-between pt-3 border-t border-[var(--line)] text-xs font-semibold">
+        <span>Total aides / mois</span>
+        <span className="font-mono text-[var(--sage)]">− {total.toFixed(2)} €</span>
+      </div>
     </div>
   );
 }
