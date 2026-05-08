@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { calcBModeRepartition, calcEquitableRatioA, K_SAL, K_PAT } from '@/lib/calcul';
+import {
+  calcBModeRepartition,
+  calcEquitableRatioIteratif,
+  estimerCMG2025,
+  ciPlafondMensuel,
+  K_TOTAL,
+} from '@/lib/calcul';
 
 type Aides = {
   cmgCotisations:    number;
@@ -11,17 +17,18 @@ type Aides = {
   aideVille:         number;
   creditImpot:       number;
 };
+
 const aidesZero = (): Aides => ({
   cmgCotisations: 0, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: 0,
 });
-
-type Enfant = { prenom: string; fam: string };
 
 function totalAidesMens(a: Aides): number {
   return Math.round(
     (a.cmgCotisations + a.cmgRemuneration + a.abattementCharges + a.aideVille + a.creditImpot / 12) * 100
   ) / 100;
 }
+
+type Enfant = { prenom: string; fam: string };
 
 const SLIDER_MIN = 20;
 const SLIDER_MAX = 80;
@@ -43,14 +50,20 @@ export default function PaiePage() {
   const [indemKm,   setIndemKm]   = useState(0);
   const [entretien, setEntretien] = useState(6.0);
 
-  const [repartA,   setRepartA]   = useState(0.5);   // 50 % par défaut
-  const [racOption, setRacOption] = useState(false);
+  const [repartA,    setRepartA]    = useState(0.5);
+  const [racOption,  setRacOption]  = useState(false);
+  const [modeExpert, setModeExpert] = useState(false);
 
+  // Revenus fiscaux internes — 80 000 € par défaut, non exposés en UI Mode Magique
+  const [revFiscauxA] = useState(80_000);
+  const [revFiscauxB] = useState(80_000);
+
+  // Aides manuelles pour le Mode Expert
   const [aA, setAA] = useState<Aides>(aidesZero());
   const [aB, setAB] = useState<Aides>(aidesZero());
 
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -90,32 +103,101 @@ export default function PaiePage() {
     [joursJson, enfants]
   );
 
+  const nbEnfantsA = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'A').length), [enfants]);
+  const nbEnfantsB = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'B').length), [enfants]);
+
   const salNetTotalMens = useMemo(() => {
-    const baseNet  = hNorm  * 52/12 * taux;
-    const sup25Net = hSup25 * 52/12 * taux * 1.25;
-    const sup50Net = hSup50 * 52/12 * taux * 1.50;
-    return Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
+    const base  = hNorm  * 52/12 * taux;
+    const sup25 = hSup25 * 52/12 * taux * 1.25;
+    const sup50 = hSup50 * 52/12 * taux * 1.50;
+    return Math.round((base + sup25 + sup50) * 100) / 100;
   }, [hNorm, hSup25, hSup50, taux]);
 
-  const aidesAMens = useMemo(() => totalAidesMens(aA), [aA]);
-  const aidesBMens = useMemo(() => totalAidesMens(aB), [aB]);
+  // Résultat du moteur itératif (actif quand racOption est on)
+  const racOptimal = useMemo(() => {
+    if (!racOption || salNetTotalMens <= 0) return null;
+    return calcEquitableRatioIteratif(
+      salNetTotalMens,
+      { nbEnfants: nbEnfantsA, revenusFiscaux: revFiscauxA, autresAidesMens: 0 },
+      { nbEnfants: nbEnfantsB, revenusFiscaux: revFiscauxB, autresAidesMens: 0 },
+      pProportionnel,
+    );
+  }, [racOption, salNetTotalMens, nbEnfantsA, nbEnfantsB, revFiscauxA, revFiscauxB, pProportionnel]);
 
-  const pEquitable = useMemo(
-    () => calcEquitableRatioA(pProportionnel, salNetTotalMens, aidesAMens, aidesBMens),
-    [pProportionnel, salNetTotalMens, aidesAMens, aidesBMens]
-  );
+  // Applique le ratio optimal au slider uniquement en Mode Magique
+  useEffect(() => {
+    if (racOptimal && !modeExpert) setRepartA(racOptimal.meilleurRatio);
+  }, [racOptimal, modeExpert]);
 
   const preview = useMemo(() => {
     const salNetA = Math.round(repartA * salNetTotalMens * 100) / 100;
     const salNetB = Math.round((1 - repartA) * salNetTotalMens * 100) / 100;
-    const chSalA  = Math.round(salNetA * K_SAL * 100) / 100;
-    const chPatA  = Math.round(salNetA * K_PAT * 100) / 100;
-    const chSalB  = Math.round(salNetB * K_SAL * 100) / 100;
-    const chPatB  = Math.round(salNetB * K_PAT * 100) / 100;
-    const racA    = Math.round((salNetA + chSalA + chPatA - aidesAMens) * 100) / 100;
-    const racB    = Math.round((salNetB + chSalB + chPatB - aidesBMens) * 100) / 100;
-    return { salNetA, salNetB, chSalA, chPatA, chSalB, chPatB, racA, racB };
-  }, [repartA, salNetTotalMens, aidesAMens, aidesBMens]);
+    return { salNetA, salNetB };
+  }, [repartA, salNetTotalMens]);
+
+  // RAC live — Mode Magique : moteur CMG/CI ; Mode Expert : aides manuelles
+  const liveRac = useMemo(() => {
+    if (!racOption) return { racA: 0, racB: 0, totalRac: 0 };
+    const salA = preview.salNetA;
+    const salB = preview.salNetB;
+    if (modeExpert) {
+      const aidesA = totalAidesMens(aA);
+      const aidesB = totalAidesMens(aB);
+      const racA = Math.round((salA * K_TOTAL - aidesA) * 100) / 100;
+      const racB = Math.round((salB * K_TOTAL - aidesB) * 100) / 100;
+      return { racA, racB, totalRac: racA + racB };
+    }
+    const coutA = salA * K_TOTAL;
+    const coutB = salB * K_TOTAL;
+    const cmgA = estimerCMG2025(revFiscauxA, nbEnfantsA, salA, coutA - salA);
+    const cmgB = estimerCMG2025(revFiscauxB, nbEnfantsB, salB, coutB - salB);
+    const eligA = Math.max(0, coutA - cmgA);
+    const eligB = Math.max(0, coutB - cmgB);
+    const ciA = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
+    const ciB = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
+    const racA = Math.round((coutA - cmgA - ciA) * 100) / 100;
+    const racB = Math.round((coutB - cmgB - ciB) * 100) / 100;
+    return { racA, racB, totalRac: racA + racB };
+  }, [racOption, modeExpert, preview.salNetA, preview.salNetB, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB, aA, aB]);
+
+  const racPctA = useMemo(() => {
+    const cout = preview.salNetA * K_TOTAL;
+    return cout > 0 ? Math.round((liveRac.racA / cout) * 100) : 0;
+  }, [preview.salNetA, liveRac.racA]);
+
+  const racPctB = useMemo(() => {
+    const cout = preview.salNetB * K_TOTAL;
+    return cout > 0 ? Math.round((liveRac.racB / cout) * 100) : 0;
+  }, [preview.salNetB, liveRac.racB]);
+
+  function handleRacToggle(on: boolean) {
+    setRacOption(on);
+    setModeExpert(false);
+    if (on && salNetTotalMens > 0) {
+      const res = calcEquitableRatioIteratif(
+        salNetTotalMens,
+        { nbEnfants: nbEnfantsA, revenusFiscaux: 80_000, autresAidesMens: 0 },
+        { nbEnfants: nbEnfantsB, revenusFiscaux: 80_000, autresAidesMens: 0 },
+        pProportionnel,
+      );
+      setRepartA(res.meilleurRatio);
+    }
+  }
+
+  function handleOpenExpert() {
+    if (racOptimal) {
+      setAA({ cmgCotisations: racOptimal.cmgA, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
+      setAB({ cmgCotisations: racOptimal.cmgB, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
+    }
+    setModeExpert(true);
+  }
+
+  function handleResetToMagic() {
+    if (racOptimal) {
+      setAA({ cmgCotisations: racOptimal.cmgA, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
+      setAB({ cmgCotisations: racOptimal.cmgB, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
+    }
+  }
 
   async function creerGarde() {
     setError('');
@@ -129,7 +211,9 @@ export default function PaiePage() {
     sessionStorage.setItem('ng_paie', JSON.stringify({
       repartitionA: repartA,
       racOptionActive: racOption,
-      taux, navigo, indemKm, indemEntretien: entretien, aidesA: aA, aidesB: aB,
+      taux, navigo, indemKm, indemEntretien: entretien,
+      aidesA: modeExpert ? aA : aidesZero(),
+      aidesB: modeExpert ? aB : aidesZero(),
     }));
 
     setLoading(true);
@@ -146,8 +230,8 @@ export default function PaiePage() {
             navigo,
             indemKm,
             indemEntretien: entretien,
-            aidesA: aA,
-            aidesB: aB,
+            aidesA: modeExpert ? aA : aidesZero(),
+            aidesB: modeExpert ? aB : aidesZero(),
           },
         }),
       });
@@ -164,6 +248,8 @@ export default function PaiePage() {
   }
 
   if (!hydrated) return null;
+
+  const isMagicMode = racOption && !modeExpert;
 
   return (
     <div className="space-y-5">
@@ -201,7 +287,7 @@ export default function PaiePage() {
             min={SLIDER_MIN} max={SLIDER_MAX}
             markers={[
               { value: 0.5, label: '50/50' },
-              ...(racOption ? [{ value: pEquitable, label: 'Équitable RAC', highlight: true }] : []),
+              ...(racOption && racOptimal ? [{ value: racOptimal.meilleurRatio, label: 'Équitable RAC', highlight: true }] : []),
             ]}
           />
 
@@ -209,16 +295,14 @@ export default function PaiePage() {
             <FamPreview
               label={nomA} percent={repartA} color="sage"
               salNet={preview.salNetA}
-              chSal={preview.chSalA} chPat={preview.chPatA}
-              aides={aidesAMens} rac={preview.racA}
-              racOption={racOption}
+              rac={liveRac.racA} totalRac={liveRac.totalRac}
+              racOption={racOption} magicMode={isMagicMode} racPct={racPctA}
             />
             <FamPreview
               label={nomB} percent={1 - repartA} color="blue"
               salNet={preview.salNetB}
-              chSal={preview.chSalB} chPat={preview.chPatB}
-              aides={aidesBMens} rac={preview.racB}
-              racOption={racOption}
+              rac={liveRac.racB} totalRac={liveRac.totalRac}
+              racOption={racOption} magicMode={isMagicMode} racPct={racPctB}
             />
           </div>
 
@@ -237,24 +321,65 @@ export default function PaiePage() {
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
-              Répartition du salaire en fonction du reste à charge par famille
+              🪄 Calculer selon le Reste à Charge <span className="text-[var(--dust)] font-normal">(Recommandé)</span>
             </div>
-            <p className="text-xs text-[var(--dust)] mt-1 ml-7">Renseignez les aides CAF par famille pour affiner la répartition.</p>
+            <p className="text-xs text-[var(--dust)] mt-1 ml-7">
+              {racOption
+                ? modeExpert
+                  ? 'Mode Expert — ajustez vos aides pour affiner le point d\'équilibre.'
+                  : 'Mode Magique — point d\'équilibre calculé selon le barème CAF 2025.'
+                : 'Activez pour calculer le point d\'équilibre RAC selon vos aides CAF.'}
+            </p>
           </div>
-          <Toggle checked={racOption} onChange={setRacOption} />
+          <Toggle checked={racOption} onChange={handleRacToggle} />
         </div>
 
         {racOption && (
           <>
-            <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
-              <AidesColumn label={nomA} a={aA} setA={setAA} total={aidesAMens} />
-              <AidesColumn label={nomB} a={aB} setA={setAB} total={aidesBMens} />
-            </div>
-
-            {salNetTotalMens > 0 && (aidesAMens > 0 || aidesBMens > 0) && (
-              <div className="m-5 p-4 rounded-[var(--radius)] bg-[var(--sage-light)] text-xs text-[var(--ink)] leading-relaxed">
-                💡 <strong>Suggestion :</strong> Pour que le RAC de chaque famille soit proportionnel à sa part d&apos;heures ({(pProportionnel * 100).toFixed(1)} % / {((1-pProportionnel) * 100).toFixed(1)} %), placez le slider sur <strong>{(pEquitable * 100).toFixed(1)} %</strong> (marqueur <em>Équitable RAC</em>).
+            {!modeExpert ? (
+              /* ── Mode Magique ── */
+              <div className="px-5 py-4">
+                {salNetTotalMens <= 0 ? (
+                  <p className="text-xs text-[var(--dust)]">
+                    Configurez le taux horaire et les heures dans la section Rémunération pour activer le calcul.
+                  </p>
+                ) : (
+                  <p className="text-xs text-[var(--dust)]">
+                    Ratio optimal calculé automatiquement — aides CAF (CMG + CI) intégrées selon le barème 2025.
+                  </p>
+                )}
+                <button
+                  onClick={handleOpenExpert}
+                  disabled={!racOptimal}
+                  className="mt-3 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                >
+                  ⚙️ Ajuster mes aides manuellement (Mode Expert)
+                </button>
               </div>
+            ) : (
+              /* ── Mode Expert ── */
+              <>
+                <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
+                  <AidesColumn label={nomA} a={aA} setA={setAA} total={totalAidesMens(aA)} />
+                  <AidesColumn label={nomB} a={aB} setA={setAB} total={totalAidesMens(aB)} />
+                </div>
+
+                <div className="px-5 pb-4 flex items-center gap-5">
+                  <button
+                    onClick={handleResetToMagic}
+                    disabled={!racOptimal}
+                    className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                  >
+                    ↺ Rétablir l&apos;estimation magique
+                  </button>
+                  <button
+                    onClick={() => setModeExpert(false)}
+                    className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
+                  >
+                    ← Mode Magique
+                  </button>
+                </div>
+              </>
             )}
           </>
         )}
@@ -272,7 +397,7 @@ export default function PaiePage() {
   );
 }
 
-// ── Sub-components (alignés avec SettingsClient) ──────────────────────
+// ── Sub-components ──────────────────────────────────────────────────
 
 function SliderRow({ value, onChange, min, max, markers }: {
   value: number;
@@ -352,13 +477,37 @@ function SliderRow({ value, onChange, min, max, markers }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, chSal, chPat, aides, rac, racOption }: {
+function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, magicMode, racPct }: {
   label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; chSal: number; chPat: number; aides: number; rac: number;
-  racOption: boolean;
+  salNet: number; rac: number; totalRac: number;
+  racOption: boolean; magicMode?: boolean; racPct?: number;
 }) {
   const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
   const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
+
+  if (magicMode && racOption) {
+    return (
+      <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
+        <div className="flex items-center justify-between mb-3">
+          <span className={`text-sm font-semibold ${text}`}>{label}</span>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
+        </div>
+        <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
+        <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
+        <div className="pt-3 border-t border-white/70">
+          <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className={`text-xl font-bold ${text}`}>{rac.toFixed(0)} €</span>
+            {racPct !== undefined && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>{racPct} % du coût</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const pctRac = totalRac > 0 ? rac / totalRac : percent;
   return (
     <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
       <div className="flex items-center justify-between mb-2">
@@ -369,25 +518,14 @@ function FamPreview({ label, percent, color, salNet, chSal, chPat, aides, rac, r
       <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
 
       {racOption && (
-        <div className="mt-3 pt-3 border-t border-white/70 text-xs space-y-1">
-          <Line l="Charges salariales (21,88 %)" v={`${chSal.toFixed(2)} €`} />
-          <Line l="Charges patronales (44,70 %)" v={`${chPat.toFixed(2)} €`} />
-          <Line l="Total aides CAF" v={`− ${aides.toFixed(2)} €`} bold />
-          <div className="flex justify-between pt-1 border-t border-white/70 font-semibold">
-            <span>Reste à charge estimé</span>
-            <span>{rac.toFixed(2)} €</span>
+        <div className="mt-3 pt-3 border-t border-white/70">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[11px] text-[var(--dust)]">Reste à charge</span>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(pctRac * 100).toFixed(1)} %</span>
           </div>
+          <div className={`text-lg font-bold ${text}`}>{rac.toFixed(2)} €</div>
         </div>
       )}
-    </div>
-  );
-}
-
-function Line({ l, v, bold }: { l: string; v: string; bold?: boolean }) {
-  return (
-    <div className="flex justify-between">
-      <span className="text-[var(--dust)]">{l}</span>
-      <span className={`font-mono ${bold ? 'font-semibold' : ''}`}>{v}</span>
     </div>
   );
 }
@@ -399,11 +537,11 @@ function AidesColumn({ label, a, setA, total }: {
   return (
     <div className="p-5 space-y-3">
       <div className="text-xs font-semibold text-[var(--ink)] uppercase tracking-wide">{label}</div>
-      <FN label="Abattement charges patronales"     value={a.abattementCharges} onChange={upd('abattementCharges')} />
-      <FN label="CMG cotisations sociales CAF"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
-      <FN label="CMG rémunération CAF"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
-      <FN label="Aide ville (ex : St-Ouen)"         value={a.aideVille}         onChange={upd('aideVille')} />
-      <FN label="Crédit d'impôt (annuel)"           value={a.creditImpot}       onChange={upd('creditImpot')} />
+      <FN label="Abattement charges patronales"       value={a.abattementCharges} onChange={upd('abattementCharges')} />
+      <FN label="CMG cotisations sociales (CAF)"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
+      <FN label="CMG rémunération (CAF)"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
+      <FN label="Aide locale (ex : Ville de St Ouen)" value={a.aideVille}         onChange={upd('aideVille')} />
+      <FN label="Crédit d'impôt (annuel)"             value={a.creditImpot}       onChange={upd('creditImpot')} />
       <div className="flex justify-between pt-3 border-t border-[var(--line)] text-xs font-semibold">
         <span>Total aides / mois</span>
         <span className="font-mono text-[var(--sage)]">− {total.toFixed(2)} €</span>

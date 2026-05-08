@@ -199,6 +199,113 @@ export function calcEquitableRatioA(
 }
 
 /**
+ * Plafond mensuel de Crédit d'Impôt (50 % des dépenses nettes après CMG).
+ * Plafond légal : 6 750 €/an pour 1 enfant, 7 500 €/an pour 2+ enfants.
+ */
+export function ciPlafondMensuel(nbEnfants: number): number {
+  return (nbEnfants >= 2 ? 7_500 : 6_750) / 12;
+  // 1 enfant → 562,50 €/mois   2+ enfants → 625,00 €/mois
+}
+
+// ── CMG Emploi direct 2025 ────────────────────────────────────────
+
+const CMG_PLAFONDS_2025 = [
+  { maxRevFiscaux:  31_000, un: 1_075, deux: 1_612 },
+  { maxRevFiscaux:  57_000, un:   755, deux: 1_132 },
+  { maxRevFiscaux: Infinity, un:  570, deux:   855 },
+] as const;
+
+/**
+ * Estime le montant mensuel de CMG Emploi direct 2025.
+ * Couvre 50 % du coût employeur (salNetMois + chargesMois), plafonné selon
+ * les revenus fiscaux et le nombre d'enfants gardés par cette famille.
+ */
+export function estimerCMG2025(
+  revenusFiscaux: number,
+  nbEnfants:      number,
+  salNetMois:     number,
+  chargesMois:    number,
+): number {
+  const tranche = CMG_PLAFONDS_2025.find(t => revenusFiscaux <= t.maxRevFiscaux)!;
+  const plafond  = nbEnfants >= 2 ? tranche.deux : tranche.un;
+  const coutTotal = salNetMois + chargesMois;
+  return Math.min(Math.round(coutTotal * 0.5 * 100) / 100, plafond);
+}
+
+// ── Moteur itératif RAC équitable ────────────────────────────────
+
+export interface FamilleRACConfig {
+  nbEnfants:       number;
+  revenusFiscaux:  number;
+  autresAidesMens: number;
+}
+
+export interface EquitableRACResult {
+  meilleurRatio: number;
+  racA:          number;
+  racB:          number;
+  cmgA:          number;
+  cmgB:          number;
+  ciAMens:       number;
+  ciBMens:       number;
+}
+
+/**
+ * Trouve par balayage (1 %→99 %, pas 0,1 %) la répartition salariale
+ * qui minimise |racA/(racA+racB) − targetRatioA|.
+ *
+ * CMG calculé dynamiquement via estimerCMG2025 ; CI = 50 % des dépenses
+ * nettes restantes (après CMG et autresAidesMens).
+ */
+export function calcEquitableRatioIteratif(
+  salNetTotal:  number,
+  configA:      FamilleRACConfig,
+  configB:      FamilleRACConfig,
+  targetRatioA: number,
+): EquitableRACResult {
+  let meilleurRatio = targetRatioA;
+  let meilleurEcart = Infinity;
+  let bestRacA = 0, bestRacB = 0;
+  let bestCmgA = 0, bestCmgB = 0;
+  let bestCiA  = 0, bestCiB  = 0;
+
+  const ciPlafA = ciPlafondMensuel(configA.nbEnfants);
+  const ciPlafB = ciPlafondMensuel(configB.nbEnfants);
+
+  for (let i = 10; i <= 990; i++) {
+    const ratioA = i / 1000;
+    const salA = salNetTotal * ratioA;
+    const salB = salNetTotal * (1 - ratioA);
+    const coutA = salA * K_TOTAL;
+    const coutB = salB * K_TOTAL;
+    const cmgA = estimerCMG2025(configA.revenusFiscaux, configA.nbEnfants, salA, coutA - salA);
+    const cmgB = estimerCMG2025(configB.revenusFiscaux, configB.nbEnfants, salB, coutB - salB);
+    const eligA = Math.max(0, coutA - cmgA - configA.autresAidesMens);
+    const eligB = Math.max(0, coutB - cmgB - configB.autresAidesMens);
+    const ciA = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafA);
+    const ciB = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafB);
+    const racA = Math.round((coutA - cmgA - ciA - configA.autresAidesMens) * 100) / 100;
+    const racB = Math.round((coutB - cmgB - ciB - configB.autresAidesMens) * 100) / 100;
+    if (racA <= 0 || racB <= 0) continue;
+    const ecart = Math.abs(racA / (racA + racB) - targetRatioA);
+    if (ecart < meilleurEcart) {
+      meilleurEcart = ecart;
+      meilleurRatio = ratioA;
+      bestRacA = racA;  bestRacB = racB;
+      bestCmgA = cmgA;  bestCmgB = cmgB;
+      bestCiA  = ciA;   bestCiB  = ciB;
+    }
+  }
+
+  return {
+    meilleurRatio,
+    racA: bestRacA, racB: bestRacB,
+    cmgA: bestCmgA, cmgB: bestCmgB,
+    ciAMens: bestCiA, ciBMens: bestCiB,
+  };
+}
+
+/**
  * Salaire net mensuel total (pour la nounou complète), sans arrondi intermédiaire
  * sur les heures mensualisées. Correspond à `salNetTotalMens` affiché dans l'interface.
  * À diviser par la répartition (qp) pour obtenir la part par famille.
