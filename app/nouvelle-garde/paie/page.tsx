@@ -9,8 +9,10 @@ import {
   estimerCMG2025,
   ciPlafondMensuel,
   K_TOTAL,
+  K_SAL,
   K_PAT,
 } from '@/lib/calcul';
+import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
 
 type Aides = {
   cmgCotisations:    number;
@@ -181,6 +183,77 @@ export default function PaiePage() {
   const racPctB = useMemo(() => {
     return liveRac.totalRac > 0 ? Math.round((liveRac.racB / liveRac.totalRac) * 100) : 0;
   }, [liveRac.racB, liveRac.totalRac]);
+
+  const [showDetail, setShowDetail] = useState(false);
+
+  const detailData = useMemo(() => {
+    const hNormMensTotal = planningHours.hNormalesSemaine * 52 / 12;
+    const hSup25MensTotal = planningHours.hSup25Semaine * 52 / 12;
+    const hSup50MensTotal = planningHours.hSup50Semaine * 52 / 12;
+    const salNetA = preview.salNetA;
+    const salNetB = preview.salNetB;
+
+    const joursActifs = planningHours.joursActifsParSemaine || 5;
+    const joursActifsMens = joursActifs * 52 / 12;
+
+    const buildFam = (ratio: number, salNet: number, rac: number): FamCalcData => {
+      const chargeSal = Math.round(salNet * K_SAL * 100) / 100;
+      const chargePat = Math.round(salNet * K_PAT * 100) / 100;
+      const navigoFam = Math.round(navigo * ratio * 100) / 100;
+      const entretienFam = Math.round(entretien * joursActifsMens * ratio * 100) / 100;
+      const kmFam = Math.round(indemKm * ratio * 100) / 100;
+
+      let cmgCot = 0, cmgRemu = 0, creditImpotMens = 0;
+      if (racOption) {
+        if (modeExpert) {
+          const aides = ratio === repartA ? aA : aB;
+          cmgCot = aides.cmgCotisations;
+          cmgRemu = aides.cmgRemuneration;
+          creditImpotMens = aides.creditImpot / 12;
+        } else if (racOptimal) {
+          cmgCot = ratio === repartA ? racOptimal.cmgCotA : racOptimal.cmgCotB;
+          cmgRemu = ratio === repartA ? racOptimal.cmgRemuA : racOptimal.cmgRemuB;
+          creditImpotMens = ratio === repartA ? racOptimal.ciAMens : racOptimal.ciBMens;
+        }
+      }
+
+      return {
+        nom: ratio === repartA ? nomA : nomB,
+        nbEnfants: ratio === repartA ? nbEnfantsA : nbEnfantsB,
+        hNorm: Math.round(hNormMensTotal * ratio * 10) / 10,
+        hSup25: Math.round(hSup25MensTotal * ratio * 10) / 10,
+        hSup50: Math.round(hSup50MensTotal * ratio * 10) / 10,
+        salNet, chargesSalariales: chargeSal, chargesPatronales: chargePat,
+        navigo: navigoFam, entretien: entretienFam, km: kmFam,
+        cmgCotisations: cmgCot, cmgRemuneration: cmgRemu,
+        abattementCharges: 0, aideVille: 0, creditImpotMens,
+        resteCharge: rac,
+      };
+    };
+
+    const famAData = buildFam(repartA, salNetA, liveRac.racA);
+    const famBData = buildFam(1 - repartA, salNetB, liveRac.racB);
+
+    const salNetTotal = salNetA + salNetB;
+    const chargeSalTotal = Math.round(salNetTotal * K_SAL * 100) / 100;
+    const nounou: NounouCalcData = {
+      hNorm: Math.round(hNormMensTotal * 10) / 10,
+      hSup25: Math.round(hSup25MensTotal * 10) / 10,
+      hSup50: Math.round(hSup50MensTotal * 10) / 10,
+      salBrut: Math.round((salNetTotal + chargeSalTotal) * 100) / 100,
+      chargesSalariales: chargeSalTotal,
+      salNet: salNetTotal,
+      navigo: Math.round(navigo * 100) / 100,
+      entretien: Math.round(entretien * joursActifsMens * 100) / 100,
+      km: Math.round(indemKm * 100) / 100,
+    };
+
+    return { famA: famAData, famB: famBData, nounou };
+  }, [
+    planningHours, preview, repartA, navigo, entretien, indemKm,
+    racOption, modeExpert, racOptimal, aA, aB, liveRac,
+    nomA, nomB, nbEnfantsA, nbEnfantsB,
+  ]);
 
   function handleRacToggle(on: boolean) {
     setRacOption(on);
@@ -396,6 +469,27 @@ export default function PaiePage() {
               </>
             )}
           </>
+        )}
+      </div>
+
+      {/* Voir le calcul détaillé */}
+      <div>
+        <button
+          onClick={() => setShowDetail(v => !v)}
+          className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
+        >
+          <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
+          Voir le calcul détaillé
+        </button>
+        {showDetail && (
+          <div className="mt-3">
+            <DetailedCalcTable
+              famA={detailData.famA}
+              famB={detailData.famB}
+              nounou={detailData.nounou}
+              racOptionActive={racOption}
+            />
+          </div>
         )}
       </div>
 
