@@ -42,7 +42,6 @@ export default function PaiePage() {
   const [nomA,      setNomA]      = useState('Famille A');
   const [nomB,      setNomB]      = useState('Famille B');
   const [joursJson, setJoursJson] = useState('{}');
-  const [savedH, setSavedH] = useState({ hNorm: 40, hSup25: 0, hSup50: 0 });
 
   const [taux,      setTaux]      = useState(11);
   const [navigo,    setNavigo]    = useState(90.80);
@@ -71,6 +70,9 @@ export default function PaiePage() {
       const planning = JSON.parse(sessionStorage.getItem('ng_planning') || 'null');
       const saved    = JSON.parse(sessionStorage.getItem('ng_paie')     || 'null');
 
+      if (!acteurs)  { router.replace('/nouvelle-garde/acteurs');  return; }
+      if (!planning) { router.replace('/nouvelle-garde/planning'); return; }
+
       const enf: Enfant[] = acteurs?.enfants ?? [];
       setEnfants(enf);
       if (acteurs?.famANom) setNomA(acteurs.famANom);
@@ -80,15 +82,9 @@ export default function PaiePage() {
       const joursStr = JSON.stringify(planningData);
       setJoursJson(joursStr);
 
-      // Fallback : valeurs pré-calculées sauvegardées si le recalcul live échoue
-      setSavedH({
-        hNorm:  typeof planning?.hNormalesSemaine === 'number' && planning.hNormalesSemaine > 0 ? planning.hNormalesSemaine : 40,
-        hSup25: typeof planning?.hSup25Semaine    === 'number' ? planning.hSup25Semaine : 0,
-        hSup50: typeof planning?.hSup50Semaine    === 'number' ? planning.hSup50Semaine : 0,
-      });
-
       if (saved) {
         if (typeof saved.repartitionA   === 'number')  setRepartA(saved.repartitionA);
+        else setRepartA(calcBModeRepartition(joursStr, enf));
         if (typeof saved.racOptionActive === 'boolean') setRacOption(saved.racOptionActive);
         if (typeof saved.taux           === 'number' && saved.taux > 0) setTaux(saved.taux);
         if (typeof saved.navigo         === 'number')  setNavigo(saved.navigo);
@@ -96,6 +92,8 @@ export default function PaiePage() {
         if (typeof saved.indemEntretien === 'number')  setEntretien(saved.indemEntretien);
         if (saved.aidesA) setAA(saved.aidesA);
         if (saved.aidesB) setAB(saved.aidesB);
+      } else {
+        setRepartA(calcBModeRepartition(joursStr, enf));
       }
     } catch { /* ignore */ }
     setHydrated(true);
@@ -109,11 +107,10 @@ export default function PaiePage() {
   const nbEnfantsA = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'A').length), [enfants]);
   const nbEnfantsB = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'B').length), [enfants]);
 
-  const planningHours = useMemo(() => {
-    const c = calcHeuresSemaineFromPlanning(joursJson);
-    if (c.hNormalesSemaine > 0) return c;
-    return { hNormalesSemaine: savedH.hNorm, hSup25Semaine: savedH.hSup25, hSup50Semaine: savedH.hSup50, joursActifsParSemaine: 0 };
-  }, [joursJson, savedH]);
+  const planningHours = useMemo(
+    () => calcHeuresSemaineFromPlanning(joursJson),
+    [joursJson]
+  );
 
   const salNetTotalMens = useMemo(() => {
     const base  = planningHours.hNormalesSemaine * 52/12 * taux;
