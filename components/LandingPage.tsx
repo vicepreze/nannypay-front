@@ -73,7 +73,13 @@ export function LandingPage() {
     .filter(e => e.type === 'maladie_nounou')
     .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
   const ratio      = joursOuv > 0 ? Math.max(0, joursOuv - joursMal) / joursOuv : 1;
-  const salNetMens = Math.round(hHebdo * (52 / 12) * taux * ratio * 100) / 100;
+  const hNorm  = Math.min(hHebdo, 40);
+  const hSup   = Math.max(0, hHebdo - 40);
+  const hSup25 = Math.min(hSup, 8);
+  const hSup50 = Math.max(0, hSup - 8);
+  const salNetMens = Math.round(
+    (hNorm * (52/12) * taux + hSup25 * (52/12) * taux * 1.25 + hSup50 * (52/12) * taux * 1.50) * ratio * 100
+  ) / 100;
   const salNetA    = Math.round(salNetMens * repartA * 100) / 100;
   const salNetB    = Math.round(salNetMens * (1 - repartA) * 100) / 100;
   const hasCP      = evts.some(e => e.type === 'conge_paye');
@@ -386,7 +392,7 @@ export function LandingPage() {
                           style={{ left: `${posB3}%` }}
                           className="absolute top-0 -translate-x-1/2 z-20 group flex flex-col items-center">
                           <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${activeOpt === 'aides' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--dust)]/50 text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>B</span>
-                          <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mt-1">Selon les aides</span>
+                          <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mt-1">Selon le reste à charge</span>
                         </button>
                       </div>
                       <style jsx>{`
@@ -418,7 +424,7 @@ export function LandingPage() {
                           </>
                         ) : activeOpt === 'aides' ? (
                           <>
-                            <p className="font-semibold text-gray-600 mb-1">Selon les aides — environ 60 / 40</p>
+                            <p className="font-semibold text-gray-600 mb-1">Selon le reste à charge — environ 60 / 40</p>
                             <p className="text-gray-400 leading-snug">Les aides CAF ne sont pas proportionnelles aux heures. La répartition au reste à charge est ~60 / 40.</p>
                             <div className="flex gap-4 mt-2 font-medium text-gray-500">
                               <span>A · {salNetA.toFixed(0)} €</span>
