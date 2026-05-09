@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { calculerMois, calcHeuresSemaineFromPlanning, type Evt, type CalcResult } from '@/lib/calcul';
+import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
 import { useSession } from 'next-auth/react';
 import { CalendrierMoisView } from '@/components/CalendrierMoisView';
 
@@ -50,6 +51,7 @@ export default function MoisPage() {
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [evtsSaveCount, setEvtsSaveCount] = useState(0);
+  const [showDetail, setShowDetail] = useState(false);
 
   // Panneau gauche
   const [invToken,    setInvToken]    = useState<string | null>(null);
@@ -211,6 +213,58 @@ export default function MoisPage() {
   const nextMois = mois === 12 ? [annee + 1, 1]  : [annee, mois + 1];
   const isFuture = new Date(annee, mois - 1, 1) > new Date();
 
+  // Build DetailedCalcTable data from CalcResult
+  const detailData = (() => {
+    if (!result || !garde) return null;
+    const familles = garde.familles;
+    const famAFam = familles.find(f => f.label === 'A');
+    const famBFam = familles.find(f => f.label === 'B');
+    const ra = result.famA;
+    const rb = result.famB;
+
+    const buildFam = (fr: typeof ra, fam: Famille | undefined, label: string): FamCalcData => {
+      return {
+        nom: fam?.nomAffiche ?? `Famille ${label}`,
+        hNorm: fr.hNorm,
+        hSup25: fr.hSup25,
+        hSup50: fr.hSup50,
+        salNet: fr.salNet,
+        chargesSalariales: fr.chargesSalariales,
+        chargesPatronales: fr.chargesPatronales,
+        navigo: fr.transport,
+        entretien: fr.entretien,
+        km: fr.km,
+        cmgCotisations: fam?.cmgCotisations ?? 0,
+        cmgRemuneration: fam?.cmgRemuneration ?? 0,
+        abattementCharges: fam?.abattementCharges ?? 0,
+        aideVille: fam?.aideVille ?? 0,
+        creditImpotMens: Math.round((fam?.creditImpot ?? 0) / 12 * 100) / 100,
+        resteCharge: fr.resteCharge,
+      };
+    };
+
+    const salNetTotal = ra.salNet + rb.salNet;
+    const chargeSalTotal = ra.chargesSalariales + rb.chargesSalariales;
+    const nounou: NounouCalcData = {
+      hNorm: ra.hNorm + rb.hNorm,
+      hSup25: ra.hSup25 + rb.hSup25,
+      hSup50: ra.hSup50 + rb.hSup50,
+      salBrut: Math.round((salNetTotal + chargeSalTotal) * 100) / 100,
+      chargesSalariales: chargeSalTotal,
+      salNet: salNetTotal,
+      navigo: ra.transport + rb.transport,
+      entretien: ra.entretien + rb.entretien,
+      km: ra.km + rb.km,
+    };
+
+    return {
+      famA: buildFam(ra, famAFam, 'A'),
+      famB: buildFam(rb, famBFam, 'B'),
+      nounou,
+      racOptionActive: result.racOptionActive,
+    };
+  })();
+
   if (loading) return <div className="min-h-screen bg-[var(--paper)] flex items-center justify-center text-[var(--dust)]">Chargement…</div>;
 
   return (
@@ -321,6 +375,28 @@ export default function MoisPage() {
             locked={locked} jaValide={jaValide} saving={saving} monLabel={monLabel}
             onOpenModal={openModal} onRemoveEvt={removeEvt} onValider={valider}
           />
+
+          {detailData && (
+            <div className="mt-4">
+              <button
+                onClick={() => setShowDetail(v => !v)}
+                className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
+              >
+                <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
+                Voir le calcul détaillé
+              </button>
+              {showDetail && (
+                <div className="mt-3">
+                  <DetailedCalcTable
+                    famA={detailData.famA}
+                    famB={detailData.famB}
+                    nounou={detailData.nounou}
+                    racOptionActive={detailData.racOptionActive}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         </div>

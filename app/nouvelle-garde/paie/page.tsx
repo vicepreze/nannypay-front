@@ -2,7 +2,17 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { calcBModeRepartition, calcEquitableRatioA, K_SAL, K_PAT } from '@/lib/calcul';
+import {
+  calcBModeRepartition,
+  calcEquitableRatioIteratif,
+  calcHeuresSemaineFromPlanning,
+  estimerCMG2025,
+  ciPlafondMensuel,
+  K_TOTAL,
+  K_SAL,
+  K_PAT,
+} from '@/lib/calcul';
+import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
 
 type Aides = {
   cmgCotisations:    number;
@@ -11,17 +21,18 @@ type Aides = {
   aideVille:         number;
   creditImpot:       number;
 };
+
 const aidesZero = (): Aides => ({
   cmgCotisations: 0, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: 0,
 });
-
-type Enfant = { prenom: string; fam: string };
 
 function totalAidesMens(a: Aides): number {
   return Math.round(
     (a.cmgCotisations + a.cmgRemuneration + a.abattementCharges + a.aideVille + a.creditImpot / 12) * 100
   ) / 100;
 }
+
+type Enfant = { prenom: string; fam: string };
 
 const SLIDER_MIN = 20;
 const SLIDER_MAX = 80;
@@ -34,23 +45,26 @@ export default function PaiePage() {
   const [nomA,      setNomA]      = useState('Famille A');
   const [nomB,      setNomB]      = useState('Famille B');
   const [joursJson, setJoursJson] = useState('{}');
-  const [hNorm,     setHNorm]     = useState(40);
-  const [hSup25,    setHSup25]    = useState(0);
-  const [hSup50,    setHSup50]    = useState(0);
 
   const [taux,      setTaux]      = useState(11);
   const [navigo,    setNavigo]    = useState(90.80);
   const [indemKm,   setIndemKm]   = useState(0);
   const [entretien, setEntretien] = useState(6.0);
 
-  const [repartA,   setRepartA]   = useState(0.5);   // 50 % par défaut
-  const [racOption, setRacOption] = useState(false);
+  const [repartA,    setRepartA]    = useState(0.5);
+  const [racOption,  setRacOption]  = useState(false);
+  const [modeExpert, setModeExpert] = useState(false);
 
+  // Revenus fiscaux internes — 80 000 € par défaut, non exposés en UI Mode Magique
+  const [revFiscauxA] = useState(80_000);
+  const [revFiscauxB] = useState(80_000);
+
+  // Aides manuelles pour le Mode Expert
   const [aA, setAA] = useState<Aides>(aidesZero());
   const [aB, setAB] = useState<Aides>(aidesZero());
 
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -58,6 +72,9 @@ export default function PaiePage() {
       const acteurs  = JSON.parse(sessionStorage.getItem('ng_acteurs')  || 'null');
       const planning = JSON.parse(sessionStorage.getItem('ng_planning') || 'null');
       const saved    = JSON.parse(sessionStorage.getItem('ng_paie')     || 'null');
+
+      if (!acteurs)  { router.replace('/nouvelle-garde/acteurs');  return; }
+      if (!planning) { router.replace('/nouvelle-garde/planning'); return; }
 
       const enf: Enfant[] = acteurs?.enfants ?? [];
       setEnfants(enf);
@@ -67,19 +84,19 @@ export default function PaiePage() {
       const planningData = planning?.planning ?? planning ?? {};
       const joursStr = JSON.stringify(planningData);
       setJoursJson(joursStr);
-      if (typeof planning?.hNormalesSemaine === 'number') setHNorm(planning.hNormalesSemaine);
-      if (typeof planning?.hSup25Semaine    === 'number') setHSup25(planning.hSup25Semaine);
-      if (typeof planning?.hSup50Semaine    === 'number') setHSup50(planning.hSup50Semaine);
 
       if (saved) {
         if (typeof saved.repartitionA   === 'number')  setRepartA(saved.repartitionA);
+        else setRepartA(calcBModeRepartition(joursStr, enf));
         if (typeof saved.racOptionActive === 'boolean') setRacOption(saved.racOptionActive);
-        if (typeof saved.taux           === 'number')  setTaux(saved.taux);
+        if (typeof saved.taux           === 'number' && saved.taux > 0) setTaux(saved.taux);
         if (typeof saved.navigo         === 'number')  setNavigo(saved.navigo);
         if (typeof saved.indemKm        === 'number')  setIndemKm(saved.indemKm);
         if (typeof saved.indemEntretien === 'number')  setEntretien(saved.indemEntretien);
         if (saved.aidesA) setAA(saved.aidesA);
         if (saved.aidesB) setAB(saved.aidesB);
+      } else {
+        setRepartA(calcBModeRepartition(joursStr, enf));
       }
     } catch { /* ignore */ }
     setHydrated(true);
@@ -90,32 +107,184 @@ export default function PaiePage() {
     [joursJson, enfants]
   );
 
-  const salNetTotalMens = useMemo(() => {
-    const baseNet  = hNorm  * 52/12 * taux;
-    const sup25Net = hSup25 * 52/12 * taux * 1.25;
-    const sup50Net = hSup50 * 52/12 * taux * 1.50;
-    return Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
-  }, [hNorm, hSup25, hSup50, taux]);
+  const nbEnfantsA = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'A').length), [enfants]);
+  const nbEnfantsB = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'B').length), [enfants]);
 
-  const aidesAMens = useMemo(() => totalAidesMens(aA), [aA]);
-  const aidesBMens = useMemo(() => totalAidesMens(aB), [aB]);
-
-  const pEquitable = useMemo(
-    () => calcEquitableRatioA(pProportionnel, salNetTotalMens, aidesAMens, aidesBMens),
-    [pProportionnel, salNetTotalMens, aidesAMens, aidesBMens]
+  const planningHours = useMemo(
+    () => calcHeuresSemaineFromPlanning(joursJson),
+    [joursJson]
   );
+
+  const salNetTotalMens = useMemo(() => {
+    const base  = planningHours.hNormalesSemaine * 52/12 * taux;
+    const sup25 = planningHours.hSup25Semaine    * 52/12 * taux * 1.25;
+    const sup50 = planningHours.hSup50Semaine    * 52/12 * taux * 1.50;
+    return Math.round((base + sup25 + sup50) * 100) / 100;
+  }, [planningHours, taux]);
+
+  // Heures physiques totales mensualisées (sans pondération sup) pour la formule CMG
+  const totalHeuresMensPhys = useMemo(() => {
+    return (planningHours.hNormalesSemaine + planningHours.hSup25Semaine + planningHours.hSup50Semaine) * 52/12;
+  }, [planningHours]);
+
+  // Résultat du moteur itératif (actif quand racOption est on)
+  const racOptimal = useMemo(() => {
+    if (!racOption || salNetTotalMens <= 0) return null;
+    return calcEquitableRatioIteratif(
+      salNetTotalMens,
+      { nbEnfants: nbEnfantsA, revenusFiscaux: revFiscauxA, autresAidesMens: 0 },
+      { nbEnfants: nbEnfantsB, revenusFiscaux: revFiscauxB, autresAidesMens: 0 },
+      pProportionnel,
+      taux,
+      totalHeuresMensPhys,
+    );
+  }, [racOption, salNetTotalMens, nbEnfantsA, nbEnfantsB, revFiscauxA, revFiscauxB, pProportionnel, taux, totalHeuresMensPhys]);
+
+  // Applique le ratio optimal au slider uniquement en Mode Magique
+  useEffect(() => {
+    if (racOptimal && !modeExpert) setRepartA(racOptimal.meilleurRatio);
+  }, [racOptimal, modeExpert]);
 
   const preview = useMemo(() => {
     const salNetA = Math.round(repartA * salNetTotalMens * 100) / 100;
     const salNetB = Math.round((1 - repartA) * salNetTotalMens * 100) / 100;
-    const chSalA  = Math.round(salNetA * K_SAL * 100) / 100;
-    const chPatA  = Math.round(salNetA * K_PAT * 100) / 100;
-    const chSalB  = Math.round(salNetB * K_SAL * 100) / 100;
-    const chPatB  = Math.round(salNetB * K_PAT * 100) / 100;
-    const racA    = Math.round((salNetA + chSalA + chPatA - aidesAMens) * 100) / 100;
-    const racB    = Math.round((salNetB + chSalB + chPatB - aidesBMens) * 100) / 100;
-    return { salNetA, salNetB, chSalA, chPatA, chSalB, chPatB, racA, racB };
-  }, [repartA, salNetTotalMens, aidesAMens, aidesBMens]);
+    return { salNetA, salNetB };
+  }, [repartA, salNetTotalMens]);
+
+  // RAC live — Mode Magique : moteur CMG/CI ; Mode Expert : aides manuelles
+  const liveRac = useMemo(() => {
+    if (!racOption) return { racA: 0, racB: 0, totalRac: 0 };
+    const salA = preview.salNetA;
+    const salB = preview.salNetB;
+    if (modeExpert) {
+      const aidesA = totalAidesMens(aA);
+      const aidesB = totalAidesMens(aB);
+      const racA = Math.round((salA * K_TOTAL - aidesA) * 100) / 100;
+      const racB = Math.round((salB * K_TOTAL - aidesB) * 100) / 100;
+      return { racA, racB, totalRac: racA + racB };
+    }
+    const coutA   = salA * K_TOTAL;
+    const coutB   = salB * K_TOTAL;
+    const cmgA    = estimerCMG2025(revFiscauxA, nbEnfantsA, taux, totalHeuresMensPhys * repartA, salA * K_PAT);
+    const cmgB    = estimerCMG2025(revFiscauxB, nbEnfantsB, taux, totalHeuresMensPhys * (1 - repartA), salB * K_PAT);
+    const eligA   = Math.max(0, coutA - cmgA);
+    const eligB   = Math.max(0, coutB - cmgB);
+    const ciA     = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
+    const ciB     = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
+    const racA    = Math.round((coutA - cmgA - ciA) * 100) / 100;
+    const racB    = Math.round((coutB - cmgB - ciB) * 100) / 100;
+    return { racA, racB, totalRac: racA + racB };
+  }, [racOption, modeExpert, preview.salNetA, preview.salNetB, repartA, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB, taux, totalHeuresMensPhys, aA, aB]);
+
+  const racPctA = useMemo(() => {
+    return liveRac.totalRac > 0 ? Math.round((liveRac.racA / liveRac.totalRac) * 100) : 0;
+  }, [liveRac.racA, liveRac.totalRac]);
+
+  const racPctB = useMemo(() => {
+    return liveRac.totalRac > 0 ? Math.round((liveRac.racB / liveRac.totalRac) * 100) : 0;
+  }, [liveRac.racB, liveRac.totalRac]);
+
+  const [showDetail, setShowDetail] = useState(false);
+
+  const detailData = useMemo(() => {
+    const hNormMensTotal = planningHours.hNormalesSemaine * 52 / 12;
+    const hSup25MensTotal = planningHours.hSup25Semaine * 52 / 12;
+    const hSup50MensTotal = planningHours.hSup50Semaine * 52 / 12;
+    const salNetA = preview.salNetA;
+    const salNetB = preview.salNetB;
+
+    const joursActifs = planningHours.joursActifsParSemaine || 5;
+    const joursActifsMens = joursActifs * 52 / 12;
+
+    const buildFam = (ratio: number, salNet: number, rac: number): FamCalcData => {
+      const chargeSal = Math.round(salNet * K_SAL * 100) / 100;
+      const chargePat = Math.round(salNet * K_PAT * 100) / 100;
+      const navigoFam = Math.round(navigo * ratio * 100) / 100;
+      const entretienFam = Math.round(entretien * joursActifsMens * ratio * 100) / 100;
+      const kmFam = Math.round(indemKm * ratio * 100) / 100;
+
+      let cmgCot = 0, cmgRemu = 0, creditImpotMens = 0;
+      if (racOption) {
+        if (modeExpert) {
+          const aides = ratio === repartA ? aA : aB;
+          cmgCot = aides.cmgCotisations;
+          cmgRemu = aides.cmgRemuneration;
+          creditImpotMens = aides.creditImpot / 12;
+        } else if (racOptimal) {
+          cmgCot = ratio === repartA ? racOptimal.cmgCotA : racOptimal.cmgCotB;
+          cmgRemu = ratio === repartA ? racOptimal.cmgRemuA : racOptimal.cmgRemuB;
+          creditImpotMens = ratio === repartA ? racOptimal.ciAMens : racOptimal.ciBMens;
+        }
+      }
+
+      return {
+        nom: ratio === repartA ? nomA : nomB,
+        nbEnfants: ratio === repartA ? nbEnfantsA : nbEnfantsB,
+        hNorm: Math.round(hNormMensTotal * ratio * 10) / 10,
+        hSup25: Math.round(hSup25MensTotal * ratio * 10) / 10,
+        hSup50: Math.round(hSup50MensTotal * ratio * 10) / 10,
+        salNet, chargesSalariales: chargeSal, chargesPatronales: chargePat,
+        navigo: navigoFam, entretien: entretienFam, km: kmFam,
+        cmgCotisations: cmgCot, cmgRemuneration: cmgRemu,
+        abattementCharges: 0, aideVille: 0, creditImpotMens,
+        resteCharge: rac,
+      };
+    };
+
+    const famAData = buildFam(repartA, salNetA, liveRac.racA);
+    const famBData = buildFam(1 - repartA, salNetB, liveRac.racB);
+
+    const salNetTotal = salNetA + salNetB;
+    const chargeSalTotal = Math.round(salNetTotal * K_SAL * 100) / 100;
+    const nounou: NounouCalcData = {
+      hNorm: Math.round(hNormMensTotal * 10) / 10,
+      hSup25: Math.round(hSup25MensTotal * 10) / 10,
+      hSup50: Math.round(hSup50MensTotal * 10) / 10,
+      salBrut: Math.round((salNetTotal + chargeSalTotal) * 100) / 100,
+      chargesSalariales: chargeSalTotal,
+      salNet: salNetTotal,
+      navigo: Math.round(navigo * 100) / 100,
+      entretien: Math.round(entretien * joursActifsMens * 100) / 100,
+      km: Math.round(indemKm * 100) / 100,
+    };
+
+    return { famA: famAData, famB: famBData, nounou };
+  }, [
+    planningHours, preview, repartA, navigo, entretien, indemKm,
+    racOption, modeExpert, racOptimal, aA, aB, liveRac,
+    nomA, nomB, nbEnfantsA, nbEnfantsB,
+  ]);
+
+  function handleRacToggle(on: boolean) {
+    setRacOption(on);
+    setModeExpert(false);
+    if (on && salNetTotalMens > 0) {
+      const res = calcEquitableRatioIteratif(
+        salNetTotalMens,
+        { nbEnfants: nbEnfantsA, revenusFiscaux: 80_000, autresAidesMens: 0 },
+        { nbEnfants: nbEnfantsB, revenusFiscaux: 80_000, autresAidesMens: 0 },
+        pProportionnel,
+        taux,
+        totalHeuresMensPhys,
+      );
+      setRepartA(res.meilleurRatio);
+    }
+  }
+
+  function handleOpenExpert() {
+    if (racOptimal) {
+      setAA({ cmgCotisations: racOptimal.cmgCotA, cmgRemuneration: racOptimal.cmgRemuA, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
+      setAB({ cmgCotisations: racOptimal.cmgCotB, cmgRemuneration: racOptimal.cmgRemuB, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
+    }
+    setModeExpert(true);
+  }
+
+  function handleResetToMagic() {
+    if (racOptimal) {
+      setAA({ cmgCotisations: racOptimal.cmgCotA, cmgRemuneration: racOptimal.cmgRemuA, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
+      setAB({ cmgCotisations: racOptimal.cmgCotB, cmgRemuneration: racOptimal.cmgRemuB, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
+    }
+  }
 
   async function creerGarde() {
     setError('');
@@ -129,7 +298,9 @@ export default function PaiePage() {
     sessionStorage.setItem('ng_paie', JSON.stringify({
       repartitionA: repartA,
       racOptionActive: racOption,
-      taux, navigo, indemKm, indemEntretien: entretien, aidesA: aA, aidesB: aB,
+      taux, navigo, indemKm, indemEntretien: entretien,
+      aidesA: modeExpert ? aA : aidesZero(),
+      aidesB: modeExpert ? aB : aidesZero(),
     }));
 
     setLoading(true);
@@ -146,8 +317,8 @@ export default function PaiePage() {
             navigo,
             indemKm,
             indemEntretien: entretien,
-            aidesA: aA,
-            aidesB: aB,
+            aidesA: modeExpert ? aA : aidesZero(),
+            aidesB: modeExpert ? aB : aidesZero(),
           },
         }),
       });
@@ -164,6 +335,8 @@ export default function PaiePage() {
   }
 
   if (!hydrated) return null;
+
+  const isMagicMode = racOption && !modeExpert;
 
   return (
     <div className="space-y-5">
@@ -201,7 +374,7 @@ export default function PaiePage() {
             min={SLIDER_MIN} max={SLIDER_MAX}
             markers={[
               { value: 0.5, label: '50/50' },
-              ...(racOption ? [{ value: pEquitable, label: 'Équitable RAC', highlight: true }] : []),
+              ...(racOption && racOptimal ? [{ value: racOptimal.meilleurRatio, label: 'Équitable RAC', highlight: true }] : []),
             ]}
           />
 
@@ -209,16 +382,14 @@ export default function PaiePage() {
             <FamPreview
               label={nomA} percent={repartA} color="sage"
               salNet={preview.salNetA}
-              chSal={preview.chSalA} chPat={preview.chPatA}
-              aides={aidesAMens} rac={preview.racA}
-              racOption={racOption}
+              rac={liveRac.racA} totalRac={liveRac.totalRac}
+              racOption={racOption} magicMode={isMagicMode} racPct={racPctA}
             />
             <FamPreview
               label={nomB} percent={1 - repartA} color="blue"
               salNet={preview.salNetB}
-              chSal={preview.chSalB} chPat={preview.chPatB}
-              aides={aidesBMens} rac={preview.racB}
-              racOption={racOption}
+              rac={liveRac.racB} totalRac={liveRac.totalRac}
+              racOption={racOption} magicMode={isMagicMode} racPct={racPctB}
             />
           </div>
 
@@ -237,26 +408,88 @@ export default function PaiePage() {
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
-              Répartition du salaire en fonction du reste à charge par famille
+              🪄 Calculer selon le Reste à Charge <span className="text-[var(--dust)] font-normal">(Recommandé)</span>
             </div>
-            <p className="text-xs text-[var(--dust)] mt-1 ml-7">Renseignez les aides CAF par famille pour affiner la répartition.</p>
+            <p className="text-xs text-[var(--dust)] mt-1 ml-7">
+              {racOption
+                ? modeExpert
+                  ? 'Mode Expert — ajustez vos aides pour affiner le point d\'équilibre.'
+                  : 'Mode Magique — point d\'équilibre calculé selon le barème CAF 2025.'
+                : 'Activez pour calculer le point d\'équilibre RAC selon vos aides CAF.'}
+            </p>
           </div>
-          <Toggle checked={racOption} onChange={setRacOption} />
+          <Toggle checked={racOption} onChange={handleRacToggle} />
         </div>
 
         {racOption && (
           <>
-            <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
-              <AidesColumn label={nomA} a={aA} setA={setAA} total={aidesAMens} />
-              <AidesColumn label={nomB} a={aB} setA={setAB} total={aidesBMens} />
-            </div>
-
-            {salNetTotalMens > 0 && (aidesAMens > 0 || aidesBMens > 0) && (
-              <div className="m-5 p-4 rounded-[var(--radius)] bg-[var(--sage-light)] text-xs text-[var(--ink)] leading-relaxed">
-                💡 <strong>Suggestion :</strong> Pour que le RAC de chaque famille soit proportionnel à sa part d&apos;heures ({(pProportionnel * 100).toFixed(1)} % / {((1-pProportionnel) * 100).toFixed(1)} %), placez le slider sur <strong>{(pEquitable * 100).toFixed(1)} %</strong> (marqueur <em>Équitable RAC</em>).
+            {!modeExpert ? (
+              /* ── Mode Magique ── */
+              <div className="px-5 py-4">
+                {salNetTotalMens <= 0 ? (
+                  <p className="text-xs text-[var(--dust)]">
+                    Configurez le taux horaire et les heures dans la section Rémunération pour activer le calcul.
+                  </p>
+                ) : (
+                  <p className="text-xs text-[var(--dust)]">
+                    Ratio optimal calculé automatiquement — aides CAF (CMG + CI) intégrées selon le barème 2025.
+                  </p>
+                )}
+                <button
+                  onClick={handleOpenExpert}
+                  disabled={!racOptimal}
+                  className="mt-3 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                >
+                  ⚙️ Ajuster mes aides manuellement (Mode Expert)
+                </button>
               </div>
+            ) : (
+              /* ── Mode Expert ── */
+              <>
+                <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
+                  <AidesColumn label={nomA} a={aA} setA={setAA} total={totalAidesMens(aA)} />
+                  <AidesColumn label={nomB} a={aB} setA={setAB} total={totalAidesMens(aB)} />
+                </div>
+
+                <div className="px-5 pb-4 flex items-center gap-5">
+                  <button
+                    onClick={handleResetToMagic}
+                    disabled={!racOptimal}
+                    className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                  >
+                    ↺ Rétablir l&apos;estimation magique
+                  </button>
+                  <button
+                    onClick={() => setModeExpert(false)}
+                    className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
+                  >
+                    ← Mode Magique
+                  </button>
+                </div>
+              </>
             )}
           </>
+        )}
+      </div>
+
+      {/* Voir le calcul détaillé */}
+      <div>
+        <button
+          onClick={() => setShowDetail(v => !v)}
+          className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
+        >
+          <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
+          Voir le calcul détaillé
+        </button>
+        {showDetail && (
+          <div className="mt-3">
+            <DetailedCalcTable
+              famA={detailData.famA}
+              famB={detailData.famB}
+              nounou={detailData.nounou}
+              racOptionActive={racOption}
+            />
+          </div>
         )}
       </div>
 
@@ -272,7 +505,7 @@ export default function PaiePage() {
   );
 }
 
-// ── Sub-components (alignés avec SettingsClient) ──────────────────────
+// ── Sub-components ──────────────────────────────────────────────────
 
 function SliderRow({ value, onChange, min, max, markers }: {
   value: number;
@@ -352,13 +585,37 @@ function SliderRow({ value, onChange, min, max, markers }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, chSal, chPat, aides, rac, racOption }: {
+function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, magicMode, racPct }: {
   label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; chSal: number; chPat: number; aides: number; rac: number;
-  racOption: boolean;
+  salNet: number; rac: number; totalRac: number;
+  racOption: boolean; magicMode?: boolean; racPct?: number;
 }) {
   const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
   const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
+
+  if (magicMode && racOption) {
+    return (
+      <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
+        <div className="flex items-center justify-between mb-3">
+          <span className={`text-sm font-semibold ${text}`}>{label}</span>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
+        </div>
+        <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
+        <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
+        <div className="pt-3 border-t border-white/70">
+          <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className={`text-xl font-bold ${text}`}>{rac.toFixed(0)} €</span>
+            {racPct !== undefined && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>{racPct} % du RAC total</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const pctRac = totalRac > 0 ? rac / totalRac : percent;
   return (
     <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
       <div className="flex items-center justify-between mb-2">
@@ -369,25 +626,14 @@ function FamPreview({ label, percent, color, salNet, chSal, chPat, aides, rac, r
       <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
 
       {racOption && (
-        <div className="mt-3 pt-3 border-t border-white/70 text-xs space-y-1">
-          <Line l="Charges salariales (21,88 %)" v={`${chSal.toFixed(2)} €`} />
-          <Line l="Charges patronales (44,70 %)" v={`${chPat.toFixed(2)} €`} />
-          <Line l="Total aides CAF" v={`− ${aides.toFixed(2)} €`} bold />
-          <div className="flex justify-between pt-1 border-t border-white/70 font-semibold">
-            <span>Reste à charge estimé</span>
-            <span>{rac.toFixed(2)} €</span>
+        <div className="mt-3 pt-3 border-t border-white/70">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[11px] text-[var(--dust)]">Reste à charge</span>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(pctRac * 100).toFixed(1)} %</span>
           </div>
+          <div className={`text-lg font-bold ${text}`}>{rac.toFixed(2)} €</div>
         </div>
       )}
-    </div>
-  );
-}
-
-function Line({ l, v, bold }: { l: string; v: string; bold?: boolean }) {
-  return (
-    <div className="flex justify-between">
-      <span className="text-[var(--dust)]">{l}</span>
-      <span className={`font-mono ${bold ? 'font-semibold' : ''}`}>{v}</span>
     </div>
   );
 }
@@ -399,11 +645,11 @@ function AidesColumn({ label, a, setA, total }: {
   return (
     <div className="p-5 space-y-3">
       <div className="text-xs font-semibold text-[var(--ink)] uppercase tracking-wide">{label}</div>
-      <FN label="Abattement charges patronales"     value={a.abattementCharges} onChange={upd('abattementCharges')} />
-      <FN label="CMG cotisations sociales CAF"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
-      <FN label="CMG rémunération CAF"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
-      <FN label="Aide ville (ex : St-Ouen)"         value={a.aideVille}         onChange={upd('aideVille')} />
-      <FN label="Crédit d'impôt (annuel)"           value={a.creditImpot}       onChange={upd('creditImpot')} />
+      <FN label="Abattement charges patronales"       value={a.abattementCharges} onChange={upd('abattementCharges')} />
+      <FN label="CMG cotisations sociales (CAF)"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
+      <FN label="CMG rémunération (CAF)"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
+      <FN label="Aide locale (ex : Ville de St Ouen)" value={a.aideVille}         onChange={upd('aideVille')} />
+      <FN label="Crédit d'impôt (annuel)"             value={a.creditImpot}       onChange={upd('creditImpot')} />
       <div className="flex justify-between pt-3 border-t border-[var(--line)] text-xs font-semibold">
         <span>Total aides / mois</span>
         <span className="font-mono text-[var(--sage)]">− {total.toFixed(2)} €</span>

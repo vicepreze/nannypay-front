@@ -85,7 +85,8 @@ export function calcHeuresSemaineFromPlanning(joursJson: string): {
   try { planning = JSON.parse(joursJson || '{}'); } catch { planning = {}; }
 
   const keys = Object.keys(planning as object);
-  const isPerChild = keys.length > 0 && !keys.every(k => ['1','2','3','4','5'].includes(k));
+  const firstVal = keys.length > 0 ? (planning as Record<string, unknown>)[keys[0]] : null;
+  const isPerChild = firstVal !== null && typeof firstVal === 'object' && !('actif' in (firstVal as object));
 
   let totalMin = 0;
   const joursActifsSet = new Set<string>();
@@ -144,7 +145,8 @@ export function calcBModeRepartition(
   try { planning = JSON.parse(joursJson || '{}'); } catch { planning = {}; }
 
   const keys = Object.keys(planning as object);
-  const isPerChild = keys.length > 0 && !keys.every(k => ['1','2','3','4','5'].includes(k));
+  const firstVal2 = keys.length > 0 ? (planning as Record<string, unknown>)[keys[0]] : null;
+  const isPerChild = firstVal2 !== null && typeof firstVal2 === 'object' && !('actif' in (firstVal2 as object));
 
   if (!isPerChild) {
     const nbA = enfants.filter(e => e.fam === 'A').length;
@@ -196,6 +198,155 @@ export function calcEquitableRatioA(
   const ratioB = 1 - ratioA;
   const p = ratioA + (aidesAMens * ratioB - aidesBMens * ratioA) / (salNetTotal * K_TOTAL);
   return Math.min(1, Math.max(0, Math.round(p * 10000) / 10000));
+}
+
+/**
+ * Plafond mensuel de Crédit d'Impôt (50 % des dépenses nettes après CMG).
+ * Plafond légal : 6 750 €/an pour 1 enfant, 7 500 €/an pour 2+ enfants.
+ */
+export function ciPlafondMensuel(nbEnfants: number): number {
+  return (nbEnfants >= 2 ? 7_500 : 6_750) / 12;
+  // 1 enfant → 562,50 €/mois   2+ enfants → 625,00 €/mois
+}
+
+// ── CMG Emploi direct 2025 ────────────────────────────────────────
+// Formule linéaire 2025 (CNAF) — 2 composantes :
+//   rémunération : nbH × tarifActif × (1 − ressources × te / tarifRef)
+//   cotisations  : 50 % des charges patronales, plafond 524 €/mois
+// Sources : CNAF SFHS2607952J / SDSF 2025
+
+const CMG_TARIF_REF_2025  = 10.38;   // €/h — tarif de référence GAD 2025
+const CMG_TARIF_PLAF_2025 = 15.00;   // €/h — tarif plafond GAD 2025
+const CMG_RESSOURCES_MIN  =    815;  // €/mois — plancher ressources
+const CMG_RESSOURCES_MAX  =  8_500;  // €/mois — plafond pratique
+const CMG_COT_PLAFOND     =    524;  // €/mois — plafond CMG cotisations
+const CMG_TAUX_EFFORT_GAD: Record<number, number> = { 1: 0.001238, 2: 0.001032 };
+
+function cmgDetail(
+  revenusFiscaux:    number,
+  nbEnfants:         number,
+  tauxHoraire:       number,
+  nbHeuresMois:      number,
+  chargesPatronales: number,
+): { remu: number; cot: number } {
+  const ressources = Math.max(CMG_RESSOURCES_MIN, Math.min(CMG_RESSOURCES_MAX, revenusFiscaux / 12));
+  const te         = CMG_TAUX_EFFORT_GAD[Math.min(nbEnfants, 2)] ?? CMG_TAUX_EFFORT_GAD[2];
+  const tarifActif = Math.min(tauxHoraire, CMG_TARIF_PLAF_2025);
+  const remu       = Math.max(0, nbHeuresMois * tarifActif * (1 - ressources * te / CMG_TARIF_REF_2025));
+  const cot        = Math.min(chargesPatronales * 0.5, CMG_COT_PLAFOND);
+  return { remu: Math.round(remu * 100) / 100, cot: Math.round(cot * 100) / 100 };
+}
+
+/**
+ * Estime le montant mensuel total de CMG Emploi direct 2025 (rémunération + cotisations).
+ *
+ * @param revenusFiscaux    Revenus fiscaux annuels de la famille
+ * @param nbEnfants         Nombre d'enfants de la famille (1 ou 2 max en garde partagée)
+ * @param tauxHoraire       Tarif horaire net (€/h) de la nounou
+ * @param nbHeuresMois      Heures mensuelles imputées à cette famille
+ * @param chargesPatronales Charges patronales mensuelles (salNet × K_PAT)
+ */
+export function estimerCMG2025(
+  revenusFiscaux:    number,
+  nbEnfants:         number,
+  tauxHoraire:       number,
+  nbHeuresMois:      number,
+  chargesPatronales: number,
+): number {
+  const { remu, cot } = cmgDetail(revenusFiscaux, nbEnfants, tauxHoraire, nbHeuresMois, chargesPatronales);
+  return Math.round((remu + cot) * 100) / 100;
+}
+
+// ── Moteur itératif RAC équitable ────────────────────────────────
+
+export interface FamilleRACConfig {
+  nbEnfants:       number;
+  revenusFiscaux:  number;
+  autresAidesMens: number;
+}
+
+export interface EquitableRACResult {
+  meilleurRatio: number;
+  racA:          number;
+  racB:          number;
+  cmgA:          number;  // total CMG famille A (remu + cot)
+  cmgB:          number;
+  cmgRemuA:      number;  // composante rémunération (pour pré-remplissage Mode Expert)
+  cmgRemuB:      number;
+  cmgCotA:       number;  // composante cotisations (pour pré-remplissage Mode Expert)
+  cmgCotB:       number;
+  ciAMens:       number;
+  ciBMens:       number;
+}
+
+/**
+ * Trouve par balayage (1 %→99 %, pas 0,1 %) la répartition salariale
+ * qui minimise |racA/(racA+racB) − targetRatioA|.
+ *
+ * CMG calculé via la formule linéaire 2025 ; CI = 50 % des dépenses
+ * nettes restantes (après CMG et autresAidesMens).
+ *
+ * @param tauxHoraire     Tarif horaire net de la nounou (€/h)
+ * @param totalHeuresMens Heures physiques totales mensuelles de la nounou
+ */
+export function calcEquitableRatioIteratif(
+  salNetTotal:     number,
+  configA:         FamilleRACConfig,
+  configB:         FamilleRACConfig,
+  targetRatioA:    number,
+  tauxHoraire:     number,
+  totalHeuresMens: number,
+): EquitableRACResult {
+  let meilleurRatio = targetRatioA;
+  let meilleurEcart = Infinity;
+  let bestRacA = 0, bestRacB = 0;
+  let bestCmgA = 0, bestCmgB = 0;
+  let bestCmgRemuA = 0, bestCmgRemuB = 0;
+  let bestCmgCotA  = 0, bestCmgCotB  = 0;
+  let bestCiA  = 0, bestCiB  = 0;
+
+  const ciPlafA = ciPlafondMensuel(configA.nbEnfants);
+  const ciPlafB = ciPlafondMensuel(configB.nbEnfants);
+
+  for (let i = 10; i <= 990; i++) {
+    const ratioA  = i / 1000;
+    const salA    = salNetTotal * ratioA;
+    const salB    = salNetTotal * (1 - ratioA);
+    const coutA   = salA * K_TOTAL;
+    const coutB   = salB * K_TOTAL;
+    const heuresA = totalHeuresMens * ratioA;
+    const heuresB = totalHeuresMens * (1 - ratioA);
+    const dA = cmgDetail(configA.revenusFiscaux, configA.nbEnfants, tauxHoraire, heuresA, salA * K_PAT);
+    const dB = cmgDetail(configB.revenusFiscaux, configB.nbEnfants, tauxHoraire, heuresB, salB * K_PAT);
+    const cmgA = Math.round((dA.remu + dA.cot) * 100) / 100;
+    const cmgB = Math.round((dB.remu + dB.cot) * 100) / 100;
+    const eligA = Math.max(0, coutA - cmgA - configA.autresAidesMens);
+    const eligB = Math.max(0, coutB - cmgB - configB.autresAidesMens);
+    const ciA   = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafA);
+    const ciB   = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafB);
+    const racA  = Math.round((coutA - cmgA - ciA - configA.autresAidesMens) * 100) / 100;
+    const racB  = Math.round((coutB - cmgB - ciB - configB.autresAidesMens) * 100) / 100;
+    if (racA <= 0 || racB <= 0) continue;
+    const ecart = Math.abs(racA / (racA + racB) - targetRatioA);
+    if (ecart < meilleurEcart) {
+      meilleurEcart    = ecart;
+      meilleurRatio    = ratioA;
+      bestRacA = racA;  bestRacB = racB;
+      bestCmgA = cmgA;  bestCmgB = cmgB;
+      bestCmgRemuA = dA.remu; bestCmgRemuB = dB.remu;
+      bestCmgCotA  = dA.cot;  bestCmgCotB  = dB.cot;
+      bestCiA  = ciA;   bestCiB  = ciB;
+    }
+  }
+
+  return {
+    meilleurRatio,
+    racA: bestRacA, racB: bestRacB,
+    cmgA: bestCmgA, cmgB: bestCmgB,
+    cmgRemuA: bestCmgRemuA, cmgRemuB: bestCmgRemuB,
+    cmgCotA:  bestCmgCotA,  cmgCotB:  bestCmgCotB,
+    ciAMens: bestCiA, ciBMens: bestCiB,
+  };
 }
 
 /**
