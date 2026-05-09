@@ -193,9 +193,9 @@ export function LandingPage() {
         <span className="font-serif text-[19px] tracking-tight text-[var(--ink)]">
           nounoulink<em className="text-[var(--sage)] not-italic">.</em>
         </span>
-        <div className="flex gap-2.5">
-          <button onClick={() => openAuth('login')}    className={btnSec}>Se connecter</button>
-          <button onClick={() => openAuth('register')} className={btnPri}>Créer un compte gratuit</button>
+        <div className="flex gap-2.5 items-center">
+          <button onClick={() => openAuth('login')} className={btnGhost}>Se connecter</button>
+          <button onClick={() => openAuth('register')} className={btnPri}>Créer un compte</button>
         </div>
       </header>
 
@@ -236,10 +236,6 @@ export function LandingPage() {
 
         {/* ── 1. HERO ──────────────────────────────────────────────── */}
         <section className="max-w-2xl mx-auto px-6 pt-16 pb-12 text-center">
-          <div className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border border-[var(--line)] text-[var(--dust)] mb-8">
-            <span className="text-[var(--sage)]">✓</span>
-            Gratuit · Aucun compte requis pour démarrer
-          </div>
           <h1 className="font-serif text-[42px] leading-tight text-[var(--ink)] mb-4">
             Une nounou, deux familles,<br />
             <em className="not-italic text-[var(--sage)]">enfin sur la même page.</em>
@@ -247,13 +243,21 @@ export function LandingPage() {
           <p className="text-[17px] text-[var(--dust)] leading-relaxed mb-10 max-w-lg mx-auto">
             Calculez en 30 secondes, simulez les absences, et alignez-vous avec l&apos;autre famille — sans tableur, sans WhatsApp.
           </p>
-          <p className="text-sm text-[var(--dust)]">
-            <span className="mr-1">👇</span> Essayez maintenant, modifiez les paramètres ci-dessous
-          </p>
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
+              className={btnPri + ' px-8 py-3 text-base'}
+            >
+              Essayer la démo
+            </button>
+            <button onClick={() => openAuth('register')} className="text-sm text-[var(--dust)] underline underline-offset-2 hover:text-[var(--ink)] transition-colors bg-transparent border-none cursor-pointer">
+              Créer un compte
+            </button>
+          </div>
         </section>
 
         {/* ── 2. DÉMO ──────────────────────────────────────────────── */}
-        <section className="max-w-4xl mx-auto px-6 pb-20 space-y-4">
+        <section id="demo-section" className="max-w-4xl mx-auto px-6 pb-20 space-y-4">
 
           {/* Paramètres */}
           <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden shadow-sm">
@@ -369,25 +373,18 @@ export function LandingPage() {
                   {nbEnfants === 3 && (
                     <>
                       <div className="relative h-14">
-                        {/* Track */}
                         <div className="absolute inset-x-0 top-3 h-0.5 rounded-full bg-[var(--line)]" />
-
-                        {/* Slider (derrière les marqueurs) */}
                         <input type="range" min={S_MIN} max={S_MAX} step={0.5}
                           value={repartA * 100}
                           onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
                           className={`absolute inset-x-0 top-0 h-7 w-full appearance-none bg-transparent cursor-pointer z-10 demo-slider3${activeOpt !== 'custom' ? ' snap-thumb' : ''}`}
                         />
-
-                        {/* Marqueur A — label au-dessus pour éviter le chevauchement avec B */}
                         <button onClick={() => setRepartA(pProportionnel)}
                           style={{ left: `${posA3}%` }}
                           className="absolute -top-4 -translate-x-1/2 z-20 group flex flex-col items-center">
                           <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mb-1">Selon les heures</span>
                           <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${activeOpt === 'heures' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--dust)]/50 text-[var(--dust)] group-hover:border-[var(--sage)] group-hover:text-[var(--sage)]'}`}>A</span>
                         </button>
-
-                        {/* Marqueur B */}
                         <button onClick={() => setRepartA(P_AIDES)}
                           style={{ left: `${posB3}%` }}
                           className="absolute top-0 -translate-x-1/2 z-20 group flex flex-col items-center">
@@ -411,7 +408,6 @@ export function LandingPage() {
                         }
                       `}</style>
 
-                      {/* Carte explicative */}
                       <div className="mt-3 rounded-xl border bg-gray-50 border-gray-100 px-4 py-3 text-xs">
                         {activeOpt === 'heures' ? (
                           <>
@@ -485,6 +481,16 @@ export function LandingPage() {
               </div>
             </div>
           </div>
+
+          {/* ── Nudge sous la démo ── */}
+          <div className="text-center py-2">
+            <p className="text-sm text-[var(--dust)]">
+              Ça correspond à votre situation ?{' '}
+              <button onClick={() => openAuth('register')} className="text-[var(--sage)] font-medium hover:underline underline-offset-2 cursor-pointer bg-transparent border-none">
+                Créer un compte pour configurer votre contrat exact →
+              </button>
+            </p>
+          </div>
         </section>
 
         {/* ── 3. CTA SOMBRE ────────────────────────────────────────── */}
@@ -497,29 +503,79 @@ export function LandingPage() {
               Retrouvez exactement vos chiffres,<br />adaptés à votre contrat.
             </h2>
             <p className="text-[15px] text-white/60 leading-relaxed mb-12 max-w-lg mx-auto">
-              La démo ci-dessus est volontairement simplifiée. Créez un compte gratuit pour
+              La démo ci-dessus est volontairement simplifiée. Créez un compte pour
               configurer votre planning exact, inviter l&apos;autre famille, et ne plus jamais perdre le fil.
             </p>
             <div className="grid grid-cols-3 gap-4 mb-12 text-left">
               {[
-                { icon: '⚙️', title: 'Votre situation, exactement', desc: '✓ 2 ou 3 enfants, horaires identiques ou différents\n✓ Répartition proportionnelle aux heures par enfant\n✓ Équilibrage au reste à charge selon vos aides CAF\n✓ Frais d\'entretien, repas et transport inclus' },
-                { icon: '👨‍👩‍👧', title: 'Simple pour tous', desc: '✓ La nounou reçoit un lien — sans compte — avec son salaire détaillé\n✓ Elle voit ce que chaque famille lui verse, avant le versement\n✓ Fini les surprises sur le compte' },
-                { icon: '📅', title: 'Pas juste pour démarrer. Pour chaque mois.', desc: '✓ La mensualisation lisse le salaire — mais pas les événements du mois\n✓ Congés, maladies, absences : chaque événement est tracé et son impact calculé\n✓ Une trace partagée qui remplace les fils WhatsApp\n✓ Idéal pour se lancer, indispensable pour tenir sur la durée' },
+                {
+                  icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--sage)] mb-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z"/><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/></svg>
+                  ),
+                  title: 'Votre situation, exactement',
+                  desc: '✓ 2 ou 3 enfants, horaires identiques ou différents\n✓ Répartition proportionnelle aux heures par enfant\n✓ Équilibrage au reste à charge selon vos aides CAF\n✓ Frais d\'entretien, repas et transport inclus'
+                },
+                {
+                  icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--sage)] mb-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0 -3 -3.85"/></svg>
+                  ),
+                  title: 'Simple pour tous',
+                  desc: '✓ La nounou reçoit un lien — sans compte — avec son salaire détaillé\n✓ Elle voit ce que chaque famille lui verse, avant le versement\n✓ Fini les surprises sur le compte'
+                },
+                {
+                  icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--sage)] mb-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M11 15h1"/><path d="M12 15v3"/></svg>
+                  ),
+                  title: 'Pas juste pour démarrer. Pour chaque mois.',
+                  desc: '✓ La mensualisation lisse le salaire — mais pas les événements du mois\n✓ Congés, maladies, absences : chaque événement est tracé et son impact calculé\n✓ Une trace partagée qui remplace les fils WhatsApp\n✓ Idéal pour se lancer, indispensable pour tenir sur la durée'
+                },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="bg-white/5 rounded-xl p-5">
-                  <div className="text-2xl mb-3">{icon}</div>
+                  <div>{icon}</div>
                   <div className="text-sm font-semibold mb-1.5">{title}</div>
                   <div className="text-xs text-white/50 leading-relaxed whitespace-pre-line">{desc}</div>
                 </div>
               ))}
             </div>
+
+            {/* Témoignages */}
+            <div className="grid grid-cols-3 gap-4 mb-12 text-left">
+              {[
+                { quote: 'À remplacer par un vrai témoignage.', author: 'Prénom, Ville' },
+                { quote: 'À remplacer par un vrai témoignage.', author: 'Prénom, Ville' },
+                { quote: 'À remplacer par un vrai témoignage.', author: 'Prénom, Ville' },
+              ].map((t, i) => (
+                <div key={i} className="bg-white/5 rounded-xl p-5">
+                  <div className="text-[var(--sage)] text-sm mb-2">★★★★★</div>
+                  <p className="text-xs text-white/60 italic leading-relaxed mb-3">&ldquo;{t.quote}&rdquo;</p>
+                  <p className="text-xs font-medium text-white/80">{t.author}</p>
+                </div>
+              ))}
+            </div>
+
             <button onClick={() => openAuth('register')}
               className="inline-block px-8 py-4 bg-[var(--sage)] text-white rounded-xl text-[15px] font-semibold hover:bg-[#3a5431] transition-colors">
-              Créer mon compte gratuit →
+              Créer mon compte →
             </button>
-            <p className="text-xs text-white/40 mt-3">Aucune carte bancaire · Configuration en 2 min</p>
+            <p className="text-xs text-white/40 mt-3">Configuration en 2 min · La nounou n&apos;a pas besoin de compte</p>
           </div>
         </section>
+
+        {/* ── FOOTER ───────────────────────────────────────────────── */}
+        <footer className="bg-white border-t border-[var(--line)] py-6 px-6">
+          <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <span className="font-serif text-[15px] text-[var(--ink)]">
+              nounoulink<em className="text-[var(--sage)] not-italic">.</em>
+            </span>
+            <div className="flex gap-6 text-xs text-[var(--dust)]">
+              <a href="/mentions-legales" className="hover:text-[var(--ink)] transition-colors no-underline">Mentions légales</a>
+              <a href="/politique-confidentialite" className="hover:text-[var(--ink)] transition-colors no-underline">Politique de confidentialité</a>
+              <a href="/faq" className="hover:text-[var(--ink)] transition-colors no-underline">FAQ</a>
+              <a href="mailto:contact@nounoulink.fr" className="hover:text-[var(--ink)] transition-colors no-underline">Contact</a>
+            </div>
+            <span className="text-xs text-[var(--dust)]">© {new Date().getFullYear()} nounoulink</span>
+          </div>
+        </footer>
 
       </main>
 
@@ -592,7 +648,8 @@ function NumInput({ value, onChange, className }: { value: number; onChange: (v:
   );
 }
 
-const btnPri = 'px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors';
-const btnSec = 'px-4 py-2 border border-[var(--line)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] transition-colors bg-white text-[var(--ink)]';
-const numInp = 'px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-[14px] font-semibold text-center outline-none focus:border-[var(--sage)] bg-white';
-const inp    = 'w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border-[1.5px] border-[var(--line)] focus:border-[var(--sage)]';
+const btnPri   = 'px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors';
+const btnSec   = 'px-4 py-2 border border-[var(--line)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] transition-colors bg-white text-[var(--ink)]';
+const btnGhost = 'px-4 py-2 border border-[var(--line)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] text-[var(--dust)] hover:text-[var(--ink)] transition-colors bg-white';
+const numInp   = 'px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-[14px] font-semibold text-center outline-none focus:border-[var(--sage)] bg-white';
+const inp      = 'w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border-[1.5px] border-[var(--line)] focus:border-[var(--sage)]';
