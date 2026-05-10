@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Pages privées (authentifiées) — exclues de l'indexation
+Disallow: /dashboard
+Disallow: /nouvelle-garde/
+Disallow: /gardes/
+Disallow: /public/
+
+Sitemap: https://nounoulink.fr/sitemap.xml
