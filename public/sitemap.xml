@@ -31,8 +31,15 @@
     <priority>0.9</priority>
   </url>
 
+  <url>
+    <loc>https://nounoulink.fr/blog/calculer-salaire-nounou-garde-partagee</loc>
+    <lastmod>2026-05-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
   <!--
-    Les articles de blog seront ajoutés ici au fur et à mesure.
+    Les prochains articles seront ajoutés ici.
     Format :
     <url>
       <loc>https://nounoulink.fr/blog/nom-de-larticle</loc>

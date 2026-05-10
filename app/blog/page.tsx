@@ -8,22 +8,24 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://nounoulink.fr/blog' },
 };
 
-// Les articles seront ajoutés ici au fur et à mesure
 const articles: {
   slug: string;
   title: string;
   excerpt: string;
   publishedAt: string;
   category: string;
+  readingTime: string;
+  tag: string;
 }[] = [
-  // Exemple de structure à suivre :
-  // {
-  //   slug: 'calculer-salaire-nounou-garde-partagee',
-  //   title: 'Comment calculer le salaire d\'une nounou en garde partagée',
-  //   excerpt: 'Guide complet pour calculer le salaire net et brut d\'une nounou en garde partagée entre deux familles.',
-  //   publishedAt: '2026-05-11',
-  //   category: 'Calcul de salaire',
-  // },
+  {
+    slug: 'calculer-salaire-nounou-garde-partagee',
+    title: "Comment calculer le salaire d'une nounou en garde partagée",
+    excerpt: "Formule, exemples chiffrés, heures supplémentaires et règles Pajemploi — guide complet 2026.",
+    publishedAt: '2026-05-11',
+    category: 'Calcul de salaire',
+    readingTime: '9 min',
+    tag: 'Guide complet',
+  },
 ];
 
 export default function BlogIndex() {
@@ -75,10 +77,12 @@ export default function BlogIndex() {
                     href={`/blog/${article.slug}`}
                     className="block py-6 group no-underline"
                   >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--sage)]">
-                        {article.category}
+                    <div className="flex items-center flex-wrap gap-2 mb-2">
+                      <span className="inline-block text-[10px] font-semibold uppercase tracking-widest text-[var(--sage)] bg-[var(--sage-light)] px-2 py-0.5 rounded">
+                        {article.tag}
                       </span>
+                      <span className="text-[var(--line)]">·</span>
+                      <span className="text-xs text-[var(--dust)]">{article.category}</span>
                       <span className="text-[var(--line)]">·</span>
                       <time
                         dateTime={article.publishedAt}
@@ -90,6 +94,8 @@ export default function BlogIndex() {
                           year: 'numeric',
                         })}
                       </time>
+                      <span className="text-[var(--line)]">·</span>
+                      <span className="text-xs text-[var(--dust)]">{article.readingTime} de lecture</span>
                     </div>
                     <h2 className="text-[17px] font-semibold text-[var(--ink)] mb-1 group-hover:text-[var(--sage)] transition-colors">
                       {article.title}
