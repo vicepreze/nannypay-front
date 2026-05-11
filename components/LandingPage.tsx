@@ -182,7 +182,7 @@ export function LandingPage() {
           nounoulink<em className="text-[var(--sage)] not-italic">.</em>
         </span>
         <div className="flex gap-2 items-center">
-          <a href="/blog" className="hidden sm:inline-flex px-3 py-2 text-sm text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">Blog</a>
+          <a href="/blog" className="px-3 py-2 text-sm text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">Blog</a>
           {/* Se connecter masqué sur très petit écran */}
           <button onClick={() => openAuth('login')} className={`hidden sm:inline-flex ${btnGhost}`}>
             Se connecter

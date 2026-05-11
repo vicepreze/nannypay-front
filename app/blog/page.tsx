@@ -70,37 +70,42 @@ export default function BlogIndex() {
               <p className="text-[var(--dust)] text-sm">Les articles arrivent bientôt.</p>
             </div>
           ) : (
-            <ul className="space-y-px divide-y divide-[var(--line)]">
+            <ul className="divide-y divide-[var(--line)]">
               {articles.map((article) => (
                 <li key={article.slug}>
                   <Link
                     href={`/blog/${article.slug}`}
-                    className="block py-6 group no-underline"
+                    className="flex items-start justify-between gap-4 py-6 px-4 -mx-4 rounded-xl group no-underline hover:bg-[var(--paper)] transition-colors cursor-pointer"
                   >
-                    <div className="flex items-center flex-wrap gap-2 mb-2">
-                      <span className="inline-block text-[10px] font-semibold uppercase tracking-widest text-[var(--sage)] bg-[var(--sage-light)] px-2 py-0.5 rounded">
-                        {article.tag}
-                      </span>
-                      <span className="text-[var(--line)]">·</span>
-                      <span className="text-xs text-[var(--dust)]">{article.category}</span>
-                      <span className="text-[var(--line)]">·</span>
-                      <time
-                        dateTime={article.publishedAt}
-                        className="text-xs text-[var(--dust)]"
-                      >
-                        {new Date(article.publishedAt).toLocaleDateString('fr-FR', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                        })}
-                      </time>
-                      <span className="text-[var(--line)]">·</span>
-                      <span className="text-xs text-[var(--dust)]">{article.readingTime} de lecture</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center flex-wrap gap-2 mb-2.5">
+                        <span className="inline-block text-[10px] font-semibold uppercase tracking-widest text-[var(--sage)] bg-[var(--sage-light)] px-2 py-0.5 rounded">
+                          {article.tag}
+                        </span>
+                        <span className="text-[var(--line)]">·</span>
+                        <span className="text-xs text-[var(--dust)]">{article.category}</span>
+                        <span className="text-[var(--line)]">·</span>
+                        <time
+                          dateTime={article.publishedAt}
+                          className="text-xs text-[var(--dust)]"
+                        >
+                          {new Date(article.publishedAt).toLocaleDateString('fr-FR', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                          })}
+                        </time>
+                        <span className="text-[var(--line)]">·</span>
+                        <span className="text-xs text-[var(--dust)]">{article.readingTime} de lecture</span>
+                      </div>
+                      <h2 className="text-[17px] font-semibold text-[var(--ink)] mb-1.5 group-hover:text-[var(--sage)] transition-colors leading-snug">
+                        {article.title}
+                      </h2>
+                      <p className="text-sm text-[var(--dust)] leading-relaxed">{article.excerpt}</p>
                     </div>
-                    <h2 className="text-[17px] font-semibold text-[var(--ink)] mb-1 group-hover:text-[var(--sage)] transition-colors">
-                      {article.title}
-                    </h2>
-                    <p className="text-sm text-[var(--dust)] leading-relaxed">{article.excerpt}</p>
+                    <span className="flex-shrink-0 text-[var(--dust)] group-hover:text-[var(--sage)] group-hover:translate-x-1 transition-all text-base mt-1">
+                      →
+                    </span>
                   </Link>
                 </li>
               ))}

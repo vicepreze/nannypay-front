@@ -165,7 +165,7 @@ export default function ArticleCalculerSalaire() {
           nounoulink<em className="text-[var(--sage)] not-italic">.</em>
         </Link>
         <nav className="flex items-center gap-3">
-          <Link href="/blog" className="hidden sm:inline text-sm text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">
+          <Link href="/blog" className="text-sm text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">
             Blog
           </Link>
           <Link
@@ -223,7 +223,7 @@ export default function ArticleCalculerSalaire() {
         </div>
 
         {/* Content : article + sidebar */}
-        <div className="max-w-[1120px] mx-auto px-5 md:px-8 py-12 md:py-16 grid grid-cols-1 md:grid-cols-[1fr_272px] gap-10 md:gap-16 items-start">
+        <div className="max-w-[1120px] mx-auto px-5 md:px-8 py-12 md:py-16 grid grid-cols-1 md:grid-cols-[1fr_256px] gap-8 md:gap-10 items-start">
 
           {/* ── Article ── */}
           <article>
