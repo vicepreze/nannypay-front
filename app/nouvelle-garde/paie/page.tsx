@@ -356,26 +356,7 @@ export default function PaiePage() {
       {/* 2 — Indemnités */}
       <Card
         title="2 — Indemnités"
-        headerRight={
-          <div className="flex flex-col items-end gap-0.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] text-[var(--dust)]">Part famille A</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={Math.round(repartIndemA * 100)}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  setRepartIndemA(isNaN(v) ? 0.5 : Math.min(1, Math.max(0, v / 100)));
-                }}
-                className="w-[58px] text-center font-bold text-white bg-[var(--sage)] rounded-md px-1 py-0.5 text-[13px] border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-              <span className="text-[12px] text-[var(--dust)]">%</span>
-            </div>
-            <p className="text-[11px] text-[var(--dust)]">↙ s&apos;applique aux champs ci-dessous</p>
-          </div>
-        }
+        headerRight={<PartFamilleACta value={repartIndemA} onChange={setRepartIndemA} />}
       >
         <div className="grid grid-cols-3 gap-3">
           <FN label="Navigo (€/mois)"   value={navigo}    onChange={setNavigo} />
@@ -694,6 +675,51 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     >
       <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${checked ? 'left-[22px]' : 'left-0.5'}`} />
     </button>
+  );
+}
+
+function PartFamilleACta({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [raw,     setRaw]     = useState(() => String(Math.round(value * 100)));
+  const [focused, setFocused] = useState(false);
+
+  // Sync depuis le parent uniquement quand le champ n'est pas en cours d'édition
+  useEffect(() => {
+    if (!focused) setRaw(String(Math.round(value * 100)));
+  }, [value, focused]);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const s = e.target.value;
+    setRaw(s);
+    const n = parseFloat(s);
+    if (!isNaN(n)) onChange(Math.min(1, Math.max(0, n / 100)));
+  }
+
+  function handleBlur() {
+    setFocused(false);
+    const n = parseFloat(raw);
+    const clamped = isNaN(n) ? 50 : Math.min(100, Math.max(0, Math.round(n)));
+    setRaw(String(clamped));
+    onChange(clamped / 100);
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[12px] text-[var(--dust)]">Part famille A</span>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          value={raw}
+          onChange={handleChange}
+          onFocus={() => setFocused(true)}
+          onBlur={handleBlur}
+          className="w-[58px] text-center font-bold text-white bg-[var(--sage)] rounded-md px-1 py-0.5 text-[13px] border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <span className="text-[12px] text-[var(--dust)]">%</span>
+      </div>
+      <p className="text-[11px] text-[var(--dust)]">↙ s&apos;applique aux champs ci-dessous</p>
+    </div>
   );
 }
 
