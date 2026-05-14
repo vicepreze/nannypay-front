@@ -469,7 +469,8 @@ export function calculerMois(input: CalcInput): CalcResult {
     const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
 
     const transport = Math.round(navigo / 2 * 100) / 100;
-    const entretien = Math.round(qp * joursEntretienBase * tauxPresenceJour * indemEntretien * 100) / 100;
+    // L'indemnité d'entretien est due par enfant et par jour de présence — indépendante du ratio salarial qp
+    const entretien = Math.round(joursEntretienBase * tauxPresenceJour * indemEntretien * 100) / 100;
     const km        = Math.round(indemKm / 2 * 100) / 100;
     const total     = Math.round((salNet + transport + entretien + km) * 100) / 100;
 
