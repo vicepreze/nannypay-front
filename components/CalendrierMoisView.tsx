@@ -170,31 +170,6 @@ export function CalendrierMoisView({
           </>
         )}
 
-        {/* Validation — privé seulement */}
-        {!readonly && (
-          <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-4">
-            <div className="text-xs font-medium text-[var(--dust)] uppercase tracking-wide mb-3">Validation</div>
-            <div className="space-y-2 mb-4 text-sm">
-              <ValidLine label={nomFamA ?? 'Famille A'} done={statut === 'valide_a' || statut === 'valide_ab'} />
-              <ValidLine label={nomFamB ?? 'Famille B'} done={statut === 'valide_b' || statut === 'valide_ab'} />
-            </div>
-            {!locked && !jaValide && (
-              <button
-                onClick={onValider}
-                disabled={saving}
-                className="w-full py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Validation…' : `Valider pour ${monLabel === 'A' ? (nomFamA ?? 'Fam. A') : (nomFamB ?? 'Fam. B')}`}
-              </button>
-            )}
-            {!locked && jaValide && (
-              <p className="text-xs text-center text-[var(--sage)]">Vous avez validé ce mois — en attente de l&apos;autre famille.</p>
-            )}
-            {locked && (
-              <p className="text-xs text-center text-[var(--sage)] font-medium">✓ Mois validé par les deux familles</p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -254,13 +229,3 @@ function ResultCard({ label, nom, r, racOptionActive }: {
   );
 }
 
-function ValidLine({ label, done }: { label: string; done: boolean }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 ${done ? 'bg-[var(--sage)] text-white' : 'border-2 border-[var(--line)]'}`}>
-        {done ? '✓' : ''}
-      </span>
-      <span className={done ? 'text-[var(--sage)] font-medium' : 'text-[var(--dust)]'}>{label}</span>
-    </div>
-  );
-}

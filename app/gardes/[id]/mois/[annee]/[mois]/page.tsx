@@ -52,8 +52,6 @@ export default function MoisPage() {
   const [evtsSaveCount, setEvtsSaveCount] = useState(0);
 
   // Panneau gauche
-  const [invToken,    setInvToken]    = useState<string | null>(null);
-  const [copiedInv,   setCopiedInv]   = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
   const [sharingPub,  setSharingPub]  = useState(false);
 
@@ -72,7 +70,6 @@ export default function MoisPage() {
       .then(r => r.json())
       .then(d => {
         setGarde(d.garde);
-        setInvToken(d.garde.invitationTokenB ?? null);
         setMoisRec(d.mois);
         setEvts(JSON.parse(d.mois.evenementsJson || '[]'));
         setLoading(false);
@@ -152,20 +149,6 @@ export default function MoisPage() {
     setEvts(newEvts); sauvegarderEvts(newEvts);
   }
 
-  async function genererInvitation() {
-    const res = await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'POST' });
-    if (res.ok) { const d = await res.json(); setInvToken(d.token); }
-  }
-  async function revoquerInvitation() {
-    if (!confirm('Révoquer le lien d\'invitation ?')) return;
-    await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'DELETE' });
-    setInvToken(null);
-  }
-  function copierInvitation() {
-    if (!invToken) return;
-    navigator.clipboard.writeText(`${window.location.origin}/rejoindre?token=${invToken}`);
-    setCopiedInv(true); setTimeout(() => setCopiedInv(false), 2000);
-  }
   async function partagerMois() {
     setSharingPub(true);
     let token = garde?.publicTokenNounou;
@@ -263,29 +246,7 @@ export default function MoisPage() {
             )}
           </div>
 
-          {estProprietaire && !famBActif && (
-            <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-              <div className="px-3.5 py-2 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">Invitation Fam. B</div>
-              <div className="p-3 space-y-2">
-                {invToken ? (
-                  <>
-                    <button onClick={copierInvitation} className="w-full py-1.5 text-xs rounded-lg border border-[var(--line)] bg-white hover:border-[var(--sage)] transition-colors">
-                      {copiedInv ? '✓ Copié !' : 'Copier le lien'}
-                    </button>
-                    <button onClick={revoquerInvitation} className="w-full py-1.5 text-[10px] text-[var(--dust)] hover:text-[var(--red)] transition-colors">
-                      Révoquer
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={genererInvitation} className="w-full py-1.5 text-xs rounded-lg bg-[var(--sage)] text-white hover:bg-[#3a5431] transition-colors">
-                    Générer le lien
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <button
+<button
             onClick={partagerMois}
             disabled={sharingPub}
             className="w-full py-2 text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--sage)] transition-colors disabled:opacity-50"

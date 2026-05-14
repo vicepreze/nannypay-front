@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { SignOutButton } from '@/components/SignOutButton';
 import { ArchiveButton } from '@/components/ArchiveButton';
+import { InvitationDashboard } from '@/components/InvitationDashboard';
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -22,7 +23,7 @@ export default async function DashboardPage() {
       },
       include: {
         nounou:   { select: { prenom: true } },
-        familles: { select: { label: true, nomAffiche: true, statutAcces: true } },
+        familles: { select: { label: true, nomAffiche: true, statutAcces: true, utilisateurId: true } },
         enfants:  { select: { prenom: true, fam: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -82,6 +83,7 @@ export default async function DashboardPage() {
               const famA = g.familles.find(f => f.label === 'A');
               const famB = g.familles.find(f => f.label === 'B');
               const famBActif = famB?.statutAcces === 'invite_actif';
+              const isOwner = famA?.utilisateurId === session.user.id;
               return (
                 <div key={g.id} className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-5">
                   <div className="mb-3">
@@ -103,6 +105,12 @@ export default async function DashboardPage() {
                       </div>
                     )}
                   </div>
+                  {isOwner && !famBActif && (
+                    <div className="pt-3 border-t border-[var(--line)] mb-3">
+                      <p className="text-[10px] font-medium text-[var(--dust)] uppercase tracking-wide mb-2">Invitation Fam. B</p>
+                      <InvitationDashboard gardeId={g.id} initialToken={g.invitationTokenB} />
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 pt-3 border-t border-[var(--line)]">
                     <Link href={`/gardes/${g.id}/mois/${annee}/${mois}`}
                       className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">

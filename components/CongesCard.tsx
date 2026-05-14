@@ -98,7 +98,17 @@ export function CongesCard({ gardeId, annee, mois, cpThisMonth, refreshKey }: {
 
       {loading ? (
         <div className="px-4 py-3 text-xs text-[var(--dust)]">Chargement…</div>
-      ) : settingsOpen || !config ? (
+      ) : !config && !settingsOpen ? (
+        <div className="px-4 py-4 text-center">
+          <p className="text-xs text-[var(--dust)] mb-3">Suivez l&apos;acquisition et la consommation des congés payés.</p>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="w-full py-2 bg-[var(--sage)] text-white rounded-lg text-xs font-medium hover:bg-[#3a5431] transition-colors"
+          >
+            Activer le suivi des congés
+          </button>
+        </div>
+      ) : settingsOpen ? (
         <div className="p-4 space-y-4">
           <div>
             <div className="text-[10px] font-semibold text-[var(--dust)] uppercase tracking-wide mb-2">Règle d&apos;acquisition</div>
