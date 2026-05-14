@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Modele" ADD COLUMN "repartitionIndemA" DOUBLE PRECISION NOT NULL DEFAULT 0.5;

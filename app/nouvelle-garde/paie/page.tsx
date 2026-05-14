@@ -47,9 +47,10 @@ export default function PaiePage() {
   const [joursJson, setJoursJson] = useState('{}');
 
   const [taux,      setTaux]      = useState(11);
-  const [navigo,    setNavigo]    = useState(90.80);
-  const [indemKm,   setIndemKm]   = useState(0);
-  const [entretien, setEntretien] = useState(6.0);
+  const [navigo,       setNavigo]       = useState(90.80);
+  const [indemKm,      setIndemKm]      = useState(0);
+  const [entretien,    setEntretien]    = useState(6.0);
+  const [repartIndemA, setRepartIndemA] = useState(0.5);
 
   const [repartA,    setRepartA]    = useState(0.5);
   const [racOption,  setRacOption]  = useState(false);
@@ -91,8 +92,9 @@ export default function PaiePage() {
         if (typeof saved.racOptionActive === 'boolean') setRacOption(saved.racOptionActive);
         if (typeof saved.taux           === 'number' && saved.taux > 0) setTaux(saved.taux);
         if (typeof saved.navigo         === 'number')  setNavigo(saved.navigo);
-        if (typeof saved.indemKm        === 'number')  setIndemKm(saved.indemKm);
-        if (typeof saved.indemEntretien === 'number')  setEntretien(saved.indemEntretien);
+        if (typeof saved.indemKm           === 'number')  setIndemKm(saved.indemKm);
+        if (typeof saved.indemEntretien    === 'number')  setEntretien(saved.indemEntretien);
+        if (typeof saved.repartitionIndemA === 'number')  setRepartIndemA(saved.repartitionIndemA);
         if (saved.aidesA) setAA(saved.aidesA);
         if (saved.aidesB) setAB(saved.aidesB);
       } else {
@@ -196,12 +198,12 @@ export default function PaiePage() {
     const joursActifs = planningHours.joursActifsParSemaine || 5;
     const joursActifsMens = joursActifs * 52 / 12;
 
-    const buildFam = (ratio: number, salNet: number, rac: number): FamCalcData => {
+    const buildFam = (ratio: number, indemRatio: number, salNet: number, rac: number): FamCalcData => {
       const chargeSal = Math.round(salNet * K_SAL * 100) / 100;
       const chargePat = Math.round(salNet * K_PAT * 100) / 100;
-      const navigoFam = Math.round(navigo * ratio * 100) / 100;
-      const entretienFam = Math.round(entretien * joursActifsMens * ratio * 100) / 100;
-      const kmFam = Math.round(indemKm * ratio * 100) / 100;
+      const navigoFam    = Math.round(navigo   * indemRatio * 100) / 100;
+      const entretienFam = Math.round(entretien * joursActifsMens * indemRatio * 100) / 100;
+      const kmFam        = Math.round(indemKm  * indemRatio * 100) / 100;
 
       let cmgCot = 0, cmgRemu = 0, creditImpotMens = 0;
       if (racOption) {
@@ -231,8 +233,8 @@ export default function PaiePage() {
       };
     };
 
-    const famAData = buildFam(repartA, salNetA, liveRac.racA);
-    const famBData = buildFam(1 - repartA, salNetB, liveRac.racB);
+    const famAData = buildFam(repartA,       repartIndemA,           salNetA, liveRac.racA);
+    const famBData = buildFam(1 - repartA,   1 - repartIndemA,       salNetB, liveRac.racB);
 
     const salNetTotal = salNetA + salNetB;
     const chargeSalTotal = Math.round(salNetTotal * K_SAL * 100) / 100;
@@ -250,7 +252,7 @@ export default function PaiePage() {
 
     return { famA: famAData, famB: famBData, nounou };
   }, [
-    planningHours, preview, repartA, navigo, entretien, indemKm,
+    planningHours, preview, repartA, repartIndemA, navigo, entretien, indemKm,
     racOption, modeExpert, racOptimal, aA, aB, liveRac,
     nomA, nomB, nbEnfantsA, nbEnfantsB,
   ]);
@@ -299,6 +301,7 @@ export default function PaiePage() {
       repartitionA: repartA,
       racOptionActive: racOption,
       taux, navigo, indemKm, indemEntretien: entretien,
+      repartitionIndemA: repartIndemA,
       aidesA: modeExpert ? aA : aidesZero(),
       aidesB: modeExpert ? aB : aidesZero(),
     }));
@@ -311,12 +314,13 @@ export default function PaiePage() {
         body: JSON.stringify({
           acteurs, planning,
           paie: {
-            repartitionA:    repartA,
-            racOptionActive: racOption,
+            repartitionA:      repartA,
+            racOptionActive:   racOption,
             taux,
             navigo,
             indemKm,
-            indemEntretien: entretien,
+            indemEntretien:    entretien,
+            repartitionIndemA: repartIndemA,
             aidesA: modeExpert ? aA : aidesZero(),
             aidesB: modeExpert ? aB : aidesZero(),
           },
@@ -355,6 +359,16 @@ export default function PaiePage() {
           <FN label="Navigo (€/mois)"   value={navigo}    onChange={setNavigo} />
           <FN label="Frais km (€/mois)" value={indemKm}   onChange={setIndemKm} />
           <FN label="Entretien (€/j)"   value={entretien} onChange={setEntretien} />
+        </div>
+        <div className="mt-3 pt-3 border-t border-[var(--line)]">
+          <FN
+            label="Part famille A (%)"
+            value={Math.round(repartIndemA * 100)}
+            onChange={(v) => setRepartIndemA(Math.min(1, Math.max(0, v / 100)))}
+          />
+          <p className="text-xs text-[var(--dust)] mt-1">
+            Répartition des indemnités entre les deux familles (50% = partage égal). Famille B reçoit {Math.round((1 - repartIndemA) * 100)}%.
+          </p>
         </div>
       </Card>
 

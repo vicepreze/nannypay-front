@@ -59,6 +59,7 @@ export interface CalcInput {
   hSup25Semaine:         number;
   hSup50Semaine:         number;
   repartitionA:          number;
+  repartitionIndemA?:    number;  // part famille A sur les indemnités (0–1, défaut 0.5)
   navigo:                number;
   indemEntretien:        number;
   indemKm:               number;
@@ -427,7 +428,7 @@ export function calculerMois(input: CalcInput): CalcResult {
   const {
     annee, mois, taux,
     hNormalesSemaine, hSup25Semaine, hSup50Semaine,
-    repartitionA, navigo, indemEntretien, indemKm,
+    repartitionA, repartitionIndemA = 0.5, navigo, indemEntretien, indemKm,
     joursActifsParSemaine, evenements,
     racOptionActive: racOpt,
     modeCalcul = 'A.1',
@@ -458,7 +459,7 @@ export function calculerMois(input: CalcInput): CalcResult {
   const tauxPresenceJour   = joursActifsParSemaine > 0 ? joursActifsParSemaine / 5 : 1;
   const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP);
 
-  function calcFam(qp: number, aides: AidesInput | undefined): FamResult {
+  function calcFam(qp: number, indemRatio: number, aides: AidesInput | undefined): FamResult {
     const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
     const hSup25 = Math.round(H_SUP25_MENS * qp * ratio);
     const hSup50 = Math.round(H_SUP50_MENS * qp * ratio);
@@ -468,10 +469,10 @@ export function calculerMois(input: CalcInput): CalcResult {
     const sup50Net = Math.round(H_SUP50_MENS * qp * taux * 1.50 * ratio * 100) / 100;
     const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
 
-    const transport = Math.round(navigo / 2 * 100) / 100;
-    // L'indemnité d'entretien est due par enfant et par jour de présence — indépendante du ratio salarial qp
-    const entretien = Math.round(joursEntretienBase * tauxPresenceJour * indemEntretien * 100) / 100;
-    const km        = Math.round(indemKm / 2 * 100) / 100;
+    const transport = Math.round(navigo   * indemRatio * 100) / 100;
+    // L'indemnité d'entretien est due par enfant et par jour de présence — pondérée par la répartition des indemnités
+    const entretien = Math.round(joursEntretienBase * tauxPresenceJour * indemEntretien * indemRatio * 100) / 100;
+    const km        = Math.round(indemKm  * indemRatio * 100) / 100;
     const total     = Math.round((salNet + transport + entretien + km) * 100) / 100;
 
     const chargesSalariales = Math.round(salNet * K_SAL * 100) / 100;
@@ -482,8 +483,8 @@ export function calculerMois(input: CalcInput): CalcResult {
     return { qp, hNorm, hSup25, hSup50, salNet, transport, entretien, km, total, chargesSalariales, chargesPatronales, aidesTotal, resteCharge };
   }
 
-  const famA = calcFam(repartitionA,       racOptionActive ? aidesA : undefined);
-  const famB = calcFam(1 - repartitionA,   racOptionActive ? aidesB : undefined);
+  const famA = calcFam(repartitionA,     repartitionIndemA,       racOptionActive ? aidesA : undefined);
+  const famB = calcFam(1 - repartitionA, 1 - repartitionIndemA,   racOptionActive ? aidesB : undefined);
 
   const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
   const hTotalSemaine = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;

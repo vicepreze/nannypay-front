@@ -43,6 +43,7 @@ type Props = {
     indemKm:           number;
     indemEntretien:    number;
     repartitionA:      number;
+    repartitionIndemA: number;
     racOptionActive:   boolean;
     joursJson:         string;
   } | null;
@@ -72,9 +73,10 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
   const [hNorm,     setHNorm]     = useState(modele?.hNormalesSemaine ?? 0);
   const [hSup25,    setHSup25]    = useState(modele?.hSup25Semaine   ?? 0);
   const [hSup50,    setHSup50]    = useState(modele?.hSup50Semaine   ?? 0);
-  const [navigo,    setNavigo]    = useState(modele?.navigoMontant   ?? 0);
-  const [km,        setKm]        = useState(modele?.indemKm         ?? 0);
-  const [entretien, setEntretien] = useState(modele?.indemEntretien  ?? 0);
+  const [navigo,       setNavigo]       = useState(modele?.navigoMontant    ?? 0);
+  const [km,           setKm]           = useState(modele?.indemKm          ?? 0);
+  const [entretien,    setEntretien]    = useState(modele?.indemEntretien   ?? 0);
+  const [repartIndemA, setRepartIndemA] = useState(modele?.repartitionIndemA ?? 0.5);
 
   const [repartA,    setRepartA]    = useState(modele?.repartitionA    ?? 0.5);
   const [racOption,  setRacOption]  = useState(modele?.racOptionActive ?? false);
@@ -242,11 +244,12 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
           hNormalesSemaine: hNorm,
           hSup25Semaine:    hSup25,
           hSup50Semaine:    hSup50,
-          navigoMontant:    navigo,
-          indemKm:          km,
-          indemEntretien:   entretien,
-          repartitionA:     repartA,
-          racOptionActive:  racOption,
+          navigoMontant:     navigo,
+          indemKm:           km,
+          indemEntretien:    entretien,
+          repartitionA:      repartA,
+          repartitionIndemA: repartIndemA,
+          racOptionActive:   racOption,
         },
         familleA: savedAA,
         familleB: savedAB,
@@ -352,6 +355,16 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                   <FN label="Navigo (€/mois)"   value={navigo}    onChange={setNavigo} />
                   <FN label="Frais km (€/mois)" value={km}        onChange={setKm} />
                   <FN label="Entretien (€/j)"   value={entretien} onChange={setEntretien} />
+                </div>
+                <div className="mt-3 pt-3 border-t border-[var(--line)]">
+                  <FN
+                    label="Part famille A (%)"
+                    value={Math.round(repartIndemA * 100)}
+                    onChange={(v) => setRepartIndemA(Math.min(1, Math.max(0, v / 100)))}
+                  />
+                  <p className="text-xs text-[var(--dust)] mt-1">
+                    Répartition des indemnités entre les deux familles (50% = partage égal). Famille B reçoit {Math.round((1 - repartIndemA) * 100)}%.
+                  </p>
                 </div>
               </Card>
 

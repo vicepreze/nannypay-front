@@ -121,9 +121,10 @@ model Modele {
 
   tauxHoraireNet Float @default(11)
 
-  navigoMontant  Float @default(90.80)
-  indemKm        Float @default(0)
-  indemEntretien Float @default(6.0)
+  navigoMontant     Float @default(90.80)
+  indemKm           Float @default(0)
+  indemEntretien    Float @default(6.0)
+  repartitionIndemA Float @default(0.5)  // part famille A sur les indemnités (navigo, km, entretien)
 
   // JSON : { "1": { actif, hDebut, hFin }, ... }  clés 1=lun..5=ven
   joursJson String @default("{}")

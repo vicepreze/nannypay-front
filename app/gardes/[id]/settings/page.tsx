@@ -55,6 +55,7 @@ export default async function SettingsPage({ params }: Props) {
         indemKm:           garde.modele.indemKm,
         indemEntretien:    garde.modele.indemEntretien,
         repartitionA:      garde.modele.repartitionA,
+        repartitionIndemA: garde.modele.repartitionIndemA,
         racOptionActive:   garde.modele.racOptionActive,
         joursJson:         garde.modele.joursJson,
       } : null}
