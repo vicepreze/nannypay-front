@@ -350,21 +350,33 @@ export function SettingsClient({ gardeId, gardeNom, moisUrl, famA, famB, nounou,
                 </div>
               </Card>
 
-              <Card title="2 — Indemnités">
+              <Card
+                title="2 — Indemnités"
+                headerRight={
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[12px] text-[var(--dust)]">Part famille A</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={Math.round(repartIndemA * 100)}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          setRepartIndemA(isNaN(v) ? 0.5 : Math.min(1, Math.max(0, v / 100)));
+                        }}
+                        className="w-[58px] text-center font-bold text-white bg-[var(--sage)] rounded-md px-1 py-0.5 text-[13px] border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-[12px] text-[var(--dust)]">%</span>
+                    </div>
+                    <p className="text-[11px] text-[var(--dust)]">↙ s&apos;applique aux champs ci-dessous</p>
+                  </div>
+                }
+              >
                 <div className="grid grid-cols-3 gap-3">
                   <FN label="Navigo (€/mois)"   value={navigo}    onChange={setNavigo} />
                   <FN label="Frais km (€/mois)" value={km}        onChange={setKm} />
                   <FN label="Entretien (€/j)"   value={entretien} onChange={setEntretien} />
-                </div>
-                <div className="mt-3 pt-3 border-t border-[var(--line)]">
-                  <FN
-                    label="Part famille A (%)"
-                    value={Math.round(repartIndemA * 100)}
-                    onChange={(v) => setRepartIndemA(Math.min(1, Math.max(0, v / 100)))}
-                  />
-                  <p className="text-xs text-[var(--dust)] mt-1">
-                    Répartition des indemnités entre les deux familles (50% = partage égal). Famille B reçoit {Math.round((1 - repartIndemA) * 100)}%.
-                  </p>
                 </div>
               </Card>
 
@@ -678,10 +690,13 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, headerRight, children }: { title: string; headerRight?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
-      <div className="px-5 py-3 text-sm font-semibold border-b border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]">{title}</div>
+      <div className="px-5 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between gap-4">
+        <span className="text-sm font-semibold text-[var(--ink)]">{title}</span>
+        {headerRight}
+      </div>
       <div className="p-5 space-y-3">{children}</div>
     </div>
   );
