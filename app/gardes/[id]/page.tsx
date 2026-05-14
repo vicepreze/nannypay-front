@@ -1,16 +1,17 @@
-import { getServerSession } from 'next-auth';
+import { auth } from '@clerk/nextjs/server';
+
 import { redirect } from 'next/navigation';
-import { authOptions } from '@/lib/auth';
+
 import { prisma } from '@/lib/prisma';
 
 type Props = { params: { id: string } };
 
 export default async function GardePage({ params }: Props) {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect('/');
+  const { userId } = await auth();
+  if (!userId) redirect('/');
 
   const famille = await prisma.famille.findFirst({
-    where: { gardeId: params.id, utilisateurId: session.user.id },
+    where: { gardeId: params.id, utilisateurId: userId },
   });
   if (!famille) redirect('/dashboard');
 

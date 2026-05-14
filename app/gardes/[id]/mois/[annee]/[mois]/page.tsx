@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { calculerMois, calcHeuresSemaineFromPlanning, type Evt, type CalcResult } from '@/lib/calcul';
 import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@clerk/nextjs';
 import { CalendrierMoisView } from '@/components/CalendrierMoisView';
 
 const MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -38,7 +38,7 @@ function dateStr(d: Date) {
 
 export default function MoisPage() {
   const params  = useParams();
-  const { data: session } = useSession();
+  const { userId } = useAuth();
 
   const gardeId = params.id as string;
   const annee   = parseInt(params.annee as string);
@@ -194,9 +194,9 @@ export default function MoisPage() {
     window.location.href = '/dashboard';
   }
 
-  const estProprietaire = garde ? session?.user?.id === garde.proprietaireId : false;
+  const estProprietaire = garde ? userId === garde.proprietaireId : false;
   const famBActif = garde?.familles.find(f => f.label === 'B')?.statutAcces === 'invite_actif';
-  const monLabel  = garde?.familles.find(f => f.utilisateurId === session?.user?.id)?.label ?? 'A';
+  const monLabel  = garde?.familles.find(f => f.utilisateurId === userId)?.label ?? 'A';
   const statut    = moisRec?.statut ?? 'ouvert';
   const jaValide  = statut === `valide_${monLabel.toLowerCase()}` || statut === 'valide_ab';
   const locked    = statut === 'valide_ab';

@@ -1,18 +1,19 @@
+import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 
 type Params = { params: { id: string } };
 
 export async function GET(_req: NextRequest, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
   const garde = await prisma.garde.findFirst({
     where: {
       id: params.id,
-      familles: { some: { utilisateurId: session.user.id } },
+      familles: { some: { utilisateurId: userId } },
     },
     include: { nounou: true, familles: true, enfants: true, modele: true },
   });
@@ -22,11 +23,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PUT(req: NextRequest, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
   const garde = await prisma.garde.findFirst({
-    where: { id: params.id, proprietaireId: session.user.id },
+    where: { id: params.id, proprietaireId: userId },
   });
   if (!garde) return NextResponse.json({ error: 'Introuvable ou non autorisé' }, { status: 404 });
 
