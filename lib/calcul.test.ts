@@ -548,11 +548,38 @@ describe('Scénario 2 — Garde 60 %/40 % avec majorations (jan. 2025, 23 j.)', 
     expect(result.famB.transport).toBe(45.40);
   });
 
-  it('indemnité entretien A = 82,80 € et B = 55,20 € (23 j × 6 € × qp)', () => {
-    // famA : round(0.6 × 23 × 6 × 100) / 100 = 82.80
-    // famB : round(0.4 × 23 × 6 × 100) / 100 = 55.20
-    expect(result.famA.entretien).toBe(82.80);
-    expect(result.famB.entretien).toBe(55.20);
+  it('entretien par défaut (repartitionIndemA = 0.5) : 69 € par famille (23 j × 6 € × 50%)', () => {
+    // repartitionIndemA est indépendant de qp — défaut 0.5 quelle que soit la répartition salariale
+    // famA : round(23 × 6 × 0.5 × 100) / 100 = 69.00
+    // famB : round(23 × 6 × 0.5 × 100) / 100 = 69.00
+    expect(result.famA.entretien).toBe(69.00);
+    expect(result.famB.entretien).toBe(69.00);
+  });
+
+  it('entretien avec repartitionIndemA = 0.6 : 82,80 € (A) et 55,20 € (B)', () => {
+    // Quand repartitionIndemA correspond au ratio salarial, on retrouve l'ancienne logique
+    // famA : round(23 × 6 × 0.6 × 100) / 100 = 82.80
+    // famB : round(23 × 6 × 0.4 × 100) / 100 = 55.20
+    const r = calculerMois({ ...input, repartitionIndemA: 0.6 });
+    expect(r.famA.entretien).toBe(82.80);
+    expect(r.famB.entretien).toBe(55.20);
+  });
+
+  it('entretien à 50%, 6 €/j, mai 2026 (21 j ouvrables) → 63 € par famille (multiple de 3 ✓)', () => {
+    const r = calculerMois({
+      ...input,
+      annee: 2026, mois: 5,
+      repartitionA: 0.5,
+      repartitionIndemA: 0.5,
+      indemEntretien: 6,
+      joursActifsParSemaine: 5,
+      evenements: [],
+    });
+    // 21 j ouvrables × 6 €/j × 50% = 63 €
+    expect(r.famA.entretien).toBe(63.00);
+    expect(r.famB.entretien).toBe(63.00);
+    expect(r.famA.entretien % 3).toBe(0);  // multiple de 3
+    expect(r.famB.entretien % 3).toBe(0);
   });
 
   // ── Asymétrie des charges ────────────────────────────────────────────────────
