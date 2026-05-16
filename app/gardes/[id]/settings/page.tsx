@@ -1,17 +1,18 @@
-import { getServerSession } from 'next-auth';
+import { auth } from '@clerk/nextjs/server';
+
 import { redirect } from 'next/navigation';
-import { authOptions } from '@/lib/auth';
+
 import { prisma } from '@/lib/prisma';
 import { SettingsClient } from './SettingsClient';
 
 type Props = { params: { id: string } };
 
 export default async function SettingsPage({ params }: Props) {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect('/');
+  const { userId } = await auth();
+  if (!userId) redirect('/');
 
   const garde = await prisma.garde.findFirst({
-    where: { id: params.id, familles: { some: { utilisateurId: session.user.id } } },
+    where: { id: params.id, familles: { some: { utilisateurId: userId } } },
     include: { familles: true, nounou: true, modele: true, enfants: true },
   });
   if (!garde) redirect('/dashboard');

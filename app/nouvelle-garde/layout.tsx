@@ -1,11 +1,12 @@
-import { getServerSession } from 'next-auth';
+import { auth } from '@clerk/nextjs/server';
+
 import { redirect } from 'next/navigation';
-import { authOptions } from '@/lib/auth';
+
 import { TabsNav } from '@/components/nouvelle-garde/TabsNav';
 
 export default async function NouvelleGardeLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect('/');
+  const { userId } = await auth();
+  if (!userId) redirect('/');
 
   return (
     <div className="min-h-screen bg-[var(--paper)]">
@@ -14,7 +15,7 @@ export default async function NouvelleGardeLayout({ children }: { children: Reac
         <a href="/" className="font-serif text-[19px] text-[var(--ink)] no-underline tracking-tight">
           nounoulink<em className="text-[var(--sage)] not-italic">.</em>
         </a>
-        <span className="text-sm text-[var(--dust)]">{session.user.email}</span>
+        <span className="text-sm text-[var(--dust)]">{userId}</span>
       </header>
 
       <div className="pt-14 max-w-2xl mx-auto px-6 pb-16">

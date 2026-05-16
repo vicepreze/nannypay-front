@@ -1,14 +1,15 @@
-import { getServerSession } from 'next-auth';
+import { auth } from '@clerk/nextjs/server';
+
 import { redirect } from 'next/navigation';
-import { authOptions } from '@/lib/auth';
+
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { SignOutButton } from '@/components/SignOutButton';
 import { ArchiveButton } from '@/components/ArchiveButton';
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect('/');
+  const { userId } = await auth();
+  if (!userId) redirect('/');
 
   const now   = new Date();
   const annee = now.getFullYear();
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
   const [actives, archivees] = await Promise.all([
     prisma.garde.findMany({
       where: {
-        familles: { some: { utilisateurId: session.user.id } },
+        familles: { some: { utilisateurId: userId } },
         statut: { not: 'archivé' },
       },
       include: {
@@ -29,7 +30,7 @@ export default async function DashboardPage() {
     }),
     prisma.garde.findMany({
       where: {
-        familles: { some: { utilisateurId: session.user.id } },
+        familles: { some: { utilisateurId: userId } },
         statut: 'archivé',
       },
       include: {

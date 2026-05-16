@@ -1,21 +1,22 @@
+import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 
 type Params = { params: { id: string; annee: string; mois: string } };
 
 // GET → charge (ou crée) le mois
 export async function GET(_req: NextRequest, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
   const annee = parseInt(params.annee);
   const mois  = parseInt(params.mois);
 
   // Vérifie accès
   const garde = await prisma.garde.findFirst({
-    where: { id: params.id, familles: { some: { utilisateurId: session.user.id } } },
+    where: { id: params.id, familles: { some: { utilisateurId: userId } } },
     include: { familles: true, modele: true, enfants: true, nounou: { select: { prenom: true } } },
   });
   if (!garde) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
@@ -32,14 +33,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // PUT → met à jour événements et/ou valide
 export async function PUT(req: NextRequest, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
   const annee = parseInt(params.annee);
   const mois  = parseInt(params.mois);
 
   const garde = await prisma.garde.findFirst({
-    where: { id: params.id, familles: { some: { utilisateurId: session.user.id } } },
+    where: { id: params.id, familles: { some: { utilisateurId: userId } } },
     include: { familles: true },
   });
   if (!garde) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
@@ -55,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   const body = await req.json();
-  const monLabel = garde.familles.find(f => f.utilisateurId === session.user.id)?.label ?? 'A';
+  const monLabel = garde.familles.find(f => f.utilisateurId === userId)?.label ?? 'A';
 
   const data: Record<string, unknown> = {};
 

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { calcBModeRepartition } from '@/lib/calcul';
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
       data: {
         nom: `Garde ${acteurs.famANom}${acteurs.famBNom ? ' & ' + acteurs.famBNom : ''}`,
         statut: 'actif',
-        proprietaireId: session.user.id,
+        proprietaireId: userId,
 
         nounou: {
           create: {
@@ -68,7 +67,7 @@ export async function POST(req: NextRequest) {
               nomAffiche:   acteurs.famANom,
               emailContact: acteurs.famAEmail || null,
               statutAcces:  'proprietaire',
-              utilisateurId: session.user.id,
+              utilisateurId: userId,
               ...(paie.aidesA ? {
                 cmgCotisations:    paie.aidesA.cmgCotisations    ?? 0,
                 cmgRemuneration:   paie.aidesA.cmgRemuneration   ?? 0,
@@ -128,13 +127,13 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 
   const gardes = await prisma.garde.findMany({
-    where: { proprietaireId: session.user.id },
+    where: { proprietaireId: userId },
     include: {
       nounou:   true,
       familles: true,
