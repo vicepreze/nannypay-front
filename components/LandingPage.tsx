@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 type NbEnfants = 2 | 3;
@@ -55,14 +54,6 @@ export function LandingPage() {
   const minDate = `${annee}-${String(mois).padStart(2, '0')}-01`;
   const maxDate = dateToStr(new Date(annee, mois, 0));
 
-  const [authOpen,    setAuthOpen]    = useState(false);
-  const [authTab,     setAuthTab]     = useState<'login' | 'register'>('login');
-  const [authEmail,   setAuthEmail]   = useState('');
-  const [authPwd,     setAuthPwd]     = useState('');
-  const [authPrenom,  setAuthPrenom]  = useState('');
-  const [authNom,     setAuthNom]     = useState('');
-  const [authError,   setAuthError]   = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
 
   // ── Calcul ────────────────────────────────────────────────────────
   const joursOuv  = joursOuvrablesMois(annee, mois);
@@ -109,29 +100,6 @@ export function LandingPage() {
     }
     setEvts(p => [...p, { type: evtType, debut: evtDebut, fin: evtFin }]);
     setModalOpen(false);
-  }
-
-  function openAuth(tab: 'login' | 'register') {
-    setAuthTab(tab); setAuthOpen(true); setAuthError('');
-  }
-
-  async function handleAuth(e: React.FormEvent) {
-    e.preventDefault(); setAuthLoading(true); setAuthError('');
-    try {
-      if (authTab === 'register') {
-        const res = await fetch('/api/auth/register', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: authEmail, password: authPwd, prenom: authPrenom, nom: authNom }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-      }
-      const result = await signIn('credentials', { email: authEmail, password: authPwd, redirect: false });
-      if (result?.error) throw new Error('Identifiants incorrects');
-      router.push('/nouvelle-garde/acteurs');
-    } catch (err: unknown) {
-      setAuthError(err instanceof Error ? err.message : 'Erreur'); setAuthLoading(false);
-    }
   }
 
   // ── Calendrier (desktop uniquement) ──────────────────────────────
@@ -184,47 +152,14 @@ export function LandingPage() {
         <div className="flex gap-2 items-center">
           <a href="/blog" className="px-3 py-2 text-sm text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">Blog</a>
           {/* Se connecter masqué sur très petit écran */}
-          <button onClick={() => openAuth('login')} className={`hidden sm:inline-flex ${btnGhost}`}>
+          <button onClick={() => router.push('/sign-in')} className={`hidden sm:inline-flex ${btnGhost}`}>
             Se connecter
           </button>
-          <button onClick={() => openAuth('register')} className={btnPri}>
+          <button onClick={() => router.push('/sign-up')} className={btnPri}>
             Créer un compte
           </button>
         </div>
       </header>
-
-      {/* ── AUTH MODAL ───────────────────────────────────────────── */}
-      {authOpen && (
-        <div className="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setAuthOpen(false)}>
-          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-[420px] shadow-2xl relative">
-            <button onClick={() => setAuthOpen(false)} className="absolute top-4 right-5 text-[var(--dust)] hover:text-[var(--ink)] text-xl leading-none">✕</button>
-            <div className="font-serif text-xl mb-1 text-[var(--ink)]">nounoulink<em className="text-[var(--sage)] not-italic">.</em></div>
-            <p className="text-sm text-[var(--dust)] mb-5">Coordonnez votre garde partagée sereinement.</p>
-            <div className="flex border-b border-[var(--line)] mb-5">
-              {(['login', 'register'] as const).map(t => (
-                <button key={t} onClick={() => { setAuthTab(t); setAuthError(''); }}
-                  className={'flex-1 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ' + (authTab === t ? 'border-[var(--sage)] text-[var(--sage)]' : 'border-transparent text-[var(--dust)]')}>
-                  {t === 'login' ? 'Se connecter' : 'Créer un compte'}
-                </button>
-              ))}
-            </div>
-            {authError && <p className="text-sm text-[var(--red)] bg-red-50 rounded-lg px-3 py-2 mb-4">{authError}</p>}
-            <form onSubmit={handleAuth} className="space-y-3">
-              {authTab === 'register' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <input className={inp} placeholder="Prénom" value={authPrenom} onChange={e => setAuthPrenom(e.target.value)} />
-                  <input className={inp} placeholder="Nom"    value={authNom}    onChange={e => setAuthNom(e.target.value)} />
-                </div>
-              )}
-              <input className={inp} type="email"    placeholder="Email"        required value={authEmail} onChange={e => setAuthEmail(e.target.value)} />
-              <input className={inp} type="password" placeholder="Mot de passe" required minLength={8} value={authPwd} onChange={e => setAuthPwd(e.target.value)} />
-              <button type="submit" disabled={authLoading} className={btnPri + ' w-full mt-1'}>
-                {authLoading ? 'Chargement…' : authTab === 'login' ? 'Se connecter' : 'Créer mon compte'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       <main className="pt-14">
 
@@ -244,7 +179,7 @@ export function LandingPage() {
             >
               Essayer la démo
             </button>
-            <button onClick={() => openAuth('register')} className="text-sm text-[var(--dust)] underline underline-offset-2 hover:text-[var(--ink)] transition-colors bg-transparent border-none cursor-pointer">
+            <button onClick={() => router.push('/sign-up')} className="text-sm text-[var(--dust)] underline underline-offset-2 hover:text-[var(--ink)] transition-colors bg-transparent border-none cursor-pointer">
               Créer un compte
             </button>
           </div>
@@ -340,7 +275,7 @@ export function LandingPage() {
             <div className="text-center pt-1">
               <p className="text-sm text-[var(--dust)]">
                 Ça correspond ?{' '}
-                <button onClick={() => openAuth('register')} className="text-[var(--sage)] font-medium underline underline-offset-2 cursor-pointer bg-transparent border-none">
+                <button onClick={() => router.push('/sign-up')} className="text-[var(--sage)] font-medium underline underline-offset-2 cursor-pointer bg-transparent border-none">
                   Créer un compte →
                 </button>
               </p>
@@ -453,7 +388,7 @@ export function LandingPage() {
           <div className="hidden md:block text-center py-2">
             <p className="text-sm text-[var(--dust)]">
               Ça correspond à votre situation ?{' '}
-              <button onClick={() => openAuth('register')} className="text-[var(--sage)] font-medium hover:underline underline-offset-2 cursor-pointer bg-transparent border-none">
+              <button onClick={() => router.push('/sign-up')} className="text-[var(--sage)] font-medium hover:underline underline-offset-2 cursor-pointer bg-transparent border-none">
                 Créer un compte pour configurer votre contrat exact →
               </button>
             </p>
@@ -522,7 +457,7 @@ export function LandingPage() {
               ))}
             </div>
 
-            <button onClick={() => openAuth('register')}
+            <button onClick={() => router.push('/sign-up')}
               className="w-full sm:w-auto px-8 py-4 bg-[var(--sage)] text-white rounded-xl text-[15px] font-semibold hover:bg-[#3a5431] transition-colors">
               Créer mon compte →
             </button>
