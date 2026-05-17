@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { calcBModeRepartition } from '@/lib/calcul';
 
@@ -7,6 +7,17 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+
+  // Garantir que l'utilisateur existe en DB (le webhook peut ne pas avoir encore tiré)
+  const clerkUser = await currentUser();
+  if (clerkUser) {
+    const email = clerkUser.emailAddresses[0]?.emailAddress ?? '';
+    await prisma.user.upsert({
+      where:  { id: userId },
+      update: { email, prenom: clerkUser.firstName ?? null, nom: clerkUser.lastName ?? null },
+      create: { id: userId, email, prenom: clerkUser.firstName ?? null, nom: clerkUser.lastName ?? null },
+    });
   }
 
   const { acteurs, planning, paie } = await req.json();
