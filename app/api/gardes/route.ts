@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Garantir que l'utilisateur existe en DB (le webhook peut ne pas avoir encore tiré)
+  // Non-bloquant : si l'upsert échoue (user déjà créé, connexion lente...) on continue quand même
   try {
     const clerkUser = await currentUser();
     if (clerkUser) {
@@ -21,8 +22,8 @@ export async function POST(req: NextRequest) {
       });
     }
   } catch (err) {
-    console.error('[POST /api/gardes] upsert user failed', err);
-    return NextResponse.json({ error: 'Erreur lors de la synchronisation utilisateur' }, { status: 500 });
+    console.error('[POST /api/gardes] upsert user failed (non-bloquant)', err);
+    // On continue — si l'user existe déjà en DB, la création de garde fonctionnera
   }
 
   const { acteurs, planning, paie } = await req.json();
