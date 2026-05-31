@@ -10,20 +10,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Garantir que l'utilisateur existe en DB (le webhook peut ne pas avoir encore tiré)
-  // Non-bloquant : si l'upsert échoue (user déjà créé, connexion lente...) on continue quand même
   try {
     const clerkUser = await currentUser();
-    if (clerkUser) {
-      const email = clerkUser.emailAddresses[0]?.emailAddress ?? '';
-      await prisma.user.upsert({
-        where:  { id: userId },
-        update: { email, prenom: clerkUser.firstName ?? null, nom: clerkUser.lastName ?? null },
-        create: { id: userId, email, prenom: clerkUser.firstName ?? null, nom: clerkUser.lastName ?? null },
-      });
-    }
+    const email  = clerkUser?.emailAddresses[0]?.emailAddress ?? `${userId}@nounoulink.local`;
+    const prenom = clerkUser?.firstName ?? null;
+    const nom    = clerkUser?.lastName  ?? null;
+    await prisma.user.upsert({
+      where:  { id: userId },
+      update: { email, prenom, nom },
+      create: { id: userId, email, prenom, nom },
+    });
   } catch (err) {
-    console.error('[POST /api/gardes] upsert user failed (non-bloquant)', err);
-    // On continue — si l'user existe déjà en DB, la création de garde fonctionnera
+    console.error('[POST /api/gardes] upsert user failed', err);
+    return NextResponse.json({ error: 'Impossible de créer le profil utilisateur' }, { status: 500 });
   }
 
   const { acteurs, planning, paie } = await req.json();
