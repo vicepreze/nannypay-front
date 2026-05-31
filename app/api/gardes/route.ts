@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { calcBModeRepartition } from '@/lib/calcul';
 
@@ -9,20 +9,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 
+  // Garantir que l'utilisateur existe en DB (le webhook peut ne pas avoir encore tiré)
+  try {
+    const clerkUser = await currentUser();
+    if (clerkUser) {
+      const email = clerkUser.emailAddresses[0]?.emailAddress ?? '';
+      await prisma.user.upsert({
+        where:  { id: userId },
+        update: { email, prenom: clerkUser.firstName ?? null, nom: clerkUser.lastName ?? null },
+        create: { id: userId, email, prenom: clerkUser.firstName ?? null, nom: clerkUser.lastName ?? null },
+      });
+    }
+  } catch (err) {
+    console.error('[POST /api/gardes] upsert user failed', err);
+    return NextResponse.json({ error: 'Erreur lors de la synchronisation utilisateur' }, { status: 500 });
+  }
+
   const { acteurs, planning, paie } = await req.json();
 
-  // Validation minimale
-  if (!acteurs?.nounouPrenom || !acteurs?.famANom) {
-    return NextResponse.json({ error: 'Données acteurs incomplètes' }, { status: 400 });
-  }
   if (!paie?.taux || paie.taux <= 0) {
     return NextResponse.json({ error: 'Taux horaire invalide' }, { status: 400 });
   }
 
+  const nounouPrenom = acteurs?.nounouPrenom || 'Notre nounou';
+  const famANom      = acteurs?.famANom      || 'Famille A';
+  const famBNom      = acteurs?.famBNom      || null;
+
   // Calcul de repartitionA selon le mode
   const planningData = planning?.planning ?? planning;
   const joursJson    = JSON.stringify(planningData);
-  const enfants: { prenom: string; fam: string }[] = acteurs.enfants ?? [];
+  const enfants: { prenom: string; fam: string }[] = acteurs?.enfants ?? [];
 
   let repartitionA: number;
   if (typeof paie.repartitionA === 'number') {
@@ -49,14 +65,14 @@ export async function POST(req: NextRequest) {
   try {
     const garde = await prisma.garde.create({
       data: {
-        nom: `Garde ${acteurs.famANom}${acteurs.famBNom ? ' & ' + acteurs.famBNom : ''}`,
+        nom: `Garde ${famANom}${famBNom ? ' & ' + famBNom : ''}`,
         statut: 'actif',
         proprietaireId: userId,
 
         nounou: {
           create: {
-            prenom: acteurs.nounouPrenom,
-            email:  acteurs.nounouEmail || null,
+            prenom: nounouPrenom,
+            email:  acteurs?.nounouEmail || null,
           },
         },
 
@@ -64,8 +80,8 @@ export async function POST(req: NextRequest) {
           create: [
             {
               label:        'A',
-              nomAffiche:   acteurs.famANom,
-              emailContact: acteurs.famAEmail || null,
+              nomAffiche:   famANom,
+              emailContact: acteurs?.famAEmail || null,
               statutAcces:  'proprietaire',
               utilisateurId: userId,
               ...(paie.aidesA ? {
@@ -78,8 +94,8 @@ export async function POST(req: NextRequest) {
             },
             {
               label:        'B',
-              nomAffiche:   acteurs.famBNom   || null,
-              emailContact: acteurs.famBEmail || null,
+              nomAffiche:   famBNom,
+              emailContact: acteurs?.famBEmail || null,
               statutAcces:  'invite_en_attente',
               ...(paie.aidesB ? {
                 cmgCotisations:    paie.aidesB.cmgCotisations    ?? 0,
