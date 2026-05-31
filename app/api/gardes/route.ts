@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, currentUser } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { calcBModeRepartition } from '@/lib/calcul';
 
@@ -11,18 +11,15 @@ export async function POST(req: NextRequest) {
 
   // Garantir que l'utilisateur existe en DB (le webhook peut ne pas avoir encore tiré)
   try {
-    const clerkUser = await currentUser();
-    const email  = clerkUser?.emailAddresses[0]?.emailAddress ?? `${userId}@nounoulink.local`;
-    const prenom = clerkUser?.firstName ?? null;
-    const nom    = clerkUser?.lastName  ?? null;
     await prisma.user.upsert({
       where:  { id: userId },
-      update: { email, prenom, nom },
-      create: { id: userId, email, prenom, nom },
+      update: {},
+      create: { id: userId, email: `${userId}@clerk.placeholder` },
     });
   } catch (err) {
-    console.error('[POST /api/gardes] upsert user failed', err);
-    return NextResponse.json({ error: 'Impossible de créer le profil utilisateur' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[POST /api/gardes] upsert user failed:', msg);
+    return NextResponse.json({ error: `Erreur profil: ${msg}` }, { status: 500 });
   }
 
   const { acteurs, planning, paie } = await req.json();
