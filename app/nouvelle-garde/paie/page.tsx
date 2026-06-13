@@ -343,13 +343,13 @@ export default function PaiePage() {
   const isMagicMode = racOption && !modeExpert;
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5 pb-4">
 
       {/* 1 — Rémunération */}
       <Card title="1 — Rémunération">
         <FN label="Taux horaire net (€/h)" value={taux} onChange={setTaux} />
         <p className="text-xs text-[var(--dust)] -mt-1">
-          Taux brut correspondant : <strong>{(taux / 0.7812).toFixed(2)} €/h</strong> (charges salariales 21,88 %)
+          = {(taux / 0.7812).toFixed(2)} € brut · charges salariales 21,88 %
         </p>
       </Card>
 
@@ -358,153 +358,153 @@ export default function PaiePage() {
         title="2 — Indemnités"
         headerRight={<PartFamilleACta value={repartIndemA} onChange={setRepartIndemA} />}
       >
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <FN label="Navigo (€/mois)"   value={navigo}    onChange={setNavigo} />
-          <FN label="Frais km (€/mois)" value={indemKm}   onChange={setIndemKm} />
           <FN label="Entretien (€/j)"   value={entretien} onChange={setEntretien} />
         </div>
       </Card>
 
-      {/* A — Slider répartition */}
+      {/* 3 — Répartition + RAC (fusionnés) */}
       <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
-        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)]">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">A</span>
-            Répartition du salaire en fonction des heures par enfant
-          </div>
-          <p className="text-xs text-[var(--dust)] mt-1 ml-7">Position calculée selon le nombre d&apos;enfants et les heures. Ajustez si besoin.</p>
-        </div>
-        <div className="p-5">
-          <SliderRow
-            value={repartA}
-            onChange={setRepartA}
-            min={SLIDER_MIN} max={SLIDER_MAX}
-            markers={[
-              { value: 0.5, label: '50/50' },
-              ...(racOption && racOptimal ? [{ value: racOptimal.meilleurRatio, label: 'Équitable RAC', highlight: true }] : []),
-            ]}
-          />
 
-          <div className="grid grid-cols-2 gap-3 mt-5">
+        {/* Header */}
+        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
+          <span className="text-sm font-semibold text-[var(--ink)]">3 — Répartition entre familles</span>
+          {racOption && (
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">
+              Reste à charge
+            </span>
+          )}
+        </div>
+
+        <div className="p-5 space-y-5">
+
+          {/* Slider avec labels familles + ratio live */}
+          <div>
+            <div className="flex items-center justify-between text-xs mb-3">
+              <span className="text-[var(--dust)]">{nomA}</span>
+              <span className="font-semibold text-[var(--ink)] tabular-nums">
+                {(repartA * 100).toFixed(0)} % — {((1 - repartA) * 100).toFixed(0)} %
+              </span>
+              <span className="text-[var(--dust)]">{nomB}</span>
+            </div>
+            <SliderRow
+              value={repartA}
+              onChange={setRepartA}
+              min={SLIDER_MIN} max={SLIDER_MAX}
+              markers={[
+                { value: 0.5, label: '50/50' },
+                ...(racOption && racOptimal ? [{ value: racOptimal.meilleurRatio, label: 'Équitable RAC', highlight: true }] : []),
+              ]}
+            />
+            <button
+              onClick={() => setRepartA(pProportionnel)}
+              className="text-[11px] text-[var(--dust)] hover:text-[var(--ink)] mt-3 underline decoration-dotted transition-colors"
+            >
+              ↩ Revenir au calcul automatique ({(pProportionnel * 100).toFixed(1)} %)
+            </button>
+          </div>
+
+          {/* Cartes familles */}
+          <div className="grid grid-cols-2 gap-3">
             <FamPreview
               label={nomA} percent={repartA} color="sage"
               salNet={preview.salNetA}
               rac={liveRac.racA} totalRac={liveRac.totalRac}
-              racOption={racOption} magicMode={isMagicMode} racPct={racPctA}
+              racOption={racOption} racPct={racPctA}
             />
             <FamPreview
               label={nomB} percent={1 - repartA} color="blue"
               salNet={preview.salNetB}
               rac={liveRac.racB} totalRac={liveRac.totalRac}
-              racOption={racOption} magicMode={isMagicMode} racPct={racPctB}
+              racOption={racOption} racPct={racPctB}
             />
           </div>
 
-          <button
-            onClick={() => setRepartA(pProportionnel)}
-            className="text-xs text-[var(--dust)] hover:text-[var(--ink)] mt-4 underline decoration-dotted"
-          >
-            ↩ Revenir au calcul automatique ({(pProportionnel * 100).toFixed(1)} %)
-          </button>
-        </div>
-      </div>
-
-      {/* B — Option RAC */}
-      <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
-        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--sage)] text-white text-xs font-bold">B</span>
-              🪄 Calculer selon le Reste à Charge <span className="text-[var(--dust)] font-normal">(Recommandé)</span>
+          {/* Callout mode magique — lié visuellement au toggle */}
+          {isMagicMode && (
+            <div className="flex items-start gap-2 text-xs text-[var(--dust)] bg-[var(--paper)] rounded-lg px-3 py-2.5 border border-[var(--line)]">
+              <span className="mt-0.5">✨</span>
+              <span>Mode magique actif — le curseur est positionné au point d&apos;équilibre équitable selon le barème CAF 2025.</span>
             </div>
-            <p className="text-xs text-[var(--dust)] mt-1 ml-7">
-              {racOption
-                ? modeExpert
-                  ? 'Mode Expert — ajustez vos aides pour affiner le point d\'équilibre.'
-                  : 'Mode Magique — point d\'équilibre calculé selon le barème CAF 2025.'
-                : 'Activez pour calculer le point d\'équilibre RAC selon vos aides CAF.'}
-            </p>
-          </div>
-          <Toggle checked={racOption} onChange={handleRacToggle} />
-        </div>
+          )}
 
-        {racOption && (
-          <>
-            {!modeExpert ? (
-              /* ── Mode Magique ── */
-              <div className="px-5 py-4">
-                {salNetTotalMens <= 0 ? (
-                  <p className="text-xs text-[var(--dust)]">
-                    Configurez le taux horaire et les heures dans la section Rémunération pour activer le calcul.
-                  </p>
-                ) : (
-                  <p className="text-xs text-[var(--dust)]">
-                    Ratio optimal calculé automatiquement — aides CAF (CMG + CI) intégrées selon le barème 2025.
-                  </p>
-                )}
+          {/* Mode Expert — colonnes aides */}
+          {racOption && modeExpert && (
+            <div className="rounded-[var(--radius)] border border-[var(--line)] overflow-hidden -mx-5">
+              <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
+                <AidesColumn label={nomA} a={aA} setA={setAA} total={totalAidesMens(aA)} />
+                <AidesColumn label={nomB} a={aB} setA={setAB} total={totalAidesMens(aB)} />
+              </div>
+              <div className="px-5 py-3 border-t border-[var(--line)] flex items-center gap-5 bg-[var(--paper)]">
+                <button
+                  onClick={handleResetToMagic}
+                  disabled={!racOptimal}
+                  className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                >
+                  ↺ Rétablir l&apos;estimation magique
+                </button>
+                <button
+                  onClick={() => setModeExpert(false)}
+                  className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
+                >
+                  ← Mode Magique
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Toggle RAC + lien Mode Expert */}
+          <div className="flex items-center justify-between gap-4 pt-1 border-t border-[var(--line)]">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-[var(--ink)]">Calculer selon le Reste à Charge</span>
+                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">Recommandé</span>
+              </div>
+              <p className="text-xs text-[var(--dust)] mt-0.5">Point d&apos;équilibre calculé selon le barème CAF 2025</p>
+              {racOption && !modeExpert && (
                 <button
                   onClick={handleOpenExpert}
                   disabled={!racOptimal}
-                  className="mt-3 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                  className="mt-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
                 >
                   ⚙️ Ajuster mes aides manuellement (Mode Expert)
                 </button>
-              </div>
-            ) : (
-              /* ── Mode Expert ── */
-              <>
-                <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
-                  <AidesColumn label={nomA} a={aA} setA={setAA} total={totalAidesMens(aA)} />
-                  <AidesColumn label={nomB} a={aB} setA={setAB} total={totalAidesMens(aB)} />
-                </div>
-
-                <div className="px-5 pb-4 flex items-center gap-5">
-                  <button
-                    onClick={handleResetToMagic}
-                    disabled={!racOptimal}
-                    className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
-                  >
-                    ↺ Rétablir l&apos;estimation magique
-                  </button>
-                  <button
-                    onClick={() => setModeExpert(false)}
-                    className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
-                  >
-                    ← Mode Magique
-                  </button>
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Voir le calcul détaillé */}
-      <div>
-        <button
-          onClick={() => setShowDetail(v => !v)}
-          className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
-        >
-          <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
-          Voir le calcul détaillé
-        </button>
-        {showDetail && (
-          <div className="mt-3">
-            <DetailedCalcTable
-              famA={detailData.famA}
-              famB={detailData.famB}
-              nounou={detailData.nounou}
-              racOptionActive={racOption}
-            />
+              )}
+            </div>
+            <Toggle checked={racOption} onChange={handleRacToggle} />
           </div>
-        )}
+
+          {/* Voir le calcul détaillé */}
+          <div>
+            <button
+              onClick={() => setShowDetail(v => !v)}
+              className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
+            >
+              <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
+              Voir le calcul détaillé
+            </button>
+            {showDetail && (
+              <div className="mt-3">
+                <DetailedCalcTable
+                  famA={detailData.famA}
+                  famB={detailData.famB}
+                  nounou={detailData.nounou}
+                  racOptionActive={racOption}
+                />
+              </div>
+            )}
+          </div>
+
+        </div>
       </div>
 
       {error && <p className="text-sm text-[var(--red,#b91c1c)] bg-red-50 rounded-lg px-4 py-2">{error}</p>}
 
-      <div className="flex justify-between pt-2">
+      {/* Footer : Retour petit, Créer la garde pleine largeur */}
+      <div className="flex gap-3 pt-2">
         <button onClick={() => router.back()} disabled={loading} className={btnSecondary}>← Retour</button>
-        <button onClick={creerGarde} disabled={loading} className={btnPrimary}>
+        <button onClick={creerGarde} disabled={loading} className={`flex-1 ${btnPrimary}`}>
           {loading ? 'Création…' : 'Créer la garde →'}
         </button>
       </div>
@@ -592,54 +592,47 @@ function SliderRow({ value, onChange, min, max, markers }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, magicMode, racPct }: {
+function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, racPct }: {
   label: string; percent: number; color: 'sage' | 'blue';
   salNet: number; rac: number; totalRac: number;
-  racOption: boolean; magicMode?: boolean; racPct?: number;
+  racOption: boolean; racPct?: number;
 }) {
-  const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
-  const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
+  const bg   = color === 'sage' ? 'bg-[var(--sage-light,#eef4ec)]' : 'bg-blue-50';
+  const text = color === 'sage' ? 'text-[var(--sage)]'             : 'text-blue-700';
 
-  if (magicMode && racOption) {
-    return (
-      <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
-        <div className="flex items-center justify-between mb-3">
-          <span className={`text-sm font-semibold ${text}`}>{label}</span>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
-        </div>
-        <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
-        <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
-        <div className="pt-3 border-t border-white/70">
-          <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <span className={`text-xl font-bold ${text}`}>{rac.toFixed(0)} €</span>
-            {racPct !== undefined && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>{racPct} % du RAC total</span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const pctRac = totalRac > 0 ? rac / totalRac : percent;
   return (
     <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
-      <div className="flex items-center justify-between mb-2">
+      {/* Nom + % répartition */}
+      <div className="flex items-center justify-between mb-3">
         <span className={`text-sm font-semibold ${text}`}>{label}</span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>
+          {(percent * 100).toFixed(0)} %
+        </span>
       </div>
-      <div className="text-[11px] text-[var(--dust)]">Salaire net à verser</div>
-      <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
 
-      {racOption && (
-        <div className="mt-3 pt-3 border-t border-white/70">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[11px] text-[var(--dust)]">Reste à charge</span>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(pctRac * 100).toFixed(1)} %</span>
+      {racOption ? (
+        /* RAC activé : RAC = primaire, salaire net = secondaire */
+        <>
+          <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
+          <div className="flex items-baseline gap-2 flex-wrap mb-3">
+            <span className={`text-2xl font-bold ${text}`}>{rac.toFixed(0)} €</span>
+            {racPct !== undefined && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>
+                {racPct} % du total
+              </span>
+            )}
           </div>
-          <div className={`text-lg font-bold ${text}`}>{rac.toFixed(2)} €</div>
-        </div>
+          <div className="pt-2 border-t border-white/70">
+            <div className="text-[11px] text-[var(--dust)]">Salaire net</div>
+            <div className={`text-sm font-semibold ${text}`}>{salNet.toFixed(2)} €</div>
+          </div>
+        </>
+      ) : (
+        /* RAC désactivé : salaire net = primaire */
+        <>
+          <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
+          <div className={`text-2xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
+        </>
       )}
     </div>
   );
