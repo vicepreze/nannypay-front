@@ -5,11 +5,9 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { calculerMois, calcHeuresSemaineFromPlanning, type Evt, type CalcResult } from '@/lib/calcul';
 import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
-import { useAuth } from '@clerk/nextjs';
 import { CalendrierMoisView } from '@/components/CalendrierMoisView';
 
-const MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-const MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const MOIS_LONGS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 type Famille = {
   label: string; nomAffiche: string | null;
@@ -38,8 +36,6 @@ function dateStr(d: Date) {
 
 export default function MoisPage() {
   const params  = useParams();
-  const { userId } = useAuth();
-
   const gardeId = params.id as string;
   const annee   = parseInt(params.annee as string);
   const mois    = parseInt(params.mois  as string);
@@ -52,12 +48,6 @@ export default function MoisPage() {
   const [saving,       setSaving]       = useState(false);
   const [evtsSaveCount, setEvtsSaveCount] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
-
-  // Panneau gauche
-  const [invToken,    setInvToken]    = useState<string | null>(null);
-  const [copiedInv,   setCopiedInv]   = useState(false);
-  const [copiedShare, setCopiedShare] = useState(false);
-  const [sharingPub,  setSharingPub]  = useState(false);
 
   // Modal event
   const [modalOpen,  setModalOpen]  = useState(false);
@@ -74,7 +64,6 @@ export default function MoisPage() {
       .then(r => r.json())
       .then(d => {
         setGarde(d.garde);
-        setInvToken(d.garde.invitationTokenB ?? null);
         setMoisRec(d.mois);
         setEvts(JSON.parse(d.mois.evenementsJson || '[]'));
         setLoading(false);
@@ -121,17 +110,6 @@ export default function MoisPage() {
     setSaving(false);
   }
 
-  async function valider() {
-    setSaving(true);
-    const res = await fetch(`/api/gardes/${gardeId}/mois/${annee}/${mois}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ valider: true }),
-    });
-    const data = await res.json();
-    if (res.ok) setMoisRec(data.mois);
-    setSaving(false);
-  }
-
   function addEvt() {
     setModalError('');
     if (!evtType) { setModalError('Choisissez un type.'); return; }
@@ -154,48 +132,6 @@ export default function MoisPage() {
     setEvts(newEvts); sauvegarderEvts(newEvts);
   }
 
-  async function genererInvitation() {
-    const res = await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'POST' });
-    if (res.ok) { const d = await res.json(); setInvToken(d.token); }
-  }
-  async function revoquerInvitation() {
-    if (!confirm('Révoquer le lien d\'invitation ?')) return;
-    await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'DELETE' });
-    setInvToken(null);
-  }
-  function copierInvitation() {
-    if (!invToken) return;
-    navigator.clipboard.writeText(`${window.location.origin}/rejoindre?token=${invToken}`);
-    setCopiedInv(true); setTimeout(() => setCopiedInv(false), 2000);
-  }
-  async function partagerMois() {
-    setSharingPub(true);
-    let token = garde?.publicTokenNounou;
-    if (!token) {
-      const res = await fetch(`/api/gardes/${gardeId}/public-token`, { method: 'POST' });
-      if (res.ok) {
-        const d = await res.json();
-        token = d.token;
-        setGarde(g => g ? { ...g, publicTokenNounou: token! } : g);
-      }
-    }
-    if (token) {
-      navigator.clipboard.writeText(`${window.location.origin}/public/mois/${token}/${annee}/${mois}`);
-      setCopiedShare(true); setTimeout(() => setCopiedShare(false), 2000);
-    }
-    setSharingPub(false);
-  }
-  async function archiverGarde() {
-    if (!confirm('Archiver cette garde ?')) return;
-    await fetch(`/api/gardes/${gardeId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statut: 'archivé' }),
-    });
-    window.location.href = '/dashboard';
-  }
-
-  const estProprietaire = garde ? userId === garde.proprietaireId : false;
-
   const heuresParJour = (() => {
     if (!garde?.modele) return null;
     const m = garde.modele;
@@ -204,11 +140,8 @@ export default function MoisPage() {
     return (m.hNormalesSemaine + m.hSup25Semaine + m.hSup50Semaine) / jours;
   })();
   const hasOvertime = garde?.modele ? (garde.modele.hSup25Semaine + garde.modele.hSup50Semaine) > 0 : false;
-  const famBActif = garde?.familles.find(f => f.label === 'B')?.statutAcces === 'invite_actif';
-  const monLabel  = garde?.familles.find(f => f.utilisateurId === userId)?.label ?? 'A';
-  const statut    = moisRec?.statut ?? 'ouvert';
-  const jaValide  = statut === `valide_${monLabel.toLowerCase()}` || statut === 'valide_ab';
-  const locked    = statut === 'valide_ab';
+  const statut  = moisRec?.statut ?? 'ouvert';
+  const locked  = statut === 'valide_ab';
   const famA      = garde?.familles.find(f => f.label === 'A');
   const famB      = garde?.familles.find(f => f.label === 'B');
   const statutLabel: Record<string, string> = {
@@ -220,7 +153,6 @@ export default function MoisPage() {
 
   const prevMois = mois === 1  ? [annee - 1, 12] : [annee, mois - 1];
   const nextMois = mois === 12 ? [annee + 1, 1]  : [annee, mois + 1];
-  const isFuture = new Date(annee, mois - 1, 1) > new Date();
 
   // Build DetailedCalcTable data from CalcResult
   const detailData = (() => {
@@ -314,8 +246,8 @@ export default function MoisPage() {
             readonly={false}
             heuresParJour={heuresParJour} hasOvertime={hasOvertime}
             gardeId={gardeId} evtsSaveCount={evtsSaveCount}
-            locked={locked} jaValide={jaValide} saving={saving} monLabel={monLabel}
-            onOpenModal={openModal} onRemoveEvt={removeEvt} onValider={valider}
+            locked={locked}
+            onOpenModal={openModal} onRemoveEvt={removeEvt}
           />
 
           {detailData && (

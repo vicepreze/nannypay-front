@@ -95,12 +95,8 @@ export interface CalendrierMoisViewProps {
   gardeId?: string;
   evtsSaveCount?: number;
   locked?: boolean;
-  jaValide?: boolean;
-  saving?: boolean;
-  monLabel?: string;
   onOpenModal?: (ds?: string) => void;
   onRemoveEvt?: (i: number) => void;
-  onValider?: () => void;
 }
 
 export function CalendrierMoisView({
@@ -109,8 +105,8 @@ export function CalendrierMoisView({
   readonly,
   heuresParJour, hasOvertime,
   gardeId, evtsSaveCount = 0,
-  locked: lockedProp, jaValide, saving, monLabel,
-  onOpenModal, onRemoveEvt, onValider,
+  locked: lockedProp,
+  onOpenModal, onRemoveEvt,
 }: CalendrierMoisViewProps) {
   const locked = lockedProp ?? (statut === 'valide_ab');
 
@@ -262,8 +258,8 @@ export function CalendrierMoisView({
               </div>
             </div>
 
-            <ResultCard label="A" nom={nomFamA ?? 'Famille A'} r={result.famA} racOptionActive={readonly ? false : result.racOptionActive} />
-            <ResultCard label="B" nom={nomFamB ?? 'Famille B'} r={result.famB} racOptionActive={readonly ? false : result.racOptionActive} />
+            <ResultCard label="A" nom={nomFamA ?? 'Famille A'} r={result.famA} />
+            <ResultCard label="B" nom={nomFamB ?? 'Famille B'} r={result.famB} />
           </>
         )}
 
@@ -272,10 +268,9 @@ export function CalendrierMoisView({
   );
 }
 
-function ResultCard({ label, nom, r, racOptionActive }: {
+function ResultCard({ label, nom, r }: {
   label: string; nom: string;
   r: ReturnType<typeof calculerMois>['famA'];
-  racOptionActive: boolean;
 }) {
   const color = label === 'A' ? 'text-[var(--blue)]' : 'text-[var(--sage)]';
   return (
@@ -306,13 +301,3 @@ function ResultCard({ label, nom, r, racOptionActive }: {
   );
 }
 
-function ValidLine({ label, done }: { label: string; done: boolean }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 ${done ? 'bg-[var(--sage)] text-white' : 'border-2 border-[var(--line)]'}`}>
-        {done ? '✓' : ''}
-      </span>
-      <span className={done ? 'text-[var(--sage)] font-medium' : 'text-[var(--dust)]'}>{label}</span>
-    </div>
-  );
-}
