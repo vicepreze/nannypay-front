@@ -410,13 +410,13 @@ export default function PaiePage() {
             <FamPreview
               label={nomA} percent={repartA} color="sage"
               salNet={preview.salNetA}
-              rac={liveRac.racA} totalRac={liveRac.totalRac}
+              rac={liveRac.racA}
               racOption={racOption} racPct={racPctA}
             />
             <FamPreview
               label={nomB} percent={1 - repartA} color="blue"
               salNet={preview.salNetB}
-              rac={liveRac.racB} totalRac={liveRac.totalRac}
+              rac={liveRac.racB}
               racOption={racOption} racPct={racPctB}
             />
           </div>
@@ -592,9 +592,9 @@ function SliderRow({ value, onChange, min, max, markers }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, racPct }: {
+function FamPreview({ label, percent, color, salNet, rac, racOption, racPct }: {
   label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; rac: number; totalRac: number;
+  salNet: number; rac: number;
   racOption: boolean; racPct?: number;
 }) {
   const bg   = color === 'sage' ? 'bg-[var(--sage-light,#eef4ec)]' : 'bg-blue-50';
