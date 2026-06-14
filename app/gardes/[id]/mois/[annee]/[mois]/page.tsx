@@ -195,6 +195,15 @@ export default function MoisPage() {
   }
 
   const estProprietaire = garde ? userId === garde.proprietaireId : false;
+
+  const heuresParJour = (() => {
+    if (!garde?.modele) return null;
+    const m = garde.modele;
+    const { joursActifsParSemaine } = calcHeuresSemaineFromPlanning(m.joursJson || '{}');
+    const jours = joursActifsParSemaine || 5;
+    return (m.hNormalesSemaine + m.hSup25Semaine + m.hSup50Semaine) / jours;
+  })();
+  const hasOvertime = garde?.modele ? (garde.modele.hSup25Semaine + garde.modele.hSup50Semaine) > 0 : false;
   const famBActif = garde?.familles.find(f => f.label === 'B')?.statutAcces === 'invite_actif';
   const monLabel  = garde?.familles.find(f => f.utilisateurId === userId)?.label ?? 'A';
   const statut    = moisRec?.statut ?? 'ouvert';
@@ -288,78 +297,10 @@ export default function MoisPage() {
       </header>
 
       <div className="pt-14 max-w-[1280px] mx-auto px-4 pb-16">
-        <div className="flex gap-5 pt-6 items-start">
-
-        {/* ── PANNEAU GAUCHE ─────────────────────────────────── */}
-        <aside className="w-52 shrink-0 sticky top-20 flex flex-col gap-3">
-
-          <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-            <div className="px-3.5 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">
-              {garde?.nom ?? '…'}
-            </div>
-            <div className="px-3.5 py-2.5 space-y-1 text-xs text-[var(--dust)]">
-              {famA && <div><span className="text-[var(--blue)] font-medium">A</span> · {famA.nomAffiche ?? '—'}</div>}
-              {famB && <div><span style={{ color: famBActif ? 'var(--sage)' : undefined }} className="font-medium">B</span> · {famB.nomAffiche ?? '—'}{!famBActif && <span className="opacity-50"> · en attente</span>}</div>}
-              {garde?.nounou && <div>👩 {garde.nounou.prenom}</div>}
-            </div>
-          </div>
-
-          <div className="flex gap-1">
-            <Link href={`/gardes/${gardeId}/mois/${prevMois[0]}/${prevMois[1]}`}
-              className="flex-1 py-1.5 text-center text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--ink)] no-underline">
-              ← {MOIS_COURTS[prevMois[1] - 1]}
-            </Link>
-            {!isFuture && (
-              <Link href={`/gardes/${gardeId}/mois/${nextMois[0]}/${nextMois[1]}`}
-                className="flex-1 py-1.5 text-center text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--ink)] no-underline">
-                {MOIS_COURTS[nextMois[1] - 1]} →
-              </Link>
-            )}
-          </div>
-
-          {estProprietaire && !famBActif && (
-            <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-              <div className="px-3.5 py-2 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">Invitation Fam. B</div>
-              <div className="p-3 space-y-2">
-                {invToken ? (
-                  <>
-                    <button onClick={copierInvitation} className="w-full py-1.5 text-xs rounded-lg border border-[var(--line)] bg-white hover:border-[var(--sage)] transition-colors">
-                      {copiedInv ? '✓ Copié !' : 'Copier le lien'}
-                    </button>
-                    <button onClick={revoquerInvitation} className="w-full py-1.5 text-[10px] text-[var(--dust)] hover:text-[var(--red)] transition-colors">
-                      Révoquer
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={genererInvitation} className="w-full py-1.5 text-xs rounded-lg bg-[var(--sage)] text-white hover:bg-[#3a5431] transition-colors">
-                    Générer le lien
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={partagerMois}
-            disabled={sharingPub}
-            className="w-full py-2 text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--sage)] transition-colors disabled:opacity-50"
-          >
-            {copiedShare ? '✓ Lien copié !' : sharingPub ? '…' : '↗ Partager ce mois'}
-          </button>
-
-          <Link href={`/gardes/${gardeId}/settings`}
-            className="w-full py-2 text-xs text-center border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--ink)] hover:border-[var(--ink)] no-underline block">
-            ⚙ Paramètres
-          </Link>
-          {estProprietaire && (
-            <button onClick={archiverGarde} className="w-full py-1.5 text-[10px] text-[var(--dust)] hover:text-[var(--red)] transition-colors">
-              Archiver la garde
-            </button>
-          )}
-        </aside>
+        <div className="pt-6">
 
         {/* ── CONTENU PRINCIPAL ──────────────────────────────── */}
-        <div className="flex-1 min-w-0">
+        <div>
           <div className="flex items-center justify-between mb-5">
             <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
@@ -371,6 +312,7 @@ export default function MoisPage() {
             annee={annee} mois={mois} evts={evts} result={result} statut={statut}
             nomFamA={famA?.nomAffiche} nomFamB={famB?.nomAffiche}
             readonly={false}
+            heuresParJour={heuresParJour} hasOvertime={hasOvertime}
             gardeId={gardeId} evtsSaveCount={evtsSaveCount}
             locked={locked} jaValide={jaValide} saving={saving} monLabel={monLabel}
             onOpenModal={openModal} onRemoveEvt={removeEvt} onValider={valider}

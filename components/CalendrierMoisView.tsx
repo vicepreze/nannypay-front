@@ -10,6 +10,76 @@ function dateStr(d: Date) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+// ── Jours fériés français ──────────────────────────────────────────
+function easterDate(year: number): Date {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day   = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+function frenchHolidays(year: number): Set<string> {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const ds  = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const add = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
+  const p   = year;
+  const easter = easterDate(year);
+  return new Set([
+    `${p}-01-01`,
+    ds(add(easter, 1)),   // Lundi de Pâques
+    `${p}-05-01`,
+    `${p}-05-08`,
+    ds(add(easter, 39)),  // Ascension
+    ds(add(easter, 50)),  // Lundi de Pentecôte
+    `${p}-07-14`,
+    `${p}-08-15`,
+    `${p}-11-01`,
+    `${p}-11-11`,
+    `${p}-12-25`,
+  ]);
+}
+
+// ── Grammaire couleur ──────────────────────────────────────────────
+type DayType = 'worked' | 'cp' | 'sick' | 'holiday' | 'off';
+
+const CELL_STYLE: Record<DayType, React.CSSProperties> = {
+  worked:  { background: '#EAF3DE', border: '0.5px solid #C0DD97' },
+  cp:      { background: '#FCE8F3', border: '0.5px solid #F4C0D1' },
+  sick:    { background: '#FCEBEB', border: '0.5px solid #F09595' },
+  holiday: { background: '#F1EFE8', border: '0.5px solid #D3D1C7' },
+  off:     { background: 'var(--paper)', border: '0.5px solid var(--line)', opacity: 0.35 },
+};
+
+const DAY_NUM_COLOR: Record<DayType, string> = {
+  worked:  '#27500A',
+  cp:      '#72243E',
+  sick:    '#791F1F',
+  holiday: '#444441',
+  off:     'var(--dust)',
+};
+
+const TAG_BASE: React.CSSProperties = {
+  fontSize: 9, fontWeight: 500, padding: '2px 6px', borderRadius: 4, width: 'fit-content', lineHeight: '1.4',
+};
+
+type TagDef = { label: string; extra: React.CSSProperties };
+
+function tagsForDay(dt: DayType): TagDef[] {
+  switch (dt) {
+    case 'worked':  return [{ label: 'travaillé',  extra: { background: 'transparent', color: '#3B6D11', border: '0.5px solid #3B6D11' } }];
+    case 'cp':      return [{ label: 'congé payé', extra: { background: '#F4C0D1', color: '#72243E' } }];
+    case 'sick':    return [{ label: 'maladie',    extra: { background: '#FAEEDA', color: '#633806' } }];
+    case 'holiday': return [{ label: 'férié',      extra: { background: '#D3D1C7', color: '#444441' } }];
+    case 'off':     return [];
+  }
+}
+
 export interface CalendrierMoisViewProps {
   annee: number;
   mois: number;
@@ -19,6 +89,8 @@ export interface CalendrierMoisViewProps {
   nomFamA?: string | null;
   nomFamB?: string | null;
   readonly: boolean;
+  heuresParJour?: number | null;
+  hasOvertime?: boolean;
   // Private-only:
   gardeId?: string;
   evtsSaveCount?: number;
@@ -35,6 +107,7 @@ export function CalendrierMoisView({
   annee, mois, evts, result, statut,
   nomFamA, nomFamB,
   readonly,
+  heuresParJour, hasOvertime,
   gardeId, evtsSaveCount = 0,
   locked: lockedProp, jaValide, saving, monLabel,
   onOpenModal, onRemoveEvt, onValider,
@@ -42,6 +115,8 @@ export function CalendrierMoisView({
   const locked = lockedProp ?? (statut === 'valide_ab');
 
   const renderCalendar = useCallback(() => {
+    const holidays = frenchHolidays(annee);
+
     const premier = new Date(annee, mois - 1, 1);
     const offset  = premier.getDay() === 0 ? 6 : premier.getDay() - 1;
     const lundi   = new Date(annee, mois - 1, 1 - offset);
@@ -60,33 +135,65 @@ export function CalendrierMoisView({
       if (cur.getDay() >= 1 && cur.getDay() <= 5) {
         const isCur   = cur.getMonth() === mois - 1;
         const isToday = cur.toDateString() === today.toDateString();
-        const ds = dateStr(cur);
+        const ds      = dateStr(cur);
         const clickable = isCur && !locked && !readonly;
-        const chips = evts.filter(e => e.debut <= ds && e.fin >= ds).map((e, i) => (
-          <div key={i} className={'text-[9px] px-1 py-0.5 rounded mb-0.5 truncate ' + (e.type === 'conge_paye' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700')}>
-            {e.type === 'conge_paye' ? 'CP' : 'Mal.'}
-          </div>
-        ));
+
+        // ── dayType ──────────────────────────────────────────────
+        let dayType: DayType = 'off';
+        if (isCur) {
+          const absEvts = evts.filter(e => e.debut <= ds && e.fin >= ds);
+          if (holidays.has(ds))                                  dayType = 'holiday';
+          else if (absEvts.some(e => e.type === 'conge_paye'))   dayType = 'cp';
+          else if (absEvts.some(e => e.type === 'maladie_nounou')) dayType = 'sick';
+          else                                                    dayType = 'worked';
+        }
+
+        const tags = tagsForDay(dayType);
+
         cells.push(
           <div
             key={ds}
             onClick={() => clickable && onOpenModal?.(ds)}
-            className={'border-r border-b border-[var(--line)] min-h-[64px] p-1.5 ' + (clickable ? 'cursor-pointer hover:bg-[var(--sage-light)]' : 'cursor-default') + (!isCur ? ' bg-[var(--paper)] opacity-30' : '')}
+            style={CELL_STYLE[dayType]}
+            className={'min-h-[64px] p-1.5 ' + (clickable ? 'cursor-pointer hover:brightness-95 transition-[filter]' : 'cursor-default')}
           >
-            <div className={isToday ? 'w-5 h-5 rounded-full bg-[var(--sage)] text-white text-[10px] flex items-center justify-center mb-1 font-medium' : 'text-[11px] font-medium text-[var(--dust)] mb-1'}>
-              {cur.getDate()}
+            {/* Numéro du jour */}
+            {isToday ? (
+              <div className="w-5 h-5 rounded-full bg-[var(--sage)] text-white text-[10px] flex items-center justify-center mb-1 font-medium">
+                {cur.getDate()}
+              </div>
+            ) : (
+              <div style={{ color: DAY_NUM_COLOR[dayType], fontWeight: 500, fontSize: 11, marginBottom: 3 }}>
+                {cur.getDate()}
+              </div>
+            )}
+
+            {/* Heures/jour sur les jours travaillés */}
+            {dayType === 'worked' && heuresParJour != null && (
+              <div style={{ color: '#4a7c59', fontSize: 11, marginBottom: 3 }}>
+                {heuresParJour % 1 === 0 ? heuresParJour : heuresParJour.toFixed(1)}h
+                {hasOvertime && (
+                  <span style={{ background: '#fdf3e0', color: '#8a6020', fontSize: 10, borderRadius: 3, padding: '0 3px', marginLeft: 3 }}>+</span>
+                )}
+              </div>
+            )}
+
+            {/* Tags */}
+            <div className="flex flex-col gap-0.5">
+              {tags.map(t => (
+                <div key={t.label} style={{ ...TAG_BASE, ...t.extra }}>{t.label}</div>
+              ))}
             </div>
-            {chips}
           </div>
         );
       }
       cur.setDate(cur.getDate() + 1);
     }
     return cells;
-  }, [annee, mois, evts, locked, readonly, onOpenModal]);
+  }, [annee, mois, evts, locked, readonly, heuresParJour, hasOvertime, onOpenModal]);
 
   return (
-    <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 320px' }}>
+    <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 280px' }}>
 
       {/* ── CALENDRIER ─────────────────────────────────────── */}
       <div>
@@ -107,16 +214,6 @@ export function CalendrierMoisView({
           </div>
         </div>
 
-        {/* Résumé */}
-        {result && (
-          <div className="mt-3 bg-white border border-[var(--line)] rounded-[var(--radius)] p-4 flex flex-wrap gap-6 text-sm">
-            <div><span className="text-[var(--dust)]">Jours ouvrables</span> <strong className="ml-2">{result.joursOuv}</strong></div>
-            {result.joursAbsMaladie > 0 && <div><span className="text-[var(--dust)]">Maladie</span> <strong className="ml-2 text-red-500">−{result.joursAbsMaladie}</strong></div>}
-            {result.joursAbsCP > 0 && <div><span className="text-[var(--dust)]">Congés payés</span> <strong className="ml-2 text-blue-600">−{result.joursAbsCP}</strong></div>}
-            <div><span className="text-[var(--dust)]">Jours travaillés</span> <strong className="ml-2">{result.joursTrav}</strong></div>
-            <div><span className="text-[var(--dust)]">Ratio salaire</span> <strong className="ml-2">{(result.ratio * 100).toFixed(0)} %</strong></div>
-          </div>
-        )}
 
         {/* Événements */}
         {evts.length > 0 && (
@@ -170,31 +267,6 @@ export function CalendrierMoisView({
           </>
         )}
 
-        {/* Validation — privé seulement */}
-        {!readonly && (
-          <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-4">
-            <div className="text-xs font-medium text-[var(--dust)] uppercase tracking-wide mb-3">Validation</div>
-            <div className="space-y-2 mb-4 text-sm">
-              <ValidLine label={nomFamA ?? 'Famille A'} done={statut === 'valide_a' || statut === 'valide_ab'} />
-              <ValidLine label={nomFamB ?? 'Famille B'} done={statut === 'valide_b' || statut === 'valide_ab'} />
-            </div>
-            {!locked && !jaValide && (
-              <button
-                onClick={onValider}
-                disabled={saving}
-                className="w-full py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Validation…' : `Valider pour ${monLabel === 'A' ? (nomFamA ?? 'Fam. A') : (nomFamB ?? 'Fam. B')}`}
-              </button>
-            )}
-            {!locked && jaValide && (
-              <p className="text-xs text-center text-[var(--sage)]">Vous avez validé ce mois — en attente de l&apos;autre famille.</p>
-            )}
-            {locked && (
-              <p className="text-xs text-center text-[var(--sage)] font-medium">✓ Mois validé par les deux familles</p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -230,26 +302,6 @@ function ResultCard({ label, nom, r, racOptionActive }: {
         <span>Total à verser</span>
         <span>{r.total.toFixed(2)} €</span>
       </div>
-      {racOptionActive && (
-        <>
-          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
-            <span>Charges salariales (21,88 % du brut)</span>
-            <span className="font-medium font-mono">{r.chargesSalariales.toFixed(2)} €</span>
-          </div>
-          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
-            <span>Charges patronales (44,70 % du brut)</span>
-            <span className="font-medium font-mono">{r.chargesPatronales.toFixed(2)} €</span>
-          </div>
-          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs text-[var(--dust)]">
-            <span>Aides CAF (mensuel)</span>
-            <span className="font-medium font-mono">− {r.aidesTotal.toFixed(2)} €</span>
-          </div>
-          <div className="flex justify-between px-4 py-2.5 bg-[var(--sage-light)] font-semibold text-sm text-[var(--sage)]">
-            <span>Reste à charge estimé</span>
-            <span>{r.resteCharge.toFixed(2)} €</span>
-          </div>
-        </>
-      )}
     </div>
   );
 }
