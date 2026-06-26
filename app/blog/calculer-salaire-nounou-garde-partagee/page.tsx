@@ -241,10 +241,8 @@ export default function ArticleCalculerSalaire() {
                 {[
                   <>Le salaire est <strong className="text-white">mensualisé</strong> : même montant chaque mois, même pendant les congés payés.</>,
                   <>Formule de base : <strong className="text-white">salaire horaire × (heures hebdo × 52 ÷ 12)</strong>.</>,
-                  <>Salaire minimum légal 2026 : <strong className="text-white">12,89 € brut/heure</strong> (assistant parental niveau A).</>,
                   <>Au-delà de <strong className="text-white">40h/semaine</strong> : majoration <strong className="text-white">+25 %</strong> jusqu&apos;à la 48e heure, puis <strong className="text-white">+50 %</strong> au-delà.</>,
                   <>En garde partagée : chaque famille fait <strong className="text-white">sa propre déclaration Pajemploi</strong> chaque mois.</>,
-                  <>La répartition entre familles se fait <strong className="text-white">au prorata des heures réellement gardées</strong> par chaque enfant.</>,
                   <>nounoulink. calcule tout ça et vous donne <strong className="text-white">exactement quoi saisir sur Pajemploi</strong>.</>,
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-white/75 leading-snug list-none">
@@ -262,11 +260,6 @@ export default function ArticleCalculerSalaire() {
             <p className="text-[var(--dust)] leading-relaxed mb-4">
               La bonne nouvelle : le calcul suit une logique claire. La moins bonne : il y a plusieurs étapes, et la moindre erreur se retrouve dans votre déclaration Pajemploi. Ce guide vous emmène pas à pas, avec des chiffres réels.
             </p>
-
-            <Note type="info">
-              <span className="text-base flex-shrink-0">📌</span>
-              <span>Depuis le <strong>1er janvier 2026</strong>, le terme officiel est <strong>« assistant parental »</strong> (et non plus « garde d&apos;enfants à domicile »). La réglementation est identique — seule la dénomination a changé dans les contrats et sur Pajemploi.</span>
-            </Note>
 
             {/* ── 1. Salaire horaire ── */}
             <h2 id="salaire-horaire" className="font-serif text-2xl font-bold text-[var(--ink)] mt-12 mb-4 leading-tight">
@@ -438,6 +431,10 @@ export default function ArticleCalculerSalaire() {
               }
             />
 
+            <p className="text-[var(--dust)] leading-relaxed mb-4">
+              Cette méthode proportionnelle est un point de départ, pas une obligation : c&apos;est à chaque famille de décider de son mode de répartition. Certaines l&apos;ajustent pour équilibrer leur reste à charge réel une fois les aides prises en compte (voir l&apos;exemple 3 ci-dessous).
+            </p>
+
             <h3 className="text-base font-semibold text-[var(--ink)] mt-7 mb-3">
               Exemple 1 — Répartition 50/50 : même temps de garde
             </h3>
@@ -470,6 +467,36 @@ export default function ArticleCalculerSalaire() {
                 </tbody>
               </table>
             </CalcCard>
+
+            <h3 className="text-base font-semibold text-[var(--ink)] mt-7 mb-3">
+              Exemple 3 — 3 enfants pour 2 familles : pourquoi 60/40 et pas 66/33
+            </h3>
+            <p className="text-[var(--dust)] leading-relaxed mb-4">
+              Cas fréquent à trois enfants : une famille en a deux, l&apos;autre un seul. Si les trois enfants sont gardés exactement les mêmes heures, le prorata strict par heures donne un résultat déséquilibré une fois les aides prises en compte — en pratique, l&apos;usage est plutôt de se rapprocher de 60/40.
+            </p>
+
+            <CalcCard icon="👨‍👩‍👧‍👦" title="Léna et Tom (famille A, 2 enfants) · Nina (famille B, 1 enfant) — 40h/semaine chacun">
+              <table className="w-full border-collapse">
+                <tbody>
+                  <CalcRow label="Heures hebdo Léna + Tom (famille A)" value="40 + 40 = 80 h" />
+                  <CalcRow label="Heures hebdo Nina (famille B)" value="40 h" />
+                  <CalcRow label="Prorata strict par heures — famille A" value="80 ÷ 120 = 66,7 %" />
+                  <CalcRow label="Prorata strict par heures — famille B" value="40 ÷ 120 = 33,3 %" />
+                  <CalcSubtotalRow label="Répartition réellement pratiquée — famille A" value="≈ 60 %" />
+                  <CalcSubtotalRow label="Répartition réellement pratiquée — famille B" value="≈ 40 %" />
+                  <CalcNoteRow>
+                    Le ratio exact dépend des revenus de chaque famille — nounoulink. le calcule automatiquement via son Mode Magique pour équilibrer le reste à charge réel.
+                  </CalcNoteRow>
+                </tbody>
+              </table>
+            </CalcCard>
+
+            <Note type="info">
+              <span className="text-base flex-shrink-0">💡</span>
+              <span>
+                Pourquoi pas 66/33 ? Le CMG (volet cotisations) est plafonné à <strong>524 €/mois</strong>, que vous gardiez 1 ou 2 enfants — ce plafond ne double pas. Le crédit d&apos;impôt suit la même logique : son plafond passe de <strong>6 750 €/an pour 1 enfant</strong> à seulement <strong>7 500 €/an pour 2 enfants</strong>, soit + 11 % pour deux fois plus d&apos;enfants gardés. La famille à deux enfants reçoit donc proportionnellement moins d&apos;aide par enfant. Avec un prorata strictement proportionnel aux heures, elle supporterait un reste à charge disproportionné — d&apos;où l&apos;usage de rééquilibrer vers 60/40.
+              </span>
+            </Note>
 
             {/* ── 5. Pajemploi ── */}
             <h2 id="pajemploi" className="font-serif text-2xl font-bold text-[var(--ink)] mt-12 mb-4 leading-tight">
