@@ -40,6 +40,10 @@ function dateStr(d: Date) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+function isAbsenceType(type: string): boolean {
+  return type === 'absence_famille_a' || type === 'absence_famille_b';
+}
+
 export default function MoisPage() {
   const params  = useParams();
   const gardeId = params.id as string;
@@ -121,7 +125,11 @@ export default function MoisPage() {
     if (!evtType) { setModalError('Choisissez un type.'); return; }
     if (!evtDebut || !evtFin) { setModalError('Les deux dates sont requises.'); return; }
     if (evtFin < evtDebut) { setModalError('La fin doit être après le début.'); return; }
-    if (evts.some(e => e.debut <= evtFin && e.fin >= evtDebut)) { setModalError('Cet intervalle chevauche un événement existant.'); return; }
+    // Les absences famille A/B sont cumulables avec n'importe quel autre événement.
+    // Maladie et congé payé restent mutuellement exclusifs entre eux.
+    if (!isAbsenceType(evtType) && evts.some(e => !isAbsenceType(e.type) && e.debut <= evtFin && e.fin >= evtDebut)) {
+      setModalError('Cet intervalle chevauche un événement existant.'); return;
+    }
     const newEvts = [...evts, { type: evtType, debut: evtDebut, fin: evtFin }];
     setEvts(newEvts);
     sauvegarderEvts(newEvts);

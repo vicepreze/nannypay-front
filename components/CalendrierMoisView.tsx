@@ -98,18 +98,18 @@ const TAG_BASE: React.CSSProperties = {
 type TagDef = { label: string; extra: React.CSSProperties };
 
 function tagsForDay(dt: DayType, famAAbsent = false, famBAbsent = false): TagDef[] {
+  const tags: TagDef[] = [];
   switch (dt) {
-    case 'worked': {
-      const tags: TagDef[] = [{ label: 'travaillé', extra: { background: 'transparent', color: '#3B6D11', border: '0.5px solid #3B6D11' } }];
-      if (famAAbsent) tags.push({ label: 'absence A', extra: { background: '#185FA5', color: '#fff' } });
-      if (famBAbsent) tags.push({ label: 'absence B', extra: { background: '#E6F1FB', color: '#0C447C', border: '0.5px solid #85B7EB' } });
-      return tags;
-    }
-    case 'cp':      return [{ label: 'congé payé', extra: { background: '#F4C0D1', color: '#72243E' } }];
-    case 'sick':    return [{ label: 'maladie',    extra: { background: '#FAEEDA', color: '#633806' } }];
-    case 'holiday': return [{ label: 'férié',      extra: { background: '#D3D1C7', color: '#444441' } }];
+    case 'worked':  tags.push({ label: 'travaillé',  extra: { background: 'transparent', color: '#3B6D11', border: '0.5px solid #3B6D11' } }); break;
+    case 'cp':      tags.push({ label: 'congé payé', extra: { background: '#F4C0D1', color: '#72243E' } }); break;
+    case 'sick':    tags.push({ label: 'maladie',    extra: { background: '#FAEEDA', color: '#633806' } }); break;
+    case 'holiday': tags.push({ label: 'férié',      extra: { background: '#D3D1C7', color: '#444441' } }); break;
     case 'off':     return [];
   }
+  // Les absences famille sont cumulables : affichées en plus, quel que soit le type de jour.
+  if (famAAbsent) tags.push({ label: 'absence A', extra: { background: '#185FA5', color: '#fff' } });
+  if (famBAbsent) tags.push({ label: 'absence B', extra: { background: '#E6F1FB', color: '#0C447C', border: '0.5px solid #85B7EB' } });
+  return tags;
 }
 
 // ── Props ──────────────────────────────────────────────────────────
