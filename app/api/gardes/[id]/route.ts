@@ -30,6 +30,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     where: { id: params.id, proprietaireId: userId },
   });
   if (!garde) return NextResponse.json({ error: 'Introuvable ou non autorisé' }, { status: 404 });
+  if (garde.statut === 'archivé') {
+    return NextResponse.json({ error: 'Cette garde est archivée et ne peut plus être modifiée.' }, { status: 409 });
+  }
 
   const body = await req.json();
 
