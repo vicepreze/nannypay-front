@@ -3,13 +3,16 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { calculerMois, calcHeuresSemaineFromPlanning, type Evt, type CalcResult } from '@/lib/calcul';
-import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
-import { useAuth } from '@clerk/nextjs';
-import { CalendrierMoisView } from '@/components/CalendrierMoisView';
+import {
+  calculerMois, calcHeuresSemaineFromPlanning, calcSalNetMensuel, joursOuvrablesIntersect,
+  type Evt, type CalcResult,
+} from '@/lib/calcul';
+import {
+  CalendrierMoisView, frenchHolidays,
+  type PrevuReelData, type MonthEvt, type MonthEvtType, type SickInfo, SickNoteBlock,
+} from '@/components/CalendrierMoisView';
 
-const MOIS_LONGS  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-const MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const MOIS_LONGS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 type Famille = {
   label: string; nomAffiche: string | null;
@@ -28,6 +31,7 @@ type GardeInfo = {
     tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number;
     hSup50Semaine: number; repartitionA: number; racOptionActive: boolean;
     navigoMontant: number; indemEntretien: number; indemKm: number; joursJson: string;
+    repartitionIndemA: number;
   } | null;
 };
 type MoisRec = { statut: string; evenementsJson: string };
@@ -36,10 +40,12 @@ function dateStr(d: Date) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+function isAbsenceType(type: string): boolean {
+  return type === 'absence_famille_a' || type === 'absence_famille_b';
+}
+
 export default function MoisPage() {
   const params  = useParams();
-  const { userId } = useAuth();
-
   const gardeId = params.id as string;
   const annee   = parseInt(params.annee as string);
   const mois    = parseInt(params.mois  as string);
@@ -51,17 +57,10 @@ export default function MoisPage() {
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [evtsSaveCount, setEvtsSaveCount] = useState(0);
-  const [showDetail, setShowDetail] = useState(false);
-
-  // Panneau gauche
-  const [invToken,    setInvToken]    = useState<string | null>(null);
-  const [copiedInv,   setCopiedInv]   = useState(false);
-  const [copiedShare, setCopiedShare] = useState(false);
-  const [sharingPub,  setSharingPub]  = useState(false);
 
   // Modal event
   const [modalOpen,  setModalOpen]  = useState(false);
-  const [evtType,    setEvtType]    = useState<Evt['type'] | null>(null);
+  const [evtType,    setEvtType]    = useState<string | null>(null);
   const [evtDebut,   setEvtDebut]   = useState('');
   const [evtFin,     setEvtFin]     = useState('');
   const [modalError, setModalError] = useState('');
@@ -74,7 +73,6 @@ export default function MoisPage() {
       .then(r => r.json())
       .then(d => {
         setGarde(d.garde);
-        setInvToken(d.garde.invitationTokenB ?? null);
         setMoisRec(d.mois);
         setEvts(JSON.parse(d.mois.evenementsJson || '[]'));
         setLoading(false);
@@ -99,6 +97,7 @@ export default function MoisPage() {
       hSup25Semaine:         m.hSup25Semaine,
       hSup50Semaine:         m.hSup50Semaine,
       repartitionA:          m.repartitionA,
+      repartitionIndemA:     m.repartitionIndemA,
       racOptionActive:       m.racOptionActive,
       navigo:                m.navigoMontant,
       indemEntretien:        m.indemEntretien,
@@ -121,23 +120,16 @@ export default function MoisPage() {
     setSaving(false);
   }
 
-  async function valider() {
-    setSaving(true);
-    const res = await fetch(`/api/gardes/${gardeId}/mois/${annee}/${mois}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ valider: true }),
-    });
-    const data = await res.json();
-    if (res.ok) setMoisRec(data.mois);
-    setSaving(false);
-  }
-
   function addEvt() {
     setModalError('');
     if (!evtType) { setModalError('Choisissez un type.'); return; }
     if (!evtDebut || !evtFin) { setModalError('Les deux dates sont requises.'); return; }
     if (evtFin < evtDebut) { setModalError('La fin doit être après le début.'); return; }
-    if (evts.some(e => e.debut <= evtFin && e.fin >= evtDebut)) { setModalError('Cet intervalle chevauche un événement existant.'); return; }
+    // Les absences famille A/B sont cumulables avec n'importe quel autre événement.
+    // Maladie et congé payé restent mutuellement exclusifs entre eux.
+    if (!isAbsenceType(evtType) && evts.some(e => !isAbsenceType(e.type) && e.debut <= evtFin && e.fin >= evtDebut)) {
+      setModalError('Cet intervalle chevauche un événement existant.'); return;
+    }
     const newEvts = [...evts, { type: evtType, debut: evtDebut, fin: evtFin }];
     setEvts(newEvts);
     sauvegarderEvts(newEvts);
@@ -154,52 +146,16 @@ export default function MoisPage() {
     setEvts(newEvts); sauvegarderEvts(newEvts);
   }
 
-  async function genererInvitation() {
-    const res = await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'POST' });
-    if (res.ok) { const d = await res.json(); setInvToken(d.token); }
-  }
-  async function revoquerInvitation() {
-    if (!confirm('Révoquer le lien d\'invitation ?')) return;
-    await fetch(`/api/gardes/${gardeId}/invitation`, { method: 'DELETE' });
-    setInvToken(null);
-  }
-  function copierInvitation() {
-    if (!invToken) return;
-    navigator.clipboard.writeText(`${window.location.origin}/rejoindre?token=${invToken}`);
-    setCopiedInv(true); setTimeout(() => setCopiedInv(false), 2000);
-  }
-  async function partagerMois() {
-    setSharingPub(true);
-    let token = garde?.publicTokenNounou;
-    if (!token) {
-      const res = await fetch(`/api/gardes/${gardeId}/public-token`, { method: 'POST' });
-      if (res.ok) {
-        const d = await res.json();
-        token = d.token;
-        setGarde(g => g ? { ...g, publicTokenNounou: token! } : g);
-      }
-    }
-    if (token) {
-      navigator.clipboard.writeText(`${window.location.origin}/public/mois/${token}/${annee}/${mois}`);
-      setCopiedShare(true); setTimeout(() => setCopiedShare(false), 2000);
-    }
-    setSharingPub(false);
-  }
-  async function archiverGarde() {
-    if (!confirm('Archiver cette garde ?')) return;
-    await fetch(`/api/gardes/${gardeId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statut: 'archivé' }),
-    });
-    window.location.href = '/dashboard';
-  }
-
-  const estProprietaire = garde ? userId === garde.proprietaireId : false;
-  const famBActif = garde?.familles.find(f => f.label === 'B')?.statutAcces === 'invite_actif';
-  const monLabel  = garde?.familles.find(f => f.utilisateurId === userId)?.label ?? 'A';
-  const statut    = moisRec?.statut ?? 'ouvert';
-  const jaValide  = statut === `valide_${monLabel.toLowerCase()}` || statut === 'valide_ab';
-  const locked    = statut === 'valide_ab';
+  const heuresParJour = (() => {
+    if (!garde?.modele) return null;
+    const m = garde.modele;
+    const { joursActifsParSemaine } = calcHeuresSemaineFromPlanning(m.joursJson || '{}');
+    const jours = joursActifsParSemaine || 5;
+    return (m.hNormalesSemaine + m.hSup25Semaine + m.hSup50Semaine) / jours;
+  })();
+  const hasOvertime = garde?.modele ? (garde.modele.hSup25Semaine + garde.modele.hSup50Semaine) > 0 : false;
+  const statut  = moisRec?.statut ?? 'ouvert';
+  const locked  = statut === 'valide_ab';
   const famA      = garde?.familles.find(f => f.label === 'A');
   const famB      = garde?.familles.find(f => f.label === 'B');
   const statutLabel: Record<string, string> = {
@@ -211,58 +167,98 @@ export default function MoisPage() {
 
   const prevMois = mois === 1  ? [annee - 1, 12] : [annee, mois - 1];
   const nextMois = mois === 12 ? [annee + 1, 1]  : [annee, mois + 1];
-  const isFuture = new Date(annee, mois - 1, 1) > new Date();
 
-  // Build DetailedCalcTable data from CalcResult
-  const detailData = (() => {
-    if (!result || !garde) return null;
-    const familles = garde.familles;
-    const famAFam = familles.find(f => f.label === 'A');
-    const famBFam = familles.find(f => f.label === 'B');
-    const ra = result.famA;
-    const rb = result.famB;
+  // ── Prévu → Réel ─────────────────────────────────────────────────
+  const prevuReel: PrevuReelData | null = (() => {
+    if (!garde?.modele || !result) return null;
+    const m = garde.modele;
+    const { joursActifsParSemaine } = calcHeuresSemaineFromPlanning(m.joursJson || '{}');
+    const tauxPJ  = (joursActifsParSemaine || 5) / 5;
+    const indemRA = m.repartitionIndemA ?? 0.5;
+    const indemRB = 1 - indemRA;
 
-    const buildFam = (fr: typeof ra, fam: Famille | undefined, label: string): FamCalcData => {
-      return {
-        nom: fam?.nomAffiche ?? `Famille ${label}`,
-        hNorm: fr.hNorm,
-        hSup25: fr.hSup25,
-        hSup50: fr.hSup50,
-        salNet: fr.salNet,
-        chargesSalariales: fr.chargesSalariales,
-        chargesPatronales: fr.chargesPatronales,
-        navigo: fr.transport,
-        entretien: fr.entretien,
-        km: fr.km,
-        cmgCotisations: fam?.cmgCotisations ?? 0,
-        cmgRemuneration: fam?.cmgRemuneration ?? 0,
-        abattementCharges: fam?.abattementCharges ?? 0,
-        aideVille: fam?.aideVille ?? 0,
-        creditImpotMens: Math.round((fam?.creditImpot ?? 0) / 12 * 100) / 100,
-        resteCharge: fr.resteCharge,
-      };
-    };
+    const salTotTheo = calcSalNetMensuel(m.hNormalesSemaine, m.hSup25Semaine, m.hSup50Semaine, m.tauxHoraireNet);
+    const theoSalA = Math.round(salTotTheo * m.repartitionA * 100) / 100;
+    const theoSalB = Math.round(salTotTheo * (1 - m.repartitionA) * 100) / 100;
+    const realSalA = result.famA.salNet;
+    const realSalB = result.famB.salNet;
 
-    const salNetTotal = ra.salNet + rb.salNet;
-    const chargeSalTotal = ra.chargesSalariales + rb.chargesSalariales;
-    const nounou: NounouCalcData = {
-      hNorm: ra.hNorm + rb.hNorm,
-      hSup25: ra.hSup25 + rb.hSup25,
-      hSup50: ra.hSup50 + rb.hSup50,
-      salBrut: Math.round((salNetTotal + chargeSalTotal) * 100) / 100,
-      chargesSalariales: chargeSalTotal,
-      salNet: salNetTotal,
-      navigo: ra.transport + rb.transport,
-      entretien: ra.entretien + rb.entretien,
-      km: ra.km + rb.km,
-    };
+    const indemJourA = tauxPJ * m.indemEntretien * indemRA;
+    const indemJourB = tauxPJ * m.indemEntretien * indemRB;
+    const joursOuv   = result.joursOuv;
+    const theoIndemA = Math.round(joursOuv * indemJourA * 100) / 100;
+    const theoIndemB = Math.round(joursOuv * indemJourB * 100) / 100;
+    const realIndemA = result.famA.entretien;
+    const realIndemB = result.famB.entretien;
 
-    return {
-      famA: buildFam(ra, famAFam, 'A'),
-      famB: buildFam(rb, famBFam, 'B'),
-      nounou,
-      racOptionActive: result.racOptionActive,
-    };
+    const hasEcart = (
+      theoSalA - realSalA > 0.01 ||
+      theoSalB - realSalB > 0.01 ||
+      theoIndemA - realIndemA > 0.01 ||
+      theoIndemB - realIndemB > 0.01
+    );
+    if (!hasEcart) return null;
+
+    const holidays = frenchHolidays(annee);
+    const monthEvts: MonthEvt[] = [];
+
+    for (const e of evts) {
+      const workingDays = joursOuvrablesIntersect(e.debut, e.fin, annee, mois);
+      if (workingDays === 0) continue;
+      const type = e.type as MonthEvtType;
+
+      if (e.type === 'maladie_nounou') {
+        monthEvts.push({
+          type: 'maladie_nounou', debut: e.debut, fin: e.fin, workingDays,
+          salImpactA: Math.round(theoSalA * (workingDays / joursOuv) * 100) / 100,
+          salImpactB: Math.round(theoSalB * (workingDays / joursOuv) * 100) / 100,
+          indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
+          indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
+        });
+      } else if (e.type === 'conge_paye') {
+        monthEvts.push({
+          type: 'conge_paye', debut: e.debut, fin: e.fin, workingDays,
+          salImpactA: 0, salImpactB: 0,
+          indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
+          indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
+        });
+      } else if (type === 'absence_famille_a' || type === 'absence_famille_b') {
+        monthEvts.push({ type, debut: e.debut, fin: e.fin, workingDays, salImpactA: 0, salImpactB: 0, indemImpactA: 0, indemImpactB: 0 });
+      }
+    }
+
+    // Jours fériés tombant un jour ouvré dans le mois
+    const cur = new Date(annee, mois - 1, 1);
+    const end = new Date(annee, mois, 0);
+    while (cur <= end) {
+      const dow = cur.getDay();
+      const ds  = dateStr(cur);
+      if (dow >= 1 && dow <= 5 && holidays.has(ds)) {
+        monthEvts.push({
+          type: 'holiday', debut: ds, fin: ds, workingDays: 1,
+          salImpactA: 0, salImpactB: 0,
+          indemImpactA: Math.round(indemJourA * 100) / 100,
+          indemImpactB: Math.round(indemJourB * 100) / 100,
+        });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    monthEvts.sort((a, b) => a.debut.localeCompare(b.debut));
+
+    return { theoSalA, realSalA, theoSalB, realSalB, theoIndemA, realIndemA, theoIndemB, realIndemB, monthEvts };
+  })();
+
+  // ── Note maladie ─────────────────────────────────────────────────
+  const sickInfo: SickInfo | null = (() => {
+    if (!result || result.joursAbsMaladie === 0) return null;
+    const sickEvts = evts.filter(e => e.type === 'maladie_nounou');
+    let maxConsecutive = 0;
+    for (const e of sickEvts) {
+      const days = joursOuvrablesIntersect(e.debut, e.fin, annee, mois);
+      if (days > maxConsecutive) maxConsecutive = days;
+    }
+    return { sickDaysCount: result.joursAbsMaladie, sickDaysConsecutive: maxConsecutive };
   })();
 
   if (loading) return <div className="min-h-screen bg-[var(--paper)] flex items-center justify-center text-[var(--dust)]">Chargement…</div>;
@@ -288,78 +284,7 @@ export default function MoisPage() {
       </header>
 
       <div className="pt-14 max-w-[1280px] mx-auto px-4 pb-16">
-        <div className="flex gap-5 pt-6 items-start">
-
-        {/* ── PANNEAU GAUCHE ─────────────────────────────────── */}
-        <aside className="w-52 shrink-0 sticky top-20 flex flex-col gap-3">
-
-          <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-            <div className="px-3.5 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">
-              {garde?.nom ?? '…'}
-            </div>
-            <div className="px-3.5 py-2.5 space-y-1 text-xs text-[var(--dust)]">
-              {famA && <div><span className="text-[var(--blue)] font-medium">A</span> · {famA.nomAffiche ?? '—'}</div>}
-              {famB && <div><span style={{ color: famBActif ? 'var(--sage)' : undefined }} className="font-medium">B</span> · {famB.nomAffiche ?? '—'}{!famBActif && <span className="opacity-50"> · en attente</span>}</div>}
-              {garde?.nounou && <div>👩 {garde.nounou.prenom}</div>}
-            </div>
-          </div>
-
-          <div className="flex gap-1">
-            <Link href={`/gardes/${gardeId}/mois/${prevMois[0]}/${prevMois[1]}`}
-              className="flex-1 py-1.5 text-center text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--ink)] no-underline">
-              ← {MOIS_COURTS[prevMois[1] - 1]}
-            </Link>
-            {!isFuture && (
-              <Link href={`/gardes/${gardeId}/mois/${nextMois[0]}/${nextMois[1]}`}
-                className="flex-1 py-1.5 text-center text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--ink)] no-underline">
-                {MOIS_COURTS[nextMois[1] - 1]} →
-              </Link>
-            )}
-          </div>
-
-          {estProprietaire && !famBActif && (
-            <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
-              <div className="px-3.5 py-2 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium uppercase tracking-wide text-[var(--dust)]">Invitation Fam. B</div>
-              <div className="p-3 space-y-2">
-                {invToken ? (
-                  <>
-                    <button onClick={copierInvitation} className="w-full py-1.5 text-xs rounded-lg border border-[var(--line)] bg-white hover:border-[var(--sage)] transition-colors">
-                      {copiedInv ? '✓ Copié !' : 'Copier le lien'}
-                    </button>
-                    <button onClick={revoquerInvitation} className="w-full py-1.5 text-[10px] text-[var(--dust)] hover:text-[var(--red)] transition-colors">
-                      Révoquer
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={genererInvitation} className="w-full py-1.5 text-xs rounded-lg bg-[var(--sage)] text-white hover:bg-[#3a5431] transition-colors">
-                    Générer le lien
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={partagerMois}
-            disabled={sharingPub}
-            className="w-full py-2 text-xs border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--dust)] hover:border-[var(--sage)] transition-colors disabled:opacity-50"
-          >
-            {copiedShare ? '✓ Lien copié !' : sharingPub ? '…' : '↗ Partager ce mois'}
-          </button>
-
-          <Link href={`/gardes/${gardeId}/settings`}
-            className="w-full py-2 text-xs text-center border border-[var(--line)] rounded-[var(--radius)] bg-white text-[var(--ink)] hover:border-[var(--ink)] no-underline block">
-            ⚙ Paramètres
-          </Link>
-          {estProprietaire && (
-            <button onClick={archiverGarde} className="w-full py-1.5 text-[10px] text-[var(--dust)] hover:text-[var(--red)] transition-colors">
-              Archiver la garde
-            </button>
-          )}
-        </aside>
-
-        {/* ── CONTENU PRINCIPAL ──────────────────────────────── */}
-        <div className="flex-1 min-w-0">
+        <div className="pt-6">
           <div className="flex items-center justify-between mb-5">
             <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
@@ -371,47 +296,32 @@ export default function MoisPage() {
             annee={annee} mois={mois} evts={evts} result={result} statut={statut}
             nomFamA={famA?.nomAffiche} nomFamB={famB?.nomAffiche}
             readonly={false}
+            heuresParJour={heuresParJour} hasOvertime={hasOvertime}
+            prevuReel={prevuReel}
             gardeId={gardeId} evtsSaveCount={evtsSaveCount}
-            locked={locked} jaValide={jaValide} saving={saving} monLabel={monLabel}
-            onOpenModal={openModal} onRemoveEvt={removeEvt} onValider={valider}
+            locked={locked}
+            onOpenModal={openModal} onRemoveEvt={removeEvt}
           />
 
-          {detailData && (
-            <div className="mt-4">
-              <button
-                onClick={() => setShowDetail(v => !v)}
-                className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
-              >
-                <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
-                Voir le calcul détaillé
-              </button>
-              {showDetail && (
-                <div className="mt-3">
-                  <DetailedCalcTable
-                    famA={detailData.famA}
-                    famB={detailData.famB}
-                    nounou={detailData.nounou}
-                    racOptionActive={detailData.racOptionActive}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
+          {sickInfo && <SickNoteBlock {...sickInfo} variant="families" />}
         </div>
       </div>
 
       {/* Modal événement */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/35 z-[150] flex items-center justify-center" onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
-          <div className="bg-white rounded-xl p-6 w-[min(360px,90vw)] shadow-2xl">
+          <div className="bg-white rounded-xl p-6 w-[min(380px,90vw)] shadow-2xl">
             <h3 className="text-base font-medium mb-4">Ajouter un événement</h3>
             <div className="grid grid-cols-2 gap-2 mb-4">
-              {(['conge_paye', 'maladie_nounou'] as const).map(t => (
+              {([
+                ['conge_paye',        '🏖 Congé payé'],
+                ['maladie_nounou',    '🤒 Maladie nounou'],
+                ['absence_famille_a', '👶 Absent Famille A'],
+                ['absence_famille_b', '👶 Absent Famille B'],
+              ] as [string, string][]).map(([t, label]) => (
                 <button key={t} onClick={() => setEvtType(t)}
-                  className={'py-2.5 rounded-lg border-[1.5px] text-sm transition-all ' + (evtType === t ? 'border-[var(--sage)] bg-[var(--sage-light)] text-[var(--sage)] font-medium' : 'border-[var(--line)]')}>
-                  {t === 'conge_paye' ? '🏖 Congé payé' : '🤒 Maladie'}
+                  className={'py-2.5 rounded-lg border-[1.5px] text-sm transition-all text-left px-3 ' + (evtType === t ? 'border-[var(--sage)] bg-[var(--sage-light)] text-[var(--sage)] font-medium' : 'border-[var(--line)]')}>
+                  {label}
                 </button>
               ))}
             </div>

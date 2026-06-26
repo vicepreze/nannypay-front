@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { calculerMois, calcHeuresSemaineFromPlanning, type Evt, type CalcResult } from '@/lib/calcul';
-import { CalendrierMoisView } from '@/components/CalendrierMoisView';
+import { calculerMois, calcHeuresSemaineFromPlanning, joursOuvrablesIntersect, type Evt, type CalcResult } from '@/lib/calcul';
+import { CalendrierMoisView, SickNoteBlock, type SickInfo } from '@/components/CalendrierMoisView';
 
 const MOIS_LONGS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
@@ -67,6 +67,17 @@ export default function PublicMoisPage() {
     }));
   }, [garde, evts, annee, mois]);
 
+  const sickInfo: SickInfo | null = (() => {
+    if (!result || result.joursAbsMaladie === 0) return null;
+    const sickEvts = evts.filter(e => e.type === 'maladie_nounou');
+    let maxConsecutive = 0;
+    for (const e of sickEvts) {
+      const days = joursOuvrablesIntersect(e.debut, e.fin, annee, mois);
+      if (days > maxConsecutive) maxConsecutive = days;
+    }
+    return { sickDaysCount: result.joursAbsMaladie, sickDaysConsecutive: maxConsecutive };
+  })();
+
   if (loading) return <Screen><p className="text-[var(--dust)]">Chargement…</p></Screen>;
   if (error)   return <Screen><div className="text-center"><div className="text-4xl mb-4">⚠️</div><p className="font-medium">{error}</p></div></Screen>;
   if (!garde)  return null;
@@ -109,6 +120,8 @@ export default function PublicMoisPage() {
           nomFamA={famA?.nomAffiche} nomFamB={famB?.nomAffiche}
           readonly={true}
         />
+
+        {sickInfo && <SickNoteBlock {...sickInfo} variant="nounou" />}
       </div>
     </div>
   );

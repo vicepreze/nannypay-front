@@ -403,7 +403,7 @@ function joursOuvrablesMois(annee: number, mois: number): number {
   return nb;
 }
 
-function joursOuvrablesIntersect(debut: string, fin: string, annee: number, mois: number): number {
+export function joursOuvrablesIntersect(debut: string, fin: string, annee: number, mois: number): number {
   const [y1, m1, d1] = debut.split('-').map(Number);
   const [y2, m2, d2] = fin.split('-').map(Number);
   const dD = new Date(y1, m1 - 1, d1);
