@@ -13,7 +13,7 @@ export default async function SettingsPage({ params }: Props) {
 
   const garde = await prisma.garde.findFirst({
     where: { id: params.id, familles: { some: { utilisateurId: userId } } },
-    include: { familles: true, nounou: true, modele: true, enfants: true },
+    include: { familles: true, nounou: true, modele: true, enfants: true, archiveeVersGarde: { select: { id: true, nom: true } } },
   });
   if (!garde) redirect('/dashboard');
 
@@ -28,6 +28,9 @@ export default async function SettingsPage({ params }: Props) {
       gardeId={params.id}
       gardeNom={garde.nom ?? ''}
       moisUrl={moisUrl}
+      statut={garde.statut}
+      isProprietaire={garde.proprietaireId === userId}
+      archiveeVersGarde={garde.archiveeVersGarde ? { id: garde.archiveeVersGarde.id, nom: garde.archiveeVersGarde.nom } : null}
       famA={{
         id:           famA?.id ?? '',
         nomAffiche:   famA?.nomAffiche ?? '',

@@ -35,6 +35,7 @@ export default async function DashboardPage() {
       },
       include: {
         familles: { select: { label: true, nomAffiche: true } },
+        archiveeVersGarde: { select: { id: true, nom: true } },
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -138,7 +139,13 @@ export default async function DashboardPage() {
                       <p className="text-sm font-medium text-[var(--ink)]">{g.nom ?? 'Garde sans nom'}</p>
                       <p className="text-xs text-[var(--dust)]">{famA?.nomAffiche ?? '—'} · {famB?.nomAffiche ?? '—'}</p>
                     </div>
-                    <span className="text-xs text-[var(--dust)]">archivée</span>
+                    {g.archiveeVersGarde ? (
+                      <Link href={`/gardes/${g.archiveeVersGarde.id}/settings`} className="text-xs text-[var(--sage)] underline no-underline hover:underline">
+                        → {g.archiveeVersGarde.nom ?? 'nouvelle garde'}
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-[var(--dust)]">archivée</span>
+                    )}
                   </div>
                 );
               })}

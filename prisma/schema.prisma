@@ -30,7 +30,7 @@ model User {
 model Garde {
   id     String  @id @default(cuid())
   nom    String?
-  statut String  @default("brouillon") // 'brouillon' | 'actif'
+  statut String  @default("brouillon") // 'brouillon' | 'actif' | 'archivé'
 
   proprietaireId String
   proprietaire   User   @relation(fields: [proprietaireId], references: [id])
@@ -41,6 +41,12 @@ model Garde {
   publicTokenNounou String?
 
   congesJson String? // JSON: CongesConfig
+
+  // Renseigné quand cette garde a été archivée suite à une mise à jour de
+  // paie ayant des conséquences rétroactives (cf. fork-ou-update Settings).
+  archiveeVersGardeId String? @unique
+  archiveeVersGarde   Garde?  @relation("GardeArchivage", fields: [archiveeVersGardeId], references: [id])
+  archiveeDepuisGarde Garde?  @relation("GardeArchivage")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1,42 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  calcBModeRepartition,
-  calcEquitableRatioIteratif,
-  calcHeuresSemaineFromPlanning,
-  estimerCMG2025,
-  ciPlafondMensuel,
-  K_TOTAL,
-  K_SAL,
-  K_PAT,
-} from '@/lib/calcul';
-import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
-
-type Aides = {
-  cmgCotisations:    number;
-  cmgRemuneration:   number;
-  abattementCharges: number;
-  aideVille:         number;
-  creditImpot:       number;
-};
-
-const aidesZero = (): Aides => ({
-  cmgCotisations: 0, cmgRemuneration: 0, abattementCharges: 0, aideVille: 0, creditImpot: 0,
-});
-
-function totalAidesMens(a: Aides): number {
-  return Math.round(
-    (a.cmgCotisations + a.cmgRemuneration + a.abattementCharges + a.aideVille + a.creditImpot / 12) * 100
-  ) / 100;
-}
-
-type Enfant = { prenom: string; fam: string };
-
-const SLIDER_MIN = 20;
-const SLIDER_MAX = 80;
-const pct = (p: number) => ((p * 100 - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
+  PaieForm, aidesZero, type PaieFormValue, type Enfant,
+} from '@/components/nouvelle-garde/PaieForm';
 
 export default function PaiePage() {
   const router = useRouter();
@@ -46,23 +14,11 @@ export default function PaiePage() {
   const [nomB,      setNomB]      = useState('Famille B');
   const [joursJson, setJoursJson] = useState('{}');
 
-  const [taux,      setTaux]      = useState(11);
-  const [navigo,       setNavigo]       = useState(90.80);
-  const [indemKm,      setIndemKm]      = useState(0);
-  const [entretien,    setEntretien]    = useState(6.0);
-  const [repartIndemA, setRepartIndemA] = useState(0.5);
-
-  const [repartA,    setRepartA]    = useState(0.5);
-  const [racOption,  setRacOption]  = useState(false);
-  const [modeExpert, setModeExpert] = useState(false);
-
-  // Revenus fiscaux internes — 80 000 € par défaut, non exposés en UI Mode Magique
-  const [revFiscauxA] = useState(80_000);
-  const [revFiscauxB] = useState(80_000);
-
-  // Aides manuelles pour le Mode Expert
-  const [aA, setAA] = useState<Aides>(aidesZero());
-  const [aB, setAB] = useState<Aides>(aidesZero());
+  const [value, setValue] = useState<PaieFormValue>({
+    taux: 11, navigo: 90.80, indemKm: 0, entretien: 6.0, repartIndemA: 0.5,
+    repartA: 0.5, racOption: false, modeExpert: false,
+    aA: aidesZero(), aB: aidesZero(),
+  });
 
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
@@ -83,248 +39,55 @@ export default function PaiePage() {
       if (acteurs?.famBNom) setNomB(acteurs.famBNom);
 
       const planningData = planning?.planning ?? planning ?? {};
-      const joursStr = JSON.stringify(planningData);
-      setJoursJson(joursStr);
+      setJoursJson(JSON.stringify(planningData));
 
       if (saved) {
-        if (typeof saved.repartitionA   === 'number')  setRepartA(saved.repartitionA);
-        else setRepartA(calcBModeRepartition(joursStr, enf));
-        if (typeof saved.racOptionActive === 'boolean') setRacOption(saved.racOptionActive);
-        if (typeof saved.taux           === 'number' && saved.taux > 0) setTaux(saved.taux);
-        if (typeof saved.navigo         === 'number')  setNavigo(saved.navigo);
-        if (typeof saved.indemKm           === 'number')  setIndemKm(saved.indemKm);
-        if (typeof saved.indemEntretien    === 'number')  setEntretien(saved.indemEntretien);
-        if (typeof saved.repartitionIndemA === 'number')  setRepartIndemA(saved.repartitionIndemA);
-        if (saved.aidesA) setAA(saved.aidesA);
-        if (saved.aidesB) setAB(saved.aidesB);
-      } else {
-        setRepartA(calcBModeRepartition(joursStr, enf));
+        setValue(v => ({
+          ...v,
+          repartA:      typeof saved.repartitionA      === 'number'  ? saved.repartitionA      : v.repartA,
+          racOption:    typeof saved.racOptionActive   === 'boolean' ? saved.racOptionActive   : v.racOption,
+          taux:         typeof saved.taux              === 'number' && saved.taux > 0 ? saved.taux : v.taux,
+          navigo:       typeof saved.navigo            === 'number'  ? saved.navigo            : v.navigo,
+          indemKm:      typeof saved.indemKm           === 'number'  ? saved.indemKm           : v.indemKm,
+          entretien:    typeof saved.indemEntretien    === 'number'  ? saved.indemEntretien     : v.entretien,
+          repartIndemA: typeof saved.repartitionIndemA === 'number'  ? saved.repartitionIndemA  : v.repartIndemA,
+          aA: saved.aidesA ?? v.aA,
+          aB: saved.aidesB ?? v.aB,
+        }));
       }
     } catch { /* ignore */ }
     setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const pProportionnel = useMemo(
-    () => calcBModeRepartition(joursJson, enfants),
-    [joursJson, enfants]
-  );
-
-  const nbEnfantsA = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'A').length), [enfants]);
-  const nbEnfantsB = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'B').length), [enfants]);
-
-  const planningHours = useMemo(
-    () => calcHeuresSemaineFromPlanning(joursJson),
-    [joursJson]
-  );
-
-  const salNetTotalMens = useMemo(() => {
-    const base  = planningHours.hNormalesSemaine * 52/12 * taux;
-    const sup25 = planningHours.hSup25Semaine    * 52/12 * taux * 1.25;
-    const sup50 = planningHours.hSup50Semaine    * 52/12 * taux * 1.50;
-    return Math.round((base + sup25 + sup50) * 100) / 100;
-  }, [planningHours, taux]);
-
-  // Heures physiques totales mensualisées (sans pondération sup) pour la formule CMG
-  const totalHeuresMensPhys = useMemo(() => {
-    return (planningHours.hNormalesSemaine + planningHours.hSup25Semaine + planningHours.hSup50Semaine) * 52/12;
-  }, [planningHours]);
-
-  // Résultat du moteur itératif (actif quand racOption est on)
-  const racOptimal = useMemo(() => {
-    if (!racOption || salNetTotalMens <= 0) return null;
-    return calcEquitableRatioIteratif(
-      salNetTotalMens,
-      { nbEnfants: nbEnfantsA, revenusFiscaux: revFiscauxA, autresAidesMens: 0 },
-      { nbEnfants: nbEnfantsB, revenusFiscaux: revFiscauxB, autresAidesMens: 0 },
-      pProportionnel,
-      taux,
-      totalHeuresMensPhys,
-    );
-  }, [racOption, salNetTotalMens, nbEnfantsA, nbEnfantsB, revFiscauxA, revFiscauxB, pProportionnel, taux, totalHeuresMensPhys]);
-
-  // Applique le ratio optimal au slider uniquement en Mode Magique
-  useEffect(() => {
-    if (racOptimal && !modeExpert) setRepartA(racOptimal.meilleurRatio);
-  }, [racOptimal, modeExpert]);
-
-  const preview = useMemo(() => {
-    const salNetA = Math.round(repartA * salNetTotalMens * 100) / 100;
-    const salNetB = Math.round((1 - repartA) * salNetTotalMens * 100) / 100;
-    return { salNetA, salNetB };
-  }, [repartA, salNetTotalMens]);
-
-  // RAC live — Mode Magique : moteur CMG/CI ; Mode Expert : aides manuelles
-  const liveRac = useMemo(() => {
-    if (!racOption) return { racA: 0, racB: 0, totalRac: 0 };
-    const salA = preview.salNetA;
-    const salB = preview.salNetB;
-    if (modeExpert) {
-      const aidesA = totalAidesMens(aA);
-      const aidesB = totalAidesMens(aB);
-      const racA = Math.round((salA * K_TOTAL - aidesA) * 100) / 100;
-      const racB = Math.round((salB * K_TOTAL - aidesB) * 100) / 100;
-      return { racA, racB, totalRac: racA + racB };
-    }
-    const coutA   = salA * K_TOTAL;
-    const coutB   = salB * K_TOTAL;
-    const cmgA    = estimerCMG2025(revFiscauxA, nbEnfantsA, taux, totalHeuresMensPhys * repartA, salA * K_PAT);
-    const cmgB    = estimerCMG2025(revFiscauxB, nbEnfantsB, taux, totalHeuresMensPhys * (1 - repartA), salB * K_PAT);
-    const eligA   = Math.max(0, coutA - cmgA);
-    const eligB   = Math.max(0, coutB - cmgB);
-    const ciA     = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
-    const ciB     = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
-    const racA    = Math.round((coutA - cmgA - ciA) * 100) / 100;
-    const racB    = Math.round((coutB - cmgB - ciB) * 100) / 100;
-    return { racA, racB, totalRac: racA + racB };
-  }, [racOption, modeExpert, preview.salNetA, preview.salNetB, repartA, revFiscauxA, revFiscauxB, nbEnfantsA, nbEnfantsB, taux, totalHeuresMensPhys, aA, aB]);
-
-  const racPctA = useMemo(() => {
-    return liveRac.totalRac > 0 ? Math.round((liveRac.racA / liveRac.totalRac) * 100) : 0;
-  }, [liveRac.racA, liveRac.totalRac]);
-
-  const racPctB = useMemo(() => {
-    return liveRac.totalRac > 0 ? Math.round((liveRac.racB / liveRac.totalRac) * 100) : 0;
-  }, [liveRac.racB, liveRac.totalRac]);
-
-  const [showDetail, setShowDetail] = useState(false);
-
-  const detailData = useMemo(() => {
-    const hNormMensTotal = planningHours.hNormalesSemaine * 52 / 12;
-    const hSup25MensTotal = planningHours.hSup25Semaine * 52 / 12;
-    const hSup50MensTotal = planningHours.hSup50Semaine * 52 / 12;
-    const salNetA = preview.salNetA;
-    const salNetB = preview.salNetB;
-
-    const joursActifs = planningHours.joursActifsParSemaine || 5;
-    const joursActifsMens = joursActifs * 52 / 12;
-
-    const buildFam = (ratio: number, indemRatio: number, salNet: number, rac: number): FamCalcData => {
-      const chargeSal = Math.round(salNet * K_SAL * 100) / 100;
-      const chargePat = Math.round(salNet * K_PAT * 100) / 100;
-      const navigoFam    = Math.round(navigo   * indemRatio * 100) / 100;
-      const entretienFam = Math.round(entretien * joursActifsMens * indemRatio * 100) / 100;
-      const kmFam        = Math.round(indemKm  * indemRatio * 100) / 100;
-
-      let cmgCot = 0, cmgRemu = 0, creditImpotMens = 0;
-      if (racOption) {
-        if (modeExpert) {
-          const aides = ratio === repartA ? aA : aB;
-          cmgCot = aides.cmgCotisations;
-          cmgRemu = aides.cmgRemuneration;
-          creditImpotMens = aides.creditImpot / 12;
-        } else if (racOptimal) {
-          cmgCot = ratio === repartA ? racOptimal.cmgCotA : racOptimal.cmgCotB;
-          cmgRemu = ratio === repartA ? racOptimal.cmgRemuA : racOptimal.cmgRemuB;
-          creditImpotMens = ratio === repartA ? racOptimal.ciAMens : racOptimal.ciBMens;
-        }
-      }
-
-      return {
-        nom: ratio === repartA ? nomA : nomB,
-        nbEnfants: ratio === repartA ? nbEnfantsA : nbEnfantsB,
-        hNorm: Math.round(hNormMensTotal * ratio * 10) / 10,
-        hSup25: Math.round(hSup25MensTotal * ratio * 10) / 10,
-        hSup50: Math.round(hSup50MensTotal * ratio * 10) / 10,
-        salNet, chargesSalariales: chargeSal, chargesPatronales: chargePat,
-        navigo: navigoFam, entretien: entretienFam, km: kmFam,
-        cmgCotisations: cmgCot, cmgRemuneration: cmgRemu,
-        abattementCharges: 0, aideVille: 0, creditImpotMens,
-        resteCharge: rac,
-      };
-    };
-
-    const famAData = buildFam(repartA,       repartIndemA,           salNetA, liveRac.racA);
-    const famBData = buildFam(1 - repartA,   1 - repartIndemA,       salNetB, liveRac.racB);
-
-    const salNetTotal = salNetA + salNetB;
-    const chargeSalTotal = Math.round(salNetTotal * K_SAL * 100) / 100;
-    const nounou: NounouCalcData = {
-      hNorm: Math.round(hNormMensTotal * 10) / 10,
-      hSup25: Math.round(hSup25MensTotal * 10) / 10,
-      hSup50: Math.round(hSup50MensTotal * 10) / 10,
-      salBrut: Math.round((salNetTotal + chargeSalTotal) * 100) / 100,
-      chargesSalariales: chargeSalTotal,
-      salNet: salNetTotal,
-      navigo: Math.round(navigo * 100) / 100,
-      entretien: Math.round(entretien * joursActifsMens * 100) / 100,
-      km: Math.round(indemKm * 100) / 100,
-    };
-
-    return { famA: famAData, famB: famBData, nounou };
-  }, [
-    planningHours, preview, repartA, repartIndemA, navigo, entretien, indemKm,
-    racOption, modeExpert, racOptimal, aA, aB, liveRac,
-    nomA, nomB, nbEnfantsA, nbEnfantsB,
-  ]);
-
-  function handleRacToggle(on: boolean) {
-    setRacOption(on);
-    setModeExpert(false);
-    if (on && salNetTotalMens > 0) {
-      const res = calcEquitableRatioIteratif(
-        salNetTotalMens,
-        { nbEnfants: nbEnfantsA, revenusFiscaux: 80_000, autresAidesMens: 0 },
-        { nbEnfants: nbEnfantsB, revenusFiscaux: 80_000, autresAidesMens: 0 },
-        pProportionnel,
-        taux,
-        totalHeuresMensPhys,
-      );
-      setRepartA(res.meilleurRatio);
-    }
-  }
-
-  function handleOpenExpert() {
-    if (racOptimal) {
-      setAA({ cmgCotisations: racOptimal.cmgCotA, cmgRemuneration: racOptimal.cmgRemuA, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
-      setAB({ cmgCotisations: racOptimal.cmgCotB, cmgRemuneration: racOptimal.cmgRemuB, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
-    }
-    setModeExpert(true);
-  }
-
-  function handleResetToMagic() {
-    if (racOptimal) {
-      setAA({ cmgCotisations: racOptimal.cmgCotA, cmgRemuneration: racOptimal.cmgRemuA, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) });
-      setAB({ cmgCotisations: racOptimal.cmgCotB, cmgRemuneration: racOptimal.cmgRemuB, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) });
-    }
-  }
 
   async function creerGarde() {
     setError('');
-    if (!taux || taux <= 0) { setError('Taux horaire requis.'); return; }
+    if (!value.taux || value.taux <= 0) { setError('Taux horaire requis.'); return; }
 
     const acteurs  = JSON.parse(sessionStorage.getItem('ng_acteurs')  || 'null');
     const planning = JSON.parse(sessionStorage.getItem('ng_planning') || 'null');
     if (!acteurs)  { setError('Volet Acteurs incomplet. Recommencez.'); return; }
     if (!planning) { setError('Volet Planning incomplet. Recommencez.'); return; }
 
-    sessionStorage.setItem('ng_paie', JSON.stringify({
-      repartitionA: repartA,
-      racOptionActive: racOption,
-      taux, navigo, indemKm, indemEntretien: entretien,
-      repartitionIndemA: repartIndemA,
-      aidesA: modeExpert ? aA : aidesZero(),
-      aidesB: modeExpert ? aB : aidesZero(),
-    }));
+    const paiePayload = {
+      repartitionA:      value.repartA,
+      racOptionActive:   value.racOption,
+      taux:              value.taux,
+      navigo:            value.navigo,
+      indemKm:           value.indemKm,
+      indemEntretien:    value.entretien,
+      repartitionIndemA: value.repartIndemA,
+      aidesA: value.modeExpert ? value.aA : aidesZero(),
+      aidesB: value.modeExpert ? value.aB : aidesZero(),
+    };
+    sessionStorage.setItem('ng_paie', JSON.stringify(paiePayload));
 
     setLoading(true);
     try {
       const res = await fetch('/api/gardes', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          acteurs, planning,
-          paie: {
-            repartitionA:      repartA,
-            racOptionActive:   racOption,
-            taux,
-            navigo,
-            indemKm,
-            indemEntretien:    entretien,
-            repartitionIndemA: repartIndemA,
-            aidesA: modeExpert ? aA : aidesZero(),
-            aidesB: modeExpert ? aB : aidesZero(),
-          },
-        }),
+        body: JSON.stringify({ acteurs, planning, paie: paiePayload }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur serveur');
@@ -340,408 +103,25 @@ export default function PaiePage() {
 
   if (!hydrated) return null;
 
-  const isMagicMode = racOption && !modeExpert;
-
   return (
     <div className="flex flex-col gap-5 pb-4">
-
-      {/* 1 — Rémunération */}
-      <Card title="1 — Rémunération">
-        <FN label="Taux horaire net (€/h)" value={taux} onChange={setTaux} />
-        <p className="text-xs text-[var(--dust)] -mt-1">
-          = {(taux / 0.7812).toFixed(2)} € brut · charges salariales 21,88 %
-        </p>
-      </Card>
-
-      {/* 2 — Indemnités */}
-      <Card
-        title="2 — Indemnités"
-        headerRight={<PartFamilleACta value={repartIndemA} onChange={setRepartIndemA} />}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <FN label="Navigo (€/mois)"   value={navigo}    onChange={setNavigo} />
-          <FN label="Entretien (€/j)"   value={entretien} onChange={setEntretien} />
-        </div>
-      </Card>
-
-      {/* 3 — Répartition + RAC (fusionnés) */}
-      <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
-
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
-          <span className="text-sm font-semibold text-[var(--ink)]">3 — Répartition entre familles</span>
-          {racOption && (
-            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">
-              Reste à charge
-            </span>
-          )}
-        </div>
-
-        <div className="p-5 space-y-5">
-
-          {/* Slider avec labels familles + ratio live */}
-          <div>
-            <div className="flex items-center justify-between text-xs mb-3">
-              <span className="text-[var(--dust)]">{nomA}</span>
-              <span className="font-semibold text-[var(--ink)] tabular-nums">
-                {(repartA * 100).toFixed(0)} % — {((1 - repartA) * 100).toFixed(0)} %
-              </span>
-              <span className="text-[var(--dust)]">{nomB}</span>
-            </div>
-            <SliderRow
-              value={repartA}
-              onChange={setRepartA}
-              min={SLIDER_MIN} max={SLIDER_MAX}
-              markers={[
-                { value: 0.5, label: '50/50' },
-                ...(racOption && racOptimal ? [{ value: racOptimal.meilleurRatio, label: 'Équitable RAC', highlight: true }] : []),
-              ]}
-            />
-            <button
-              onClick={() => setRepartA(pProportionnel)}
-              className="text-[11px] text-[var(--dust)] hover:text-[var(--ink)] mt-3 underline decoration-dotted transition-colors"
-            >
-              ↩ Revenir au calcul automatique ({(pProportionnel * 100).toFixed(1)} %)
-            </button>
-          </div>
-
-          {/* Cartes familles */}
-          <div className="grid grid-cols-2 gap-3">
-            <FamPreview
-              label={nomA} percent={repartA} color="sage"
-              salNet={preview.salNetA}
-              rac={liveRac.racA}
-              racOption={racOption} racPct={racPctA}
-            />
-            <FamPreview
-              label={nomB} percent={1 - repartA} color="blue"
-              salNet={preview.salNetB}
-              rac={liveRac.racB}
-              racOption={racOption} racPct={racPctB}
-            />
-          </div>
-
-          {/* Callout mode magique — lié visuellement au toggle */}
-          {isMagicMode && (
-            <div className="flex items-start gap-2 text-xs text-[var(--dust)] bg-[var(--paper)] rounded-lg px-3 py-2.5 border border-[var(--line)]">
-              <span className="mt-0.5">✨</span>
-              <span>Mode magique actif — le curseur est positionné au point d&apos;équilibre équitable selon le barème CAF 2025.</span>
-            </div>
-          )}
-
-          {/* Mode Expert — colonnes aides */}
-          {racOption && modeExpert && (
-            <div className="rounded-[var(--radius)] border border-[var(--line)] overflow-hidden -mx-5">
-              <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
-                <AidesColumn label={nomA} a={aA} setA={setAA} total={totalAidesMens(aA)} />
-                <AidesColumn label={nomB} a={aB} setA={setAB} total={totalAidesMens(aB)} />
-              </div>
-              <div className="px-5 py-3 border-t border-[var(--line)] flex items-center gap-5 bg-[var(--paper)]">
-                <button
-                  onClick={handleResetToMagic}
-                  disabled={!racOptimal}
-                  className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
-                >
-                  ↺ Rétablir l&apos;estimation magique
-                </button>
-                <button
-                  onClick={() => setModeExpert(false)}
-                  className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
-                >
-                  ← Mode Magique
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Toggle RAC + lien Mode Expert */}
-          <div className="flex items-center justify-between gap-4 pt-1 border-t border-[var(--line)]">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-[var(--ink)]">Calculer selon le Reste à Charge</span>
-                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">Recommandé</span>
-              </div>
-              <p className="text-xs text-[var(--dust)] mt-0.5">Point d&apos;équilibre calculé selon le barème CAF 2025</p>
-              {racOption && !modeExpert && (
-                <button
-                  onClick={handleOpenExpert}
-                  disabled={!racOptimal}
-                  className="mt-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
-                >
-                  ⚙️ Ajuster mes aides manuellement (Mode Expert)
-                </button>
-              )}
-            </div>
-            <Toggle checked={racOption} onChange={handleRacToggle} />
-          </div>
-
-          {/* Voir le calcul détaillé */}
-          <div>
-            <button
-              onClick={() => setShowDetail(v => !v)}
-              className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
-            >
-              <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
-              Voir le calcul détaillé
-            </button>
-            {showDetail && (
-              <div className="mt-3">
-                <DetailedCalcTable
-                  famA={detailData.famA}
-                  famB={detailData.famB}
-                  nounou={detailData.nounou}
-                  racOptionActive={racOption}
-                />
-              </div>
-            )}
-          </div>
-
-        </div>
-      </div>
+      <PaieForm
+        value={value}
+        onChange={setValue}
+        nomA={nomA}
+        nomB={nomB}
+        joursJson={joursJson}
+        enfants={enfants}
+      />
 
       {error && <p className="text-sm text-[var(--red,#b91c1c)] bg-red-50 rounded-lg px-4 py-2">{error}</p>}
 
-      {/* Footer : Retour petit, Créer la garde pleine largeur */}
       <div className="flex gap-3 pt-2">
         <button onClick={() => router.back()} disabled={loading} className={btnSecondary}>← Retour</button>
         <button onClick={creerGarde} disabled={loading} className={`flex-1 ${btnPrimary}`}>
           {loading ? 'Création…' : 'Créer la garde →'}
         </button>
       </div>
-    </div>
-  );
-}
-
-// ── Sub-components ──────────────────────────────────────────────────
-
-function SliderRow({ value, onChange, min, max, markers }: {
-  value: number;
-  onChange: (v: number) => void;
-  min: number; max: number;
-  markers: { value: number; label: string; highlight?: boolean }[];
-}) {
-  return (
-    <div>
-      <div className="relative h-5 mb-1">
-        {markers.map((m, i) => {
-          const p = pct(m.value);
-          if (p < -5 || p > 105) return null;
-          return (
-            <span
-              key={i}
-              className={`absolute text-[10px] -translate-x-1/2 whitespace-nowrap ${m.highlight ? 'text-[var(--sage)] font-semibold' : 'text-[var(--dust)]'}`}
-              style={{ left: `${p}%` }}
-            >
-              {m.label}
-            </span>
-          );
-        })}
-      </div>
-
-      <div className="relative h-6">
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[var(--line)]" />
-        {markers.map((m, i) => {
-          const p = pct(m.value);
-          if (p < 0 || p > 100) return null;
-          return (
-            <span
-              key={i}
-              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${m.highlight ? 'bg-[var(--sage)]' : 'bg-[var(--dust)]'}`}
-              style={{ left: `${p}%` }}
-            />
-          );
-        })}
-        <input
-          type="range"
-          min={min} max={max} step={0.1}
-          value={value * 100}
-          onChange={e => onChange(parseFloat(e.target.value) / 100)}
-          className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer slider-thumb"
-          style={{ WebkitAppearance: 'none' }}
-        />
-      </div>
-
-      <div className="flex justify-between text-[10px] text-[var(--dust)] mt-1">
-        <span>{min} %</span>
-        <span>{max} %</span>
-      </div>
-
-      <style jsx>{`
-        .slider-thumb::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          background: white;
-          border: 2px solid var(--sage);
-          cursor: pointer;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-        }
-        .slider-thumb::-moz-range-thumb {
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          background: white;
-          border: 2px solid var(--sage);
-          cursor: pointer;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function FamPreview({ label, percent, color, salNet, rac, racOption, racPct }: {
-  label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; rac: number;
-  racOption: boolean; racPct?: number;
-}) {
-  const bg   = color === 'sage' ? 'bg-[var(--sage-light,#eef4ec)]' : 'bg-blue-50';
-  const text = color === 'sage' ? 'text-[var(--sage)]'             : 'text-blue-700';
-
-  return (
-    <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
-      {/* Nom + % répartition */}
-      <div className="flex items-center justify-between mb-3">
-        <span className={`text-sm font-semibold ${text}`}>{label}</span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>
-          {(percent * 100).toFixed(0)} %
-        </span>
-      </div>
-
-      {racOption ? (
-        /* RAC activé : RAC = primaire, salaire net = secondaire */
-        <>
-          <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
-          <div className="flex items-baseline gap-2 flex-wrap mb-3">
-            <span className={`text-2xl font-bold ${text}`}>{rac.toFixed(0)} €</span>
-            {racPct !== undefined && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>
-                {racPct} % du total
-              </span>
-            )}
-          </div>
-          <div className="pt-2 border-t border-white/70">
-            <div className="text-[11px] text-[var(--dust)]">Salaire net</div>
-            <div className={`text-sm font-semibold ${text}`}>{salNet.toFixed(2)} €</div>
-          </div>
-        </>
-      ) : (
-        /* RAC désactivé : salaire net = primaire */
-        <>
-          <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
-          <div className={`text-2xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function AidesColumn({ label, a, setA, total }: {
-  label: string; a: Aides; setA: (v: Aides) => void; total: number;
-}) {
-  const upd = (k: keyof Aides) => (v: number) => setA({ ...a, [k]: v });
-  return (
-    <div className="p-5 space-y-3">
-      <div className="text-xs font-semibold text-[var(--ink)] uppercase tracking-wide">{label}</div>
-      <FN label="Abattement charges patronales"       value={a.abattementCharges} onChange={upd('abattementCharges')} />
-      <FN label="CMG cotisations sociales (CAF)"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
-      <FN label="CMG rémunération (CAF)"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
-      <FN label="Aide locale (ex : Ville de St Ouen)" value={a.aideVille}         onChange={upd('aideVille')} />
-      <FN label="Crédit d'impôt (annuel)"             value={a.creditImpot}       onChange={upd('creditImpot')} />
-      <div className="flex justify-between pt-3 border-t border-[var(--line)] text-xs font-semibold">
-        <span>Total aides / mois</span>
-        <span className="font-mono text-[var(--sage)]">− {total.toFixed(2)} €</span>
-      </div>
-    </div>
-  );
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${checked ? 'bg-[var(--sage)]' : 'bg-[var(--line)]'}`}
-      aria-pressed={checked}
-    >
-      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${checked ? 'left-[22px]' : 'left-0.5'}`} />
-    </button>
-  );
-}
-
-function PartFamilleACta({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const [raw,     setRaw]     = useState(() => String(Math.round(value * 100)));
-  const [focused, setFocused] = useState(false);
-
-  // Sync depuis le parent uniquement quand le champ n'est pas en cours d'édition
-  useEffect(() => {
-    if (!focused) setRaw(String(Math.round(value * 100)));
-  }, [value, focused]);
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const s = e.target.value;
-    setRaw(s);
-    const n = parseFloat(s);
-    if (!isNaN(n)) onChange(Math.min(1, Math.max(0, n / 100)));
-  }
-
-  function handleBlur() {
-    setFocused(false);
-    const n = parseFloat(raw);
-    const clamped = isNaN(n) ? 50 : Math.min(100, Math.max(0, Math.round(n)));
-    setRaw(String(clamped));
-    onChange(clamped / 100);
-  }
-
-  return (
-    <div className="flex flex-col items-end gap-0.5">
-      <div className="flex items-center gap-1.5">
-        <span className="text-[12px] text-[var(--dust)]">Part famille A</span>
-        <input
-          type="number"
-          min={0}
-          max={100}
-          value={raw}
-          onChange={handleChange}
-          onFocus={() => setFocused(true)}
-          onBlur={handleBlur}
-          className="w-[58px] text-center font-bold text-white bg-[var(--sage)] rounded-md px-1 py-0.5 text-[13px] border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        />
-        <span className="text-[12px] text-[var(--dust)]">%</span>
-      </div>
-      <p className="text-[11px] text-[var(--dust)]">↙ s&apos;applique aux champs ci-dessous</p>
-    </div>
-  );
-}
-
-function Card({ title, headerRight, children }: { title: string; headerRight?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-[var(--radius)] overflow-hidden bg-white border border-[var(--line)]">
-      <div className="px-5 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between gap-4">
-        <span className="text-sm font-semibold text-[var(--ink)]">{title}</span>
-        {headerRight}
-      </div>
-      <div className="p-5 space-y-3">{children}</div>
-    </div>
-  );
-}
-
-function FN({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  const [raw, setRaw] = useState(() => value !== 0 ? String(value) : '');
-  return (
-    <div>
-      <label className="block text-xs font-medium mb-1 text-[var(--dust)]">{label}</label>
-      <input
-        type="text"
-        inputMode="decimal"
-        value={raw}
-        placeholder="0"
-        onChange={e => { const s = e.target.value; setRaw(s); const n = parseFloat(s.replace(',', '.')); onChange(isNaN(n) ? 0 : n); }}
-        onBlur={() => { const n = parseFloat(raw.replace(',', '.')); setRaw(!isNaN(n) && n !== 0 ? String(n) : ''); onChange(isNaN(n) ? 0 : n); }}
-        className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white border border-[var(--line)] focus:border-[var(--sage)]"
-      />
     </div>
   );
 }
