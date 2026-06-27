@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  JOURS, defaultSlots, diffH,
+  JOURS, defaultSlots, diffH, planningSummary,
   type Planning, type Enfant,
 } from './planningLogic';
 

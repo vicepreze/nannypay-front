@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, afterEach, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterEach, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { PUT as PutType, GET as GetType } from '@/app/api/gardes/[id]/route';
+import type { POST as DupliquerType } from '@/app/api/gardes/[id]/dupliquer/route';
 
 const TEST_USER_ID = 'test_clerk_settings_spec';
 let currentAuthUserId: string = TEST_USER_ID;
@@ -9,8 +11,14 @@ vi.mock('@clerk/nextjs/server', () => ({
   auth: vi.fn(() => Promise.resolve({ userId: currentAuthUserId })),
 }));
 
-const { PUT, GET } = await import('@/app/api/gardes/[id]/route');
-const { POST: dupliquer } = await import('@/app/api/gardes/[id]/dupliquer/route');
+let PUT: typeof PutType;
+let GET: typeof GetType;
+let dupliquer: typeof DupliquerType;
+
+beforeAll(async () => {
+  ({ PUT, GET } = await import('@/app/api/gardes/[id]/route'));
+  ({ POST: dupliquer } = await import('@/app/api/gardes/[id]/dupliquer/route'));
+});
 
 const baseModele = {
   tauxHoraireNet: 11, hNormalesSemaine: 40, hSup25Semaine: 0, hSup50Semaine: 0,
