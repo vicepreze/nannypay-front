@@ -564,7 +564,7 @@ export type CompteRepos = {
 
 export type CongesJson = { cp: CompteCP; repos: CompteRepos };
 
-export type SoldeCompte = { soldeActuel: number; joursPoses: number; aAcquerir: number; soldeEstime: number };
+export type SoldeCompte = { soldeInitial: number; joursPoses: number; aAcquerir: number; soldeEstime: number };
 
 /** Lit congesJson en gérant l'ancien format plat (CompteCP au top-level, sans compte repos). */
 export function parseCongesJson(raw: string | null): { cp: CompteCP | null; repos: CompteRepos | null } {
@@ -601,39 +601,73 @@ function joursTypeEntreDates(moisRecords: MoisEvtRecord[], type: string, rangeDe
 }
 
 /**
- * Calcule les 4 colonnes façon Lucca (actuel / posés / à acquérir / estimé).
+ * Calcule les 4 colonnes façon Lucca (initial / posés / à acquérir / estimé).
  *
- * `soldeActuel` est le brut acquis à ce jour (sans déduire la consommation) : `joursPoses` porte TOUTE la
+ * `soldeInitial` est le total brut accordé (sans déduire la consommation) : `joursPoses` porte TOUTE la
  * consommation connue jusqu'à la cible (décompte de départ inclus + événements réels), pour que le décompte de
  * départ reste visible dans le tableau dès l'initialisation, au lieu d'être absorbé silencieusement.
  * `aAcquerir` est dérivé à partir des 3 autres valeurs *déjà arrondies* (pas des valeurs brutes) : ça garantit que
- * l'équation affichée `soldeEstime = soldeActuel − joursPoses + aAcquerir` est exacte, sans écart d'arrondi.
+ * l'équation affichée `soldeEstime = soldeInitial − joursPoses + aAcquerir` est exacte, sans écart d'arrondi.
  */
 function soldeCompte(
   acquisA: (refISO: string) => number,
   consommeJusqua: (refISO: string) => number,
   todayISO: string, targetFinISO: string,
 ): SoldeCompte {
-  const soldeActuel = round1(acquisA(todayISO));
-  const joursPoses   = round1(consommeJusqua(targetFinISO));
-  const soldeEstime  = round1(acquisA(targetFinISO) - consommeJusqua(targetFinISO));
-  const aAcquerir    = round1(soldeEstime - soldeActuel + joursPoses);
-  return { soldeActuel, joursPoses, aAcquerir, soldeEstime };
+  const soldeInitial = round1(acquisA(todayISO));
+  const joursPoses    = round1(consommeJusqua(targetFinISO));
+  const soldeEstime   = round1(acquisA(targetFinISO) - consommeJusqua(targetFinISO));
+  const aAcquerir     = round1(soldeEstime - soldeInitial + joursPoses);
+  return { soldeInitial, joursPoses, aAcquerir, soldeEstime };
+}
+
+type CycleGrantConfig = { total: number; cycleDebut: string; decompteDepart: { annee: number; mois: number; jousConso: number } };
+
+/**
+ * Moteur commun aux comptes "octroyés en une fois par cycle annuel, remis à zéro au renouvellement"
+ * (CP en règle "semaines par an" et Jours de repos) : `total` jours disponibles dès le début du cycle,
+ * pas de montée progressive mensuelle — c'est la remise à zéro à date fixe qui fait la "progression" d'une année
+ * sur l'autre, pas un prorata.
+ */
+function calculSoldeCycle(config: CycleGrantConfig, moisRecords: MoisEvtRecord[], evtType: string, todayISO: string, targetFinISO: string): SoldeCompte {
+  const [cy, cm, cd] = config.cycleDebut.split('-').map(Number);
+  const anchorDay = cd || 1;
+
+  /** Début (ISO) du cycle annuel contenant refISO — gère aussi refISO antérieur à l'ancre configurée. */
+  const cycleStartFor = (refISO: string): string => {
+    const [y, m] = refISO.split('-').map(Number);
+    const n = Math.floor((monthN(y, m) - monthN(cy, cm)) / 12);
+    return dateISO(new Date(cy + n, cm - 1, anchorDay));
+  };
+
+  const acquisA = (): number => config.total;
+
+  const dep = config.decompteDepart;
+  const depFinMois = finMoisISO(dep.annee, dep.mois);
+  const consommeJusqua = (refISO: string): number => {
+    const cycleStart = cycleStartFor(refISO);
+    // Le décompte de départ ne compte que s'il tombe dans le même cycle que refISO — sinon il a été remis à zéro.
+    const depDansCycle = depFinMois >= cycleStart;
+    const baseline  = depDansCycle ? dep.jousConso : 0;
+    const fromDate  = depDansCycle ? dateISO_incr(depFinMois) : cycleStart;
+    return baseline + joursTypeEntreDates(moisRecords, evtType, fromDate, refISO);
+  };
+
+  return soldeCompte(acquisA, consommeJusqua, todayISO, targetFinISO);
 }
 
 export function calculSoldeCP(config: CompteCP, moisRecords: MoisEvtRecord[], todayISO: string, targetFinISO: string): SoldeCompte {
+  if (config.regle === 'semaines' && config.cycleDebut) {
+    const total = (config.nbSemaines ?? 5) * 5;
+    return calculSoldeCycle({ total, cycleDebut: config.cycleDebut, decompteDepart: config.decompteDepart }, moisRecords, 'conge_paye', todayISO, targetFinISO);
+  }
+
+  // regle="jours_par_mois" : acquisition progressive ouverte, sans cycle ni remise à zéro.
   const acquisA = (refISO: string): number => {
-    const [refY, refM] = refISO.split('-').map(Number);
-    if (config.regle === 'semaines' && config.cycleDebut) {
-      const [cy, cm] = config.cycleDebut.split('-').map(Number);
-      const total   = (config.nbSemaines ?? 5) * 5;
-      // Avant le début du cycle, rien n'est encore acquis (0), pas de plancher artificiel.
-      const elapsed = Math.max(0, monthN(refY, refM) - monthN(cy, cm) + 1);
-      return Math.min(total, elapsed * (total / 12));
-    }
     if (config.regle === 'jours_par_mois' && config.debutSuivi) {
+      const [refY, refM] = refISO.split('-').map(Number);
       const [sy, sm] = config.debutSuivi.split('-').map(Number);
-      const elapsed  = Math.max(0, monthN(refY, refM) - monthN(sy, sm) + 1);
+      const elapsed = Math.max(0, monthN(refY, refM) - monthN(sy, sm) + 1);
       return elapsed * (config.joursParMois ?? 2.5);
     }
     return 0;
@@ -651,32 +685,10 @@ export function calculSoldeCP(config: CompteCP, moisRecords: MoisEvtRecord[], to
 }
 
 export function calculSoldeRepos(config: CompteRepos, moisRecords: MoisEvtRecord[], todayISO: string, targetFinISO: string): SoldeCompte {
-  const [cy, cm, cd] = config.cycleDebut.split('-').map(Number);
-  const anchorDay = cd || 1;
-
-  /** Début (ISO) du cycle annuel contenant refISO. */
-  const cycleStartFor = (refISO: string): string => {
-    const [y, m, d] = refISO.split('-').map(Number);
-    const ref = new Date(y, m - 1, d);
-    let n = 0;
-    while (new Date(cy + n + 1, cm - 1, anchorDay) <= ref) n++;
-    return dateISO(new Date(cy + n, cm - 1, anchorDay));
-  };
-
-  const acquisA = (): number => config.totalAnnuel;
-
-  const dep = config.decompteDepart;
-  const depFinMois = finMoisISO(dep.annee, dep.mois);
-  const consommeJusqua = (refISO: string): number => {
-    const cycleStart = cycleStartFor(refISO);
-    // Le décompte de départ ne compte que s'il tombe dans le même cycle que refISO — sinon il a été remis à zéro.
-    const depDansCycle = depFinMois >= cycleStart;
-    const baseline  = depDansCycle ? dep.jousConso : 0;
-    const fromDate  = depDansCycle ? dateISO_incr(depFinMois) : cycleStart;
-    return baseline + joursTypeEntreDates(moisRecords, 'jour_repos', fromDate, refISO);
-  };
-
-  return soldeCompte(acquisA, consommeJusqua, todayISO, targetFinISO);
+  return calculSoldeCycle(
+    { total: config.totalAnnuel, cycleDebut: config.cycleDebut, decompteDepart: config.decompteDepart },
+    moisRecords, 'jour_repos', todayISO, targetFinISO,
+  );
 }
 
 /** Jour ISO suivant celui donné. */

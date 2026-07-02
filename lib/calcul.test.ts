@@ -945,18 +945,18 @@ describe('joursOuvrablesEntreDates', () => {
 
 // ── calculSoldeCP / calculSoldeRepos — soldes à 2 comptes (style Lucca) ─────
 
-describe('calculSoldeCP', () => {
+describe('calculSoldeCP — regle "semaines" : octroi complet par cycle (comme les Jours de repos)', () => {
   const config: CompteCP = {
     regle: 'semaines', nbSemaines: 5, cycleDebut: '2026-01-01',
     decompteDepart: { annee: 2026, mois: 1, jousConso: 0 },
   };
 
-  it('même mois pour aujourd\'hui et la cible : rien à acquérir, rien de posé', () => {
+  it('les 25 jours sont disponibles dès le début du cycle, pas de montée progressive mensuelle', () => {
     const r = calculSoldeCP(config, [], '2026-04-15', '2026-04-30');
-    expect(r.soldeActuel).toBeCloseTo(8.3, 1);
+    expect(r.soldeInitial).toBe(25);
     expect(r.joursPoses).toBe(0);
     expect(r.aAcquerir).toBe(0);
-    expect(r.soldeEstime).toBeCloseTo(8.3, 1);
+    expect(r.soldeEstime).toBe(25);
   });
 
   it('3 semaines déjà posées en août alors qu\'on est en avril : jours posés = 15, visibles avant même d\'y arriver', () => {
@@ -965,10 +965,11 @@ describe('calculSoldeCP', () => {
     ];
     const r = calculSoldeCP(config, moisRecords, '2026-04-15', '2026-08-31');
     expect(r.joursPoses).toBe(15);
-    expect(r.soldeActuel).toBeCloseTo(8.3, 1);   // brut acquis à ce jour, rien n'a encore été retranché
-    expect(r.soldeEstime).toBeCloseTo(1.7, 1);   // acquis à fin août (16.7) − 15 posés
+    expect(r.soldeInitial).toBe(25);      // total brut du cycle, constant
+    expect(r.soldeEstime).toBe(10);       // 25 − 15 posés
+    expect(r.aAcquerir).toBe(0);          // même cycle : rien de plus à acquérir
     // Contrôle de cohérence : l'équation affichée doit être exacte, pas juste approchée.
-    expect(r.soldeEstime).toBeCloseTo(r.soldeActuel - r.joursPoses + r.aAcquerir, 10);
+    expect(r.soldeEstime).toBeCloseTo(r.soldeInitial - r.joursPoses + r.aAcquerir, 10);
   });
 
   it('le décompte de départ (jours déjà consommés) est visible dans "jours posés" dès l\'initialisation', () => {
@@ -980,29 +981,42 @@ describe('calculSoldeCP', () => {
       { annee: 2026, mois: 2, evenementsJson: JSON.stringify([{ type: 'conge_paye', debut: '2026-02-02', fin: '2026-02-05' }]) },
     ];
     const r = calculSoldeCP(configAvecDepart, moisRecords, '2026-04-15', '2026-04-30');
-    expect(r.soldeActuel).toBeCloseTo(8.3, 1);  // brut, ne déduit plus le décompte de départ
-    expect(r.joursPoses).toBe(4);               // le décompte de départ (4 j.) apparaît, pas l'événement de février
-                                                  // (antérieur au décompte : déjà couvert, pas de double comptage)
-    expect(r.soldeEstime).toBeCloseTo(4.3, 1);  // 8.3 acquis − 4 posés
-    expect(r.soldeEstime).toBeCloseTo(r.soldeActuel - r.joursPoses + r.aAcquerir, 10);
+    expect(r.soldeInitial).toBe(25);
+    expect(r.joursPoses).toBe(4);   // le décompte de départ (4 j.) apparaît, pas l'événement de février
+                                      // (antérieur au décompte : déjà couvert, pas de double comptage)
+    expect(r.soldeEstime).toBe(21); // 25 − 4 posés
+    expect(r.soldeEstime).toBeCloseTo(r.soldeInitial - r.joursPoses + r.aAcquerir, 10);
+  });
+
+  it('renouvellement de cycle : "aujourd\'hui" avant l\'ancre configurée retombe correctement dans le cycle précédent', () => {
+    // cycleDebut dans le futur proche (comme un cycle déjà en cours configuré après coup) : "aujourd'hui"
+    // doit être rattaché au cycle N-1, pas traité comme "avant tout cycle".
+    const configFutureAnchor: CompteCP = {
+      regle: 'semaines', nbSemaines: 5, cycleDebut: '2026-09-01',
+      decompteDepart: { annee: 2025, mois: 9, jousConso: 15 },
+    };
+    const r = calculSoldeCP(configFutureAnchor, [], '2026-07-02', '2026-07-31');
+    expect(r.soldeInitial).toBe(25);
+    expect(r.joursPoses).toBe(15); // le décompte de départ doit être visible, pas ignoré
+    expect(r.soldeEstime).toBe(10);
   });
 });
 
-describe('calculSoldeCP — avant le début du cycle (E)', () => {
+describe('calculSoldeCP — regle "jours_par_mois" : acquisition progressive ouverte (E)', () => {
   const config: CompteCP = {
-    regle: 'semaines', nbSemaines: 5, cycleDebut: '2026-09-01',
+    regle: 'jours_par_mois', joursParMois: 2.5, debutSuivi: '2026-09-01',
     decompteDepart: { annee: 2026, mois: 8, jousConso: 0 },
   };
 
-  it('rien acquis avant le début du cycle, puis progression régulière ensuite', () => {
+  it('rien acquis avant le début du suivi, puis progression régulière ensuite', () => {
     const juillet = calculSoldeCP(config, [], '2026-07-15', '2026-07-31');
     const aout    = calculSoldeCP(config, [], '2026-07-15', '2026-08-31');
     const sept    = calculSoldeCP(config, [], '2026-07-15', '2026-09-30');
     const oct     = calculSoldeCP(config, [], '2026-07-15', '2026-10-31');
     expect(juillet.soldeEstime).toBe(0);
     expect(aout.soldeEstime).toBe(0);
-    expect(sept.soldeEstime).toBeCloseTo(2.1, 1);
-    expect(oct.soldeEstime).toBeCloseTo(4.2, 1);
+    expect(sept.soldeEstime).toBeCloseTo(2.5, 1);
+    expect(oct.soldeEstime).toBeCloseTo(5, 1);
   });
 });
 
@@ -1012,9 +1026,9 @@ describe('calculSoldeRepos', () => {
     decompteDepart: { annee: 2026, mois: 1, jousConso: 1 },
   };
 
-  it('pas de prorata mensuel : solde actuel = total brut du cycle, le décompte de départ apparaît dans "posés"', () => {
+  it('pas de prorata mensuel : solde initial = total brut du cycle, le décompte de départ apparaît dans "posés"', () => {
     const r = calculSoldeRepos(config, [], '2026-03-01', '2026-03-31');
-    expect(r.soldeActuel).toBe(6);   // brut : total du cycle en cours, avant déduction
+    expect(r.soldeInitial).toBe(6);  // brut : total du cycle en cours, avant déduction
     expect(r.joursPoses).toBe(1);    // le décompte de départ (1 j.) déjà posé
     expect(r.aAcquerir).toBe(0);
     expect(r.soldeEstime).toBe(5);   // 6 − 1
@@ -1022,7 +1036,7 @@ describe('calculSoldeRepos', () => {
 
   it('traverse un renouvellement de cycle : le solde repart à 6, la conso de l\'ancien cycle n\'est pas reportée', () => {
     const r = calculSoldeRepos(config, [], '2026-12-15', '2027-02-28');
-    expect(r.soldeActuel).toBe(6);   // brut : total du cycle (constant, remis à zéro chaque année)
+    expect(r.soldeInitial).toBe(6);  // brut : total du cycle (constant, remis à zéro chaque année)
     expect(r.soldeEstime).toBe(6);   // nouveau cycle 2027 : rien consommé
     expect(r.joursPoses).toBe(0);    // le décompte 2026 ne compte plus dans le nouveau cycle
   });
@@ -1034,6 +1048,6 @@ describe('calculSoldeRepos', () => {
     const r = calculSoldeRepos(config, moisRecords, '2026-12-15', '2027-02-28');
     expect(r.joursPoses).toBe(1);
     expect(r.soldeEstime).toBe(5); // 6 − 1 posé dans le nouveau cycle
-    expect(r.soldeEstime).toBeCloseTo(r.soldeActuel - r.joursPoses + r.aAcquerir, 10);
+    expect(r.soldeEstime).toBeCloseTo(r.soldeInitial - r.joursPoses + r.aAcquerir, 10);
   });
 });

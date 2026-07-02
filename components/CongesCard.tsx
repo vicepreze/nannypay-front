@@ -112,8 +112,8 @@ export function CongesCard({ gardeId, annee, mois, refreshKey }: {
 
   const inp = 'w-full px-2.5 py-1.5 border-[1.5px] border-[var(--line)] rounded-lg text-xs outline-none focus:border-[var(--sage)] bg-white';
   const configured = !!(data?.config?.cp || data?.config?.repos);
-  // "Solde Actuel" est brut (voir SoldeCompte) — le seul chiffre qui représente ce qui reste vraiment
-  // disponible est "Solde estimé" à la date cible sélectionnée.
+  // "Solde initial" est le total brut accordé pour le cycle (voir SoldeCompte) — le seul chiffre qui
+  // représente ce qui reste vraiment disponible est "Solde estimé" à la date cible sélectionnée.
   const totalDispo = Math.round(((data?.cp?.soldeEstime ?? 0) + (data?.repos?.soldeEstime ?? 0)) * 10) / 10;
   const dispoLabel = targetOffset === 0 ? 'à la fin de ce mois' : `à fin ${MOIS_LONGS[target.mois - 1]}`;
 
@@ -238,7 +238,7 @@ export function CongesCard({ gardeId, annee, mois, refreshKey }: {
             <thead>
               <tr className="text-[9px] text-[var(--dust)] uppercase tracking-wide">
                 <th className="text-left font-medium pb-1.5">Compte</th>
-                <th className="text-right font-medium pb-1.5">Solde Actuel</th>
+                <th className="text-right font-medium pb-1.5">Solde initial</th>
                 <th className="text-right font-medium pb-1.5">Jours posés</th>
                 <th className="text-right font-medium pb-1.5">Jours à Acquérir</th>
                 <th className="text-right font-medium pb-1.5">Solde estimé</th>
@@ -259,7 +259,7 @@ function CompteRow({ label, solde }: { label: string; solde: SoldeCompte }) {
   return (
     <tr className="border-t border-[var(--line)]">
       <td className="py-1.5 text-[var(--ink)] whitespace-nowrap">{label}</td>
-      <td className="text-right font-mono font-medium">{solde.soldeActuel}</td>
+      <td className="text-right font-mono font-medium">{solde.soldeInitial}</td>
       <td className="text-right font-mono text-[var(--dust)]">{solde.joursPoses}</td>
       <td className="text-right font-mono text-[var(--dust)]">{solde.aAcquerir}</td>
       <td className="text-right font-mono font-semibold text-[var(--sage)]">{solde.soldeEstime}</td>

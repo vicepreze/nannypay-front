@@ -153,10 +153,10 @@ function CongesReadCard({ conges }: { conges: CongesData }) {
           <thead>
             <tr className="text-[9px] text-[var(--dust)] uppercase tracking-wide">
               <th className="text-left font-medium pb-1.5">Compte</th>
-              <th className="text-right font-medium pb-1.5">Actuel</th>
-              <th className="text-right font-medium pb-1.5">Posés</th>
-              <th className="text-right font-medium pb-1.5">À acquérir</th>
-              <th className="text-right font-medium pb-1.5">Estimé</th>
+              <th className="text-right font-medium pb-1.5">Solde initial</th>
+              <th className="text-right font-medium pb-1.5">Jours posés</th>
+              <th className="text-right font-medium pb-1.5">Jours à Acquérir</th>
+              <th className="text-right font-medium pb-1.5">Solde estimé</th>
             </tr>
           </thead>
           <tbody>
@@ -173,7 +173,7 @@ function CongesRow({ label, solde }: { label: string; solde: SoldeCompte }) {
   return (
     <tr className="border-t border-[var(--line)]">
       <td className="py-1.5 text-[var(--ink)] whitespace-nowrap">{label}</td>
-      <td className="text-right font-mono font-medium">{solde.soldeActuel}</td>
+      <td className="text-right font-mono font-medium">{solde.soldeInitial}</td>
       <td className="text-right font-mono text-[var(--dust)]">{solde.joursPoses}</td>
       <td className="text-right font-mono text-[var(--dust)]">{solde.aAcquerir}</td>
       <td className="text-right font-mono font-semibold text-[var(--sage)]">{solde.soldeEstime}</td>
