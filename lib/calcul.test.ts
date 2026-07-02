@@ -7,11 +7,14 @@ import {
   calcHeuresSemaineFromPlanning,
   calcSalNetMensuel,
   calculerMois,
+  calculSoldeCP,
+  calculSoldeRepos,
   ciPlafondMensuel,
   estimerCMG2025,
   joursOffertsMois,
+  joursOuvrablesEntreDates,
 } from './calcul';
-import type { CalcInput } from './calcul';
+import type { CalcInput, CompteCP, CompteRepos } from './calcul';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -924,5 +927,89 @@ describe('calcEquitableRatioIteratif — scénario 3 enfants (47,5h @ 12,80 €)
 
   it('meilleurRatio < targetRatioA (CMG A > CMG B donc A peut absorber moins)', () => {
     expect(res.meilleurRatio).toBeLessThan(TARGET);
+  });
+});
+
+// ── joursOuvrablesEntreDates ────────────────────────────────────────────────
+
+describe('joursOuvrablesEntreDates', () => {
+  it('clippe un événement à une fenêtre de dates arbitraire (1 semaine ouvrée)', () => {
+    // 2026-01-05 = lundi, 2026-01-09 = vendredi
+    expect(joursOuvrablesEntreDates('2026-01-01', '2026-01-31', '2026-01-05', '2026-01-09')).toBe(5);
+  });
+
+  it('retourne 0 si l\'événement se termine avant le début de la fenêtre', () => {
+    expect(joursOuvrablesEntreDates('2026-01-01', '2026-01-04', '2026-01-05', '2026-01-09')).toBe(0);
+  });
+});
+
+// ── calculSoldeCP / calculSoldeRepos — soldes à 2 comptes (style Lucca) ─────
+
+describe('calculSoldeCP', () => {
+  const config: CompteCP = {
+    regle: 'semaines', nbSemaines: 5, cycleDebut: '2026-01-01',
+    decompteDepart: { annee: 2026, mois: 1, jousConso: 0 },
+  };
+
+  it('même mois pour aujourd\'hui et la cible : rien à acquérir, rien de posé', () => {
+    const r = calculSoldeCP(config, [], '2026-04-15', '2026-04-30');
+    expect(r.soldeActuel).toBeCloseTo(8.3, 1);
+    expect(r.joursPoses).toBe(0);
+    expect(r.aAcquerir).toBe(0);
+    expect(r.soldeEstime).toBeCloseTo(8.3, 1);
+  });
+
+  it('3 semaines déjà posées en août alors qu\'on est en avril : jours posés = 15, visibles avant même d\'y arriver', () => {
+    const moisRecords = [
+      { annee: 2026, mois: 8, evenementsJson: JSON.stringify([{ type: 'conge_paye', debut: '2026-08-03', fin: '2026-08-21' }]) },
+    ];
+    const r = calculSoldeCP(config, moisRecords, '2026-04-15', '2026-08-31');
+    expect(r.joursPoses).toBe(15);
+    expect(r.soldeActuel).toBeCloseTo(8.3, 1);   // aucun événement passé/en cours ne réduit le solde actuel
+    expect(r.soldeEstime).toBeCloseTo(1.7, 1);   // acquis à fin août (16.7) − 15 posés
+  });
+
+  it('le décompte de départ ne recompte pas les événements déjà couverts', () => {
+    const configAvecDepart: CompteCP = {
+      ...config,
+      decompteDepart: { annee: 2026, mois: 3, jousConso: 4 },
+    };
+    const moisRecords = [
+      { annee: 2026, mois: 2, evenementsJson: JSON.stringify([{ type: 'conge_paye', debut: '2026-02-02', fin: '2026-02-05' }]) },
+    ];
+    const r = calculSoldeCP(configAvecDepart, moisRecords, '2026-04-15', '2026-04-30');
+    // L'événement de février est antérieur au décompte de départ (fin mars) : pas de double comptage.
+    expect(r.soldeActuel).toBeCloseTo(8.3 - 4, 1);
+  });
+});
+
+describe('calculSoldeRepos', () => {
+  const config: CompteRepos = {
+    totalAnnuel: 6, cycleDebut: '2026-01-01',
+    decompteDepart: { annee: 2026, mois: 1, jousConso: 1 },
+  };
+
+  it('pas de prorata mensuel : le solde ne bouge pas dans le même cycle en l\'absence d\'événement', () => {
+    const r = calculSoldeRepos(config, [], '2026-03-01', '2026-03-31');
+    expect(r.soldeActuel).toBe(5);   // 6 − 1 déjà posé
+    expect(r.joursPoses).toBe(0);
+    expect(r.aAcquerir).toBe(0);
+    expect(r.soldeEstime).toBe(5);
+  });
+
+  it('traverse un renouvellement de cycle : le solde repart à 6, la conso de l\'ancien cycle n\'est pas reportée', () => {
+    const r = calculSoldeRepos(config, [], '2026-12-15', '2027-02-28');
+    expect(r.soldeActuel).toBe(5);   // encore dans le cycle 2026 : 6 − 1
+    expect(r.soldeEstime).toBe(6);   // nouveau cycle 2027 : remis à 6, rien consommé
+    expect(r.joursPoses).toBe(0);
+  });
+
+  it('jour de repos déjà posé dans le nouveau cycle avant la cible', () => {
+    const moisRecords = [
+      { annee: 2027, mois: 2, evenementsJson: JSON.stringify([{ type: 'jour_repos', debut: '2027-02-02', fin: '2027-02-02' }]) },
+    ];
+    const r = calculSoldeRepos(config, moisRecords, '2026-12-15', '2027-02-28');
+    expect(r.joursPoses).toBe(1);
+    expect(r.soldeEstime).toBe(5); // 6 − 1 posé dans le nouveau cycle
   });
 });

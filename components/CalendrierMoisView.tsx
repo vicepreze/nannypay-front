@@ -46,7 +46,7 @@ export function frenchHolidays(year: number): Set<string> {
 }
 
 // ── Types exportés ─────────────────────────────────────────────────
-export type MonthEvtType = 'maladie_nounou' | 'conge_paye' | 'absence_famille_a' | 'absence_famille_b' | 'holiday' | 'jour_offert';
+export type MonthEvtType = 'maladie_nounou' | 'conge_paye' | 'jour_repos' | 'absence_famille_a' | 'absence_famille_b' | 'holiday' | 'jour_offert';
 
 export interface MonthEvt {
   type: MonthEvtType;
@@ -73,11 +73,12 @@ export interface SickInfo {
 }
 
 // ── Grammaire couleur ──────────────────────────────────────────────
-type DayType = 'worked' | 'cp' | 'sick' | 'holiday' | 'off';
+type DayType = 'worked' | 'cp' | 'repos' | 'sick' | 'holiday' | 'off';
 
 const CELL_STYLE: Record<DayType, React.CSSProperties> = {
   worked:  { background: '#EAF3DE', border: '0.5px solid #C0DD97' },
   cp:      { background: '#FCE8F3', border: '0.5px solid #F4C0D1' },
+  repos:   { background: '#EAE7FB', border: '0.5px solid #C7C2F0' },
   sick:    { background: '#FCEBEB', border: '0.5px solid #F09595' },
   holiday: { background: '#F1EFE8', border: '0.5px solid #D3D1C7' },
   off:     { background: 'var(--paper)', border: '0.5px solid var(--line)', opacity: 0.35 },
@@ -86,6 +87,7 @@ const CELL_STYLE: Record<DayType, React.CSSProperties> = {
 const DAY_NUM_COLOR: Record<DayType, string> = {
   worked:  '#27500A',
   cp:      '#72243E',
+  repos:   '#3D3579',
   sick:    '#791F1F',
   holiday: '#444441',
   off:     'var(--dust)',
@@ -102,6 +104,7 @@ function tagsForDay(dt: DayType, famAAbsent = false, famBAbsent = false): TagDef
   switch (dt) {
     case 'worked':  tags.push({ label: 'travaillé',  extra: { background: 'transparent', color: '#3B6D11', border: '0.5px solid #3B6D11' } }); break;
     case 'cp':      tags.push({ label: 'congé payé', extra: { background: '#F4C0D1', color: '#72243E' } }); break;
+    case 'repos':   tags.push({ label: 'jour de repos', extra: { background: '#C7C2F0', color: '#3D3579' } }); break;
     case 'sick':    tags.push({ label: 'maladie',    extra: { background: '#FAEEDA', color: '#633806' } }); break;
     case 'holiday': tags.push({ label: 'férié',      extra: { background: '#D3D1C7', color: '#444441' } }); break;
     case 'off':     return [];
@@ -186,6 +189,7 @@ export function CalendrierMoisView({
 
           if (holidays.has(ds))                                    dayType = 'holiday';
           else if (absEvts.some(e => e.type === 'conge_paye'))     dayType = 'cp';
+          else if (absEvts.some(e => e.type === 'jour_repos'))     dayType = 'repos';
           else if (absEvts.some(e => e.type === 'maladie_nounou')) dayType = 'sick';
           else                                                      dayType = 'worked';
         }
@@ -265,12 +269,14 @@ export function CalendrierMoisView({
                 : `${d1} ${MOIS_COURTS[mo1-1]} → ${d2} ${MOIS_COURTS[mo2-1]}`;
               const evtLabel: Record<string, string> = {
                 conge_paye:        '🏖 Congé payé',
+                jour_repos:        '😌 Jour de repos',
                 maladie_nounou:    '🤒 Maladie',
                 absence_famille_a: '👶 Absent Fam. A',
                 absence_famille_b: '👶 Absent Fam. B',
               };
               const evtColor: Record<string, string> = {
                 conge_paye:        'bg-blue-100 text-blue-700',
+                jour_repos:        'bg-[#EAE7FB] text-[#3D3579]',
                 maladie_nounou:    'bg-red-100 text-red-700',
                 absence_famille_a: 'bg-[#E6F1FB] text-[#0C447C]',
                 absence_famille_b: 'bg-[#E6F1FB] text-[#0C447C]',
@@ -293,7 +299,7 @@ export function CalendrierMoisView({
         {/* CongesCard — privé seulement */}
         {!readonly && gardeId && (
           <div className="mt-3">
-            <CongesCard gardeId={gardeId} annee={annee} mois={mois} cpThisMonth={result?.joursAbsCP ?? 0} refreshKey={evtsSaveCount} />
+            <CongesCard gardeId={gardeId} annee={annee} mois={mois} refreshKey={evtsSaveCount} />
           </div>
         )}
       </div>
@@ -361,6 +367,7 @@ function ResultCard({ label, nom, r }: {
 const EVT_DOT: Record<MonthEvtType, string> = {
   maladie_nounou:    '#F09595',
   conge_paye:        '#F4C0D1',
+  jour_repos:        '#C7C2F0',
   absence_famille_a: '#185FA5',
   absence_famille_b: '#85B7EB',
   holiday:           '#D3D1C7',
@@ -370,6 +377,7 @@ const EVT_DOT: Record<MonthEvtType, string> = {
 const EVT_LABEL: Record<MonthEvtType, string> = {
   maladie_nounou:    '🤒 Maladie',
   conge_paye:        '🏖 Congé payé',
+  jour_repos:        '😌 Jour de repos',
   absence_famille_a: '👶 Absent Fam. A',
   absence_famille_b: '👶 Absent Fam. B',
   holiday:           '📅 Jour férié',
@@ -498,7 +506,7 @@ function WaterfallRow({ evt }: { evt: MonthEvt }) {
     chips.push(<Chip key="sal" label={`salaire −${(evt.salImpactA + evt.salImpactB).toFixed(0)} €`} style={{ background: '#FCEBEB', color: '#A32D2D' }} />);
     chips.push(<Chip key="ind" label={`entretien −${(evt.indemImpactA + evt.indemImpactB).toFixed(0)} €`} style={{ background: '#FDF3E0', color: '#633806' }} />);
     chips.push(<Chip key="ijss" label="→ IJSS sécu" style={{ background: '#E6F1FB', color: '#0C447C' }} />);
-  } else if (evt.type === 'conge_paye') {
+  } else if (evt.type === 'conge_paye' || evt.type === 'jour_repos') {
     chips.push(<Chip key="sal" label="🔒 salaire intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
     chips.push(<Chip key="ind" label={`entretien −${(evt.indemImpactA + evt.indemImpactB).toFixed(0)} €`} style={{ background: '#FDF3E0', color: '#633806' }} />);
   } else if (evt.type === 'absence_famille_a' || evt.type === 'absence_famille_b') {

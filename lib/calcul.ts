@@ -41,6 +41,7 @@ export interface CalcResult {
   joursOuv:        number;
   joursAbsMaladie: number;
   joursAbsCP:      number;
+  joursAbsRepos:   number;
   joursAbs:        number;
   joursOffert:     number;
   joursTrav:       number;
@@ -404,23 +405,28 @@ function joursOuvrablesMois(annee: number, mois: number): number {
   return nb;
 }
 
-export function joursOuvrablesIntersect(debut: string, fin: string, annee: number, mois: number): number {
-  const [y1, m1, d1] = debut.split('-').map(Number);
-  const [y2, m2, d2] = fin.split('-').map(Number);
-  const dD = new Date(y1, m1 - 1, d1);
-  const dF = new Date(y2, m2 - 1, d2);
-  const mD = new Date(annee, mois - 1, 1);
-  const mF = new Date(annee, mois, 0);
-  const start = dD > mD ? dD : mD;
-  const end   = dF < mF ? dF : mF;
+/** Jours ouvrés de l'intervalle [debut,fin] clippés à la fenêtre de dates [rangeDebut,rangeFin] (bornes incluses, en "YYYY-MM-DD"). */
+export function joursOuvrablesEntreDates(debut: string, fin: string, rangeDebut: string, rangeFin: string): number {
+  const start = debut > rangeDebut ? debut : rangeDebut;
+  const end   = fin   < rangeFin   ? fin   : rangeFin;
+  if (start > end) return 0;
+  const [y1, m1, d1] = start.split('-').map(Number);
+  const [y2, m2, d2] = end.split('-').map(Number);
+  const cur  = new Date(y1, m1 - 1, d1);
+  const last = new Date(y2, m2 - 1, d2);
   let nb = 0;
-  const cur = new Date(start);
-  while (cur <= end) {
+  while (cur <= last) {
     const d = cur.getDay();
     if (d >= 1 && d <= 5) nb++;
     cur.setDate(cur.getDate() + 1);
   }
   return nb;
+}
+
+export function joursOuvrablesIntersect(debut: string, fin: string, annee: number, mois: number): number {
+  const rangeDebut = `${annee}-${String(mois).padStart(2, '0')}-01`;
+  const rangeFin   = dateISO(new Date(annee, mois, 0));
+  return joursOuvrablesEntreDates(debut, fin, rangeDebut, rangeFin);
 }
 
 function dateISO(d: Date): string {
@@ -452,15 +458,16 @@ function joursCouvertsParType(evenements: Evt[], type: string, joursOuvMois: str
 
 /**
  * Jours ouvrables où la famille A ET la famille B sont absentes le même jour (« jour offert »).
- * Exclut les jours déjà couverts par une maladie nounou ou un congé payé (entretien déjà exclu ailleurs).
+ * Exclut les jours déjà couverts par une maladie nounou, un congé payé ou un jour de repos (entretien déjà exclu ailleurs).
  */
 export function joursOffertsMois(evenements: Evt[], annee: number, mois: number): string[] {
   const joursOuvMois = joursOuvrablesDatesMois(annee, mois);
   const maladieSet = joursCouvertsParType(evenements, 'maladie_nounou',    joursOuvMois);
   const cpSet      = joursCouvertsParType(evenements, 'conge_paye',        joursOuvMois);
+  const reposSet   = joursCouvertsParType(evenements, 'jour_repos',        joursOuvMois);
   const famASet    = joursCouvertsParType(evenements, 'absence_famille_a', joursOuvMois);
   const famBSet    = joursCouvertsParType(evenements, 'absence_famille_b', joursOuvMois);
-  return joursOuvMois.filter(d => famASet.has(d) && famBSet.has(d) && !maladieSet.has(d) && !cpSet.has(d));
+  return joursOuvMois.filter(d => famASet.has(d) && famBSet.has(d) && !maladieSet.has(d) && !cpSet.has(d) && !reposSet.has(d));
 }
 
 // ── Calcul principal ──────────────────────────────────────────────
@@ -493,13 +500,17 @@ export function calculerMois(input: CalcInput): CalcResult {
     .filter(e => e.type === 'conge_paye')
     .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
 
-  const joursAbs    = joursAbsMaladie + joursAbsCP;
+  const joursAbsRepos = evenements
+    .filter(e => e.type === 'jour_repos')
+    .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
+
+  const joursAbs    = joursAbsMaladie + joursAbsCP + joursAbsRepos;
   const joursOffert = joursOffertsMois(evenements, annee, mois).length;
   const joursTrav   = Math.max(0, joursOuv - joursAbsMaladie);
   const ratio       = joursOuv > 0 ? joursTrav / joursOuv : 1;
 
   const tauxPresenceJour   = joursActifsParSemaine > 0 ? joursActifsParSemaine / 5 : 1;
-  const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP - joursOffert);
+  const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP - joursAbsRepos - joursOffert);
 
   function calcFam(qp: number, indemRatio: number, aides: AidesInput | undefined): FamResult {
     const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
@@ -531,5 +542,137 @@ export function calculerMois(input: CalcInput): CalcResult {
   const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
   const hTotalSemaine = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
 
-  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbs, joursOffert, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, racOptionActive };
+  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbsRepos, joursAbs, joursOffert, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, racOptionActive };
+}
+
+// ── Soldes de congés (CP + Jours de repos) ─────────────────────────
+
+export type CompteCP = {
+  regle:        'semaines' | 'jours_par_mois';
+  nbSemaines?:  number;    // regle=semaines, défaut 5
+  cycleDebut?:  string;    // regle=semaines, "YYYY-MM-DD" début du cycle CP
+  joursParMois?: number;   // regle=jours_par_mois, défaut 2.5
+  debutSuivi?:  string;    // regle=jours_par_mois, "YYYY-MM-DD" début du suivi
+  decompteDepart: { annee: number; mois: number; jousConso: number };
+};
+
+export type CompteRepos = {
+  totalAnnuel: number;   // jours accordés à chaque cycle, remis à zéro au renouvellement
+  cycleDebut:  string;    // "YYYY-MM-DD" date de renouvellement annuel
+  decompteDepart: { annee: number; mois: number; jousConso: number };
+};
+
+export type CongesJson = { cp: CompteCP; repos: CompteRepos };
+
+export type SoldeCompte = { soldeActuel: number; joursPoses: number; aAcquerir: number; soldeEstime: number };
+
+type MoisEvtRecord = { annee: number; mois: number; evenementsJson: string };
+
+function monthN(y: number, m: number): number { return y * 12 + m; }
+
+function round1(n: number): number { return Math.round(n * 10) / 10; }
+
+/** Dernier jour ISO du mois de référence d'un décompte de départ (ex: {2026,4} → "2026-04-30"). */
+function finMoisISO(annee: number, mois: number): string {
+  return `${annee}-${String(mois).padStart(2, '0')}-${String(new Date(annee, mois, 0).getDate()).padStart(2, '0')}`;
+}
+
+/** Jours d'un type d'événement donné, ouvrés, entre deux dates ISO (bornes incluses), tous mois confondus. */
+function joursTypeEntreDates(moisRecords: MoisEvtRecord[], type: string, rangeDebut: string, rangeFin: string): number {
+  let nb = 0;
+  for (const rec of moisRecords) {
+    const evts: Evt[] = JSON.parse(rec.evenementsJson || '[]');
+    for (const e of evts) {
+      if (e.type !== type) continue;
+      nb += joursOuvrablesEntreDates(e.debut, e.fin, rangeDebut, rangeFin);
+    }
+  }
+  return nb;
+}
+
+/**
+ * Calcule les 4 colonnes façon Lucca (actuel / posés / à acquérir / estimé).
+ * `joursPoses` est compté directement (événements réels entre aujourd'hui et la cible) plutôt que dérivé par
+ * différence de `consommeJusqua`, car ce dernier peut repartir à zéro à un renouvellement de cycle (compte repos) :
+ * une simple soustraction donnerait alors un delta négatif absurde.
+ */
+function soldeCompte(
+  acquisA: (refISO: string) => number,
+  consommeJusqua: (refISO: string) => number,
+  joursPosesEntre: (todayISO: string, targetFinISO: string) => number,
+  todayISO: string, targetFinISO: string,
+): SoldeCompte {
+  const soldeActuel = acquisA(todayISO) - consommeJusqua(todayISO);
+  const soldeEstime  = acquisA(targetFinISO) - consommeJusqua(targetFinISO);
+  const joursPoses   = joursPosesEntre(todayISO, targetFinISO);
+  const aAcquerir    = soldeEstime - soldeActuel + joursPoses;
+  return {
+    soldeActuel: round1(soldeActuel), joursPoses: round1(joursPoses),
+    aAcquerir: round1(aAcquerir), soldeEstime: round1(soldeEstime),
+  };
+}
+
+export function calculSoldeCP(config: CompteCP, moisRecords: MoisEvtRecord[], todayISO: string, targetFinISO: string): SoldeCompte {
+  const acquisA = (refISO: string): number => {
+    const [refY, refM] = refISO.split('-').map(Number);
+    if (config.regle === 'semaines' && config.cycleDebut) {
+      const [cy, cm] = config.cycleDebut.split('-').map(Number);
+      const total   = (config.nbSemaines ?? 5) * 5;
+      const elapsed = Math.max(1, monthN(refY, refM) - monthN(cy, cm) + 1);
+      return Math.min(total, elapsed * (total / 12));
+    }
+    if (config.regle === 'jours_par_mois' && config.debutSuivi) {
+      const [sy, sm] = config.debutSuivi.split('-').map(Number);
+      const elapsed  = Math.max(1, monthN(refY, refM) - monthN(sy, sm) + 1);
+      return elapsed * (config.joursParMois ?? 2.5);
+    }
+    return 0;
+  };
+
+  const dep = config.decompteDepart;
+  const depFinMois = finMoisISO(dep.annee, dep.mois);
+  const consommeJusqua = (refISO: string): number => {
+    if (refISO <= depFinMois) return dep.jousConso;
+    // Le décompte de départ couvre jusqu'à depFinMois inclus — on ne recompte que la suite.
+    return dep.jousConso + joursTypeEntreDates(moisRecords, 'conge_paye', dateISO_incr(depFinMois), refISO);
+  };
+  const joursPosesEntre = (t: string, f: string) => joursTypeEntreDates(moisRecords, 'conge_paye', dateISO_incr(t), f);
+
+  return soldeCompte(acquisA, consommeJusqua, joursPosesEntre, todayISO, targetFinISO);
+}
+
+export function calculSoldeRepos(config: CompteRepos, moisRecords: MoisEvtRecord[], todayISO: string, targetFinISO: string): SoldeCompte {
+  const [cy, cm, cd] = config.cycleDebut.split('-').map(Number);
+  const anchorDay = cd || 1;
+
+  /** Début (ISO) du cycle annuel contenant refISO. */
+  const cycleStartFor = (refISO: string): string => {
+    const [y, m, d] = refISO.split('-').map(Number);
+    const ref = new Date(y, m - 1, d);
+    let n = 0;
+    while (new Date(cy + n + 1, cm - 1, anchorDay) <= ref) n++;
+    return dateISO(new Date(cy + n, cm - 1, anchorDay));
+  };
+
+  const acquisA = (): number => config.totalAnnuel;
+
+  const dep = config.decompteDepart;
+  const depFinMois = finMoisISO(dep.annee, dep.mois);
+  const consommeJusqua = (refISO: string): number => {
+    const cycleStart = cycleStartFor(refISO);
+    // Le décompte de départ ne compte que s'il tombe dans le même cycle que refISO — sinon il a été remis à zéro.
+    const depDansCycle = depFinMois >= cycleStart;
+    const baseline  = depDansCycle ? dep.jousConso : 0;
+    const fromDate  = depDansCycle ? dateISO_incr(depFinMois) : cycleStart;
+    return baseline + joursTypeEntreDates(moisRecords, 'jour_repos', fromDate, refISO);
+  };
+  const joursPosesEntre = (t: string, f: string) => joursTypeEntreDates(moisRecords, 'jour_repos', dateISO_incr(t), f);
+
+  return soldeCompte(acquisA, consommeJusqua, joursPosesEntre, todayISO, targetFinISO);
+}
+
+/** Jour ISO suivant celui donné. */
+function dateISO_incr(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return dateISO(new Date(y, m - 1, d + 1));
 }

@@ -57,6 +57,8 @@ export default function MoisPage() {
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [evtsSaveCount, setEvtsSaveCount] = useState(0);
+  const [sharing,      setSharing]      = useState(false);
+  const [shareFeedback, setShareFeedback] = useState('');
 
   // Modal event
   const [modalOpen,  setModalOpen]  = useState(false);
@@ -146,6 +148,30 @@ export default function MoisPage() {
     setEvts(newEvts); sauvegarderEvts(newEvts);
   }
 
+  async function partagerMois() {
+    if (!garde) return;
+    setSharing(true);
+    setShareFeedback('');
+    let token = garde.publicTokenNounou;
+    if (!token) {
+      const res  = await fetch(`/api/gardes/${gardeId}/public-token`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setShareFeedback('Réservé au créateur de la garde');
+        setSharing(false);
+        setTimeout(() => setShareFeedback(''), 2500);
+        return;
+      }
+      token = data.token;
+      setGarde({ ...garde, publicTokenNounou: token });
+    }
+    const url = `${window.location.origin}/public/mois/${token}/${annee}/${mois}`;
+    await navigator.clipboard.writeText(url);
+    setShareFeedback('Lien copié !');
+    setSharing(false);
+    setTimeout(() => setShareFeedback(''), 2500);
+  }
+
   const heuresParJour = (() => {
     if (!garde?.modele) return null;
     const m = garde.modele;
@@ -215,9 +241,9 @@ export default function MoisPage() {
           indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
           indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
         });
-      } else if (e.type === 'conge_paye') {
+      } else if (e.type === 'conge_paye' || e.type === 'jour_repos') {
         monthEvts.push({
-          type: 'conge_paye', debut: e.debut, fin: e.fin, workingDays,
+          type, debut: e.debut, fin: e.fin, workingDays,
           salImpactA: 0, salImpactB: 0,
           indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
           indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
@@ -297,9 +323,20 @@ export default function MoisPage() {
         <div className="pt-6">
           <div className="flex items-center justify-between mb-5">
             <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
-            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
-              {statutLabel[statut] ?? statut}
-            </span>
+            <div className="flex items-center gap-2">
+              {shareFeedback && <span className="text-xs text-[var(--sage)] font-medium">{shareFeedback}</span>}
+              <button
+                onClick={partagerMois}
+                disabled={sharing}
+                title="Copier un lien de suivi (lecture seule) à envoyer à la nounou ou l'autre famille"
+                className="text-xs px-3 py-1.5 rounded-full font-medium border-[1.5px] border-[var(--line)] text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)] transition-colors bg-white disabled:opacity-50"
+              >
+                🔗 Partager ce mois
+              </button>
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
+                {statutLabel[statut] ?? statut}
+              </span>
+            </div>
           </div>
 
           <CalendrierMoisView
@@ -325,6 +362,7 @@ export default function MoisPage() {
             <div className="grid grid-cols-2 gap-2 mb-4">
               {([
                 ['conge_paye',        '🏖 Congé payé'],
+                ['jour_repos',        '😌 Jour de repos'],
                 ['maladie_nounou',    '🤒 Maladie nounou'],
                 ['absence_famille_a', '👶 Absent Famille A'],
                 ['absence_famille_b', '👶 Absent Famille B'],
