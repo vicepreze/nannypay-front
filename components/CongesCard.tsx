@@ -112,7 +112,10 @@ export function CongesCard({ gardeId, annee, mois, refreshKey }: {
 
   const inp = 'w-full px-2.5 py-1.5 border-[1.5px] border-[var(--line)] rounded-lg text-xs outline-none focus:border-[var(--sage)] bg-white';
   const configured = !!(data?.config?.cp || data?.config?.repos);
-  const totalDispo = Math.round(((data?.cp?.soldeActuel ?? 0) + (data?.repos?.soldeActuel ?? 0)) * 10) / 10;
+  // "Solde Actuel" est brut (voir SoldeCompte) — le seul chiffre qui représente ce qui reste vraiment
+  // disponible est "Solde estimé" à la date cible sélectionnée.
+  const totalDispo = Math.round(((data?.cp?.soldeEstime ?? 0) + (data?.repos?.soldeEstime ?? 0)) * 10) / 10;
+  const dispoLabel = targetOffset === 0 ? 'à la fin de ce mois' : `à fin ${MOIS_LONGS[target.mois - 1]}`;
 
   return (
     <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
@@ -216,10 +219,10 @@ export function CongesCard({ gardeId, annee, mois, refreshKey }: {
         </div>
       ) : (
         <div className="px-4 py-3">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="text-xs">
+          <div className="flex items-center justify-end gap-3 mb-2.5">
+            <div className="text-xs text-right">
               <span className="font-semibold text-[var(--sage)]">{totalDispo} j</span>
-              <span className="text-[var(--dust)] ml-1">disponibles aujourd&apos;hui</span>
+              <span className="text-[var(--dust)] ml-1">disponibles {dispoLabel}</span>
             </div>
             <select
               value={targetOffset}
@@ -235,10 +238,10 @@ export function CongesCard({ gardeId, annee, mois, refreshKey }: {
             <thead>
               <tr className="text-[9px] text-[var(--dust)] uppercase tracking-wide">
                 <th className="text-left font-medium pb-1.5">Compte</th>
-                <th className="text-right font-medium pb-1.5">Actuel</th>
-                <th className="text-right font-medium pb-1.5">Posés</th>
-                <th className="text-right font-medium pb-1.5">À acquérir</th>
-                <th className="text-right font-medium pb-1.5">Estimé</th>
+                <th className="text-right font-medium pb-1.5">Solde Actuel</th>
+                <th className="text-right font-medium pb-1.5">Jours posés</th>
+                <th className="text-right font-medium pb-1.5">Jours à Acquérir</th>
+                <th className="text-right font-medium pb-1.5">Solde estimé</th>
               </tr>
             </thead>
             <tbody>

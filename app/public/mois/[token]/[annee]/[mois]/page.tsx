@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { calculerMois, calcHeuresSemaineFromPlanning, joursOuvrablesIntersect, type Evt, type CalcResult } from '@/lib/calcul';
-import { CalendrierMoisView, SickNoteBlock, type SickInfo } from '@/components/CalendrierMoisView';
+import { calculerMois, calcHeuresSemaineFromPlanning, joursOuvrablesIntersect, type Evt, type CalcResult, type SoldeCompte } from '@/lib/calcul';
+import { CalendrierMoisView, SickNoteBlock, buildPrevuReel, type SickInfo } from '@/components/CalendrierMoisView';
 
 const MOIS_LONGS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 type Famille = { label: string; nomAffiche: string | null };
 type Modele = {
   tauxHoraireNet: number; hNormalesSemaine: number; hSup25Semaine: number;
-  hSup50Semaine: number; repartitionA: number; navigoMontant: number;
+  hSup50Semaine: number; repartitionA: number; repartitionIndemA: number; navigoMontant: number;
   indemEntretien: number; indemKm: number; joursJson: string;
 };
 type GardeData = {
@@ -20,6 +20,7 @@ type GardeData = {
   modele: Modele | null;
 };
 type MoisRec = { annee: number; mois: number; statut: string; evenementsJson: string };
+type CongesData = { cp: SoldeCompte | null; repos: SoldeCompte | null };
 
 export default function PublicMoisPage() {
   const { token, annee: anneeStr, mois: moisStr } = useParams<{ token: string; annee: string; mois: string }>();
@@ -30,6 +31,7 @@ export default function PublicMoisPage() {
   const [moisRec, setMoisRec] = useState<MoisRec | null>(null);
   const [evts,    setEvts]    = useState<Evt[]>([]);
   const [result,  setResult]  = useState<CalcResult | null>(null);
+  const [conges,  setConges]  = useState<CongesData | null>(null);
   const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -39,6 +41,7 @@ export default function PublicMoisPage() {
       .then(d => {
         if (d.error) { setError(d.error); return; }
         setGarde(d.garde);
+        setConges(d.conges ?? null);
         if (d.moisRec) {
           setMoisRec(d.moisRec);
           setEvts(JSON.parse(d.moisRec.evenementsJson || '[]'));
@@ -66,6 +69,10 @@ export default function PublicMoisPage() {
       evenements:            evts,
     }));
   }, [garde, evts, annee, mois]);
+
+  const prevuReel = (garde?.modele && result)
+    ? buildPrevuReel({ annee, mois, evts, result, modele: garde.modele })
+    : null;
 
   const sickInfo: SickInfo | null = (() => {
     if (!result || result.joursAbsMaladie === 0) return null;
@@ -119,11 +126,53 @@ export default function PublicMoisPage() {
           annee={annee} mois={mois} evts={evts} result={result} statut={statut}
           nomFamA={famA?.nomAffiche} nomFamB={famB?.nomAffiche}
           readonly={true}
+          prevuReel={prevuReel}
         />
+
+        {conges && (conges.cp || conges.repos) && <CongesReadCard conges={conges} />}
 
         {sickInfo && <SickNoteBlock {...sickInfo} variant="nounou" />}
       </div>
     </div>
+  );
+}
+
+function CongesReadCard({ conges }: { conges: CongesData }) {
+  return (
+    <div className="mt-3 bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium text-[var(--dust)] uppercase tracking-wide">
+        🏖 Congés &amp; repos
+      </div>
+      <div className="px-4 py-3">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-[9px] text-[var(--dust)] uppercase tracking-wide">
+              <th className="text-left font-medium pb-1.5">Compte</th>
+              <th className="text-right font-medium pb-1.5">Actuel</th>
+              <th className="text-right font-medium pb-1.5">Posés</th>
+              <th className="text-right font-medium pb-1.5">À acquérir</th>
+              <th className="text-right font-medium pb-1.5">Estimé</th>
+            </tr>
+          </thead>
+          <tbody>
+            {conges.cp    && <CongesRow label="🏖 Congés payés" solde={conges.cp} />}
+            {conges.repos && <CongesRow label="😌 Jours de repos" solde={conges.repos} />}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CongesRow({ label, solde }: { label: string; solde: SoldeCompte }) {
+  return (
+    <tr className="border-t border-[var(--line)]">
+      <td className="py-1.5 text-[var(--ink)] whitespace-nowrap">{label}</td>
+      <td className="text-right font-mono font-medium">{solde.soldeActuel}</td>
+      <td className="text-right font-mono text-[var(--dust)]">{solde.joursPoses}</td>
+      <td className="text-right font-mono text-[var(--dust)]">{solde.aAcquerir}</td>
+      <td className="text-right font-mono font-semibold text-[var(--sage)]">{solde.soldeEstime}</td>
+    </tr>
   );
 }
 

@@ -566,6 +566,16 @@ export type CongesJson = { cp: CompteCP; repos: CompteRepos };
 
 export type SoldeCompte = { soldeActuel: number; joursPoses: number; aAcquerir: number; soldeEstime: number };
 
+/** Lit congesJson en gérant l'ancien format plat (CompteCP au top-level, sans compte repos). */
+export function parseCongesJson(raw: string | null): { cp: CompteCP | null; repos: CompteRepos | null } {
+  if (!raw) return { cp: null, repos: null };
+  const parsed = JSON.parse(raw);
+  if (parsed && typeof parsed === 'object' && 'cp' in parsed) {
+    return { cp: parsed.cp ?? null, repos: parsed.repos ?? null };
+  }
+  return { cp: parsed as CompteCP, repos: null };
+}
+
 type MoisEvtRecord = { annee: number; mois: number; evenementsJson: string };
 
 function monthN(y: number, m: number): number { return y * 12 + m; }
@@ -592,24 +602,23 @@ function joursTypeEntreDates(moisRecords: MoisEvtRecord[], type: string, rangeDe
 
 /**
  * Calcule les 4 colonnes façon Lucca (actuel / posés / à acquérir / estimé).
- * `joursPoses` est compté directement (événements réels entre aujourd'hui et la cible) plutôt que dérivé par
- * différence de `consommeJusqua`, car ce dernier peut repartir à zéro à un renouvellement de cycle (compte repos) :
- * une simple soustraction donnerait alors un delta négatif absurde.
+ *
+ * `soldeActuel` est le brut acquis à ce jour (sans déduire la consommation) : `joursPoses` porte TOUTE la
+ * consommation connue jusqu'à la cible (décompte de départ inclus + événements réels), pour que le décompte de
+ * départ reste visible dans le tableau dès l'initialisation, au lieu d'être absorbé silencieusement.
+ * `aAcquerir` est dérivé à partir des 3 autres valeurs *déjà arrondies* (pas des valeurs brutes) : ça garantit que
+ * l'équation affichée `soldeEstime = soldeActuel − joursPoses + aAcquerir` est exacte, sans écart d'arrondi.
  */
 function soldeCompte(
   acquisA: (refISO: string) => number,
   consommeJusqua: (refISO: string) => number,
-  joursPosesEntre: (todayISO: string, targetFinISO: string) => number,
   todayISO: string, targetFinISO: string,
 ): SoldeCompte {
-  const soldeActuel = acquisA(todayISO) - consommeJusqua(todayISO);
-  const soldeEstime  = acquisA(targetFinISO) - consommeJusqua(targetFinISO);
-  const joursPoses   = joursPosesEntre(todayISO, targetFinISO);
-  const aAcquerir    = soldeEstime - soldeActuel + joursPoses;
-  return {
-    soldeActuel: round1(soldeActuel), joursPoses: round1(joursPoses),
-    aAcquerir: round1(aAcquerir), soldeEstime: round1(soldeEstime),
-  };
+  const soldeActuel = round1(acquisA(todayISO));
+  const joursPoses   = round1(consommeJusqua(targetFinISO));
+  const soldeEstime  = round1(acquisA(targetFinISO) - consommeJusqua(targetFinISO));
+  const aAcquerir    = round1(soldeEstime - soldeActuel + joursPoses);
+  return { soldeActuel, joursPoses, aAcquerir, soldeEstime };
 }
 
 export function calculSoldeCP(config: CompteCP, moisRecords: MoisEvtRecord[], todayISO: string, targetFinISO: string): SoldeCompte {
@@ -618,12 +627,13 @@ export function calculSoldeCP(config: CompteCP, moisRecords: MoisEvtRecord[], to
     if (config.regle === 'semaines' && config.cycleDebut) {
       const [cy, cm] = config.cycleDebut.split('-').map(Number);
       const total   = (config.nbSemaines ?? 5) * 5;
-      const elapsed = Math.max(1, monthN(refY, refM) - monthN(cy, cm) + 1);
+      // Avant le début du cycle, rien n'est encore acquis (0), pas de plancher artificiel.
+      const elapsed = Math.max(0, monthN(refY, refM) - monthN(cy, cm) + 1);
       return Math.min(total, elapsed * (total / 12));
     }
     if (config.regle === 'jours_par_mois' && config.debutSuivi) {
       const [sy, sm] = config.debutSuivi.split('-').map(Number);
-      const elapsed  = Math.max(1, monthN(refY, refM) - monthN(sy, sm) + 1);
+      const elapsed  = Math.max(0, monthN(refY, refM) - monthN(sy, sm) + 1);
       return elapsed * (config.joursParMois ?? 2.5);
     }
     return 0;
@@ -636,9 +646,8 @@ export function calculSoldeCP(config: CompteCP, moisRecords: MoisEvtRecord[], to
     // Le décompte de départ couvre jusqu'à depFinMois inclus — on ne recompte que la suite.
     return dep.jousConso + joursTypeEntreDates(moisRecords, 'conge_paye', dateISO_incr(depFinMois), refISO);
   };
-  const joursPosesEntre = (t: string, f: string) => joursTypeEntreDates(moisRecords, 'conge_paye', dateISO_incr(t), f);
 
-  return soldeCompte(acquisA, consommeJusqua, joursPosesEntre, todayISO, targetFinISO);
+  return soldeCompte(acquisA, consommeJusqua, todayISO, targetFinISO);
 }
 
 export function calculSoldeRepos(config: CompteRepos, moisRecords: MoisEvtRecord[], todayISO: string, targetFinISO: string): SoldeCompte {
@@ -666,9 +675,8 @@ export function calculSoldeRepos(config: CompteRepos, moisRecords: MoisEvtRecord
     const fromDate  = depDansCycle ? dateISO_incr(depFinMois) : cycleStart;
     return baseline + joursTypeEntreDates(moisRecords, 'jour_repos', fromDate, refISO);
   };
-  const joursPosesEntre = (t: string, f: string) => joursTypeEntreDates(moisRecords, 'jour_repos', dateISO_incr(t), f);
 
-  return soldeCompte(acquisA, consommeJusqua, joursPosesEntre, todayISO, targetFinISO);
+  return soldeCompte(acquisA, consommeJusqua, todayISO, targetFinISO);
 }
 
 /** Jour ISO suivant celui donné. */

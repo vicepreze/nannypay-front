@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { calculSoldeCP, calculSoldeRepos, parseCongesJson } from '@/lib/calcul';
 
 type Params = { params: { token: string; annee: string; mois: string } };
+
+function dateISO(d: Date): string {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function finMoisISO(annee: number, mois: number): string {
+  return dateISO(new Date(annee, mois, 0));
+}
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const anneeNum = parseInt(params.annee);
@@ -14,6 +23,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       familles: { select: { label: true, nomAffiche: true } },
       enfants:  { select: { prenom: true, fam: true } },
       modele:   true,
+      mois:     { select: { annee: true, mois: true, evenementsJson: true } },
     },
   });
 
@@ -24,6 +34,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     select: { annee: true, mois: true, statut: true, evenementsJson: true },
   });
 
+  const { cp, repos } = parseCongesJson(garde.congesJson);
+  const todayISO    = dateISO(new Date());
+  const targetFinISO = finMoisISO(anneeNum, moisNum);
+
   return NextResponse.json({
     garde: {
       nom:      garde.nom,
@@ -31,17 +45,22 @@ export async function GET(_req: NextRequest, { params }: Params) {
       familles: garde.familles,
       enfants:  garde.enfants,
       modele:   garde.modele ? {
-        tauxHoraireNet:   garde.modele.tauxHoraireNet,
-        hNormalesSemaine: garde.modele.hNormalesSemaine,
-        hSup25Semaine:    garde.modele.hSup25Semaine,
-        hSup50Semaine:    garde.modele.hSup50Semaine,
-        repartitionA:     garde.modele.repartitionA,
-        navigoMontant:    garde.modele.navigoMontant,
-        indemEntretien:   garde.modele.indemEntretien,
-        indemKm:          garde.modele.indemKm,
-        joursJson:        garde.modele.joursJson,
+        tauxHoraireNet:     garde.modele.tauxHoraireNet,
+        hNormalesSemaine:   garde.modele.hNormalesSemaine,
+        hSup25Semaine:      garde.modele.hSup25Semaine,
+        hSup50Semaine:      garde.modele.hSup50Semaine,
+        repartitionA:       garde.modele.repartitionA,
+        repartitionIndemA:  garde.modele.repartitionIndemA,
+        navigoMontant:      garde.modele.navigoMontant,
+        indemEntretien:     garde.modele.indemEntretien,
+        indemKm:            garde.modele.indemKm,
+        joursJson:          garde.modele.joursJson,
       } : null,
     },
     moisRec,
+    conges: {
+      cp:    cp    ? calculSoldeCP(cp, garde.mois, todayISO, targetFinISO)    : null,
+      repos: repos ? calculSoldeRepos(repos, garde.mois, todayISO, targetFinISO) : null,
+    },
   });
 }

@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  calculerMois, calcHeuresSemaineFromPlanning, calcSalNetMensuel, joursOuvrablesIntersect, joursOffertsMois,
+  calculerMois, calcHeuresSemaineFromPlanning, joursOuvrablesIntersect,
   type Evt, type CalcResult,
 } from '@/lib/calcul';
 import {
-  CalendrierMoisView, frenchHolidays,
-  type PrevuReelData, type MonthEvt, type MonthEvtType, type SickInfo, SickNoteBlock,
+  CalendrierMoisView, buildPrevuReel,
+  type SickInfo, SickNoteBlock,
 } from '@/components/CalendrierMoisView';
 
 const MOIS_LONGS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -195,95 +195,9 @@ export default function MoisPage() {
   const nextMois = mois === 12 ? [annee + 1, 1]  : [annee, mois + 1];
 
   // ── Prévu → Réel ─────────────────────────────────────────────────
-  const prevuReel: PrevuReelData | null = (() => {
-    if (!garde?.modele || !result) return null;
-    const m = garde.modele;
-    const { joursActifsParSemaine } = calcHeuresSemaineFromPlanning(m.joursJson || '{}');
-    const tauxPJ  = (joursActifsParSemaine || 5) / 5;
-    const indemRA = m.repartitionIndemA ?? 0.5;
-    const indemRB = 1 - indemRA;
-
-    const salTotTheo = calcSalNetMensuel(m.hNormalesSemaine, m.hSup25Semaine, m.hSup50Semaine, m.tauxHoraireNet);
-    const theoSalA = Math.round(salTotTheo * m.repartitionA * 100) / 100;
-    const theoSalB = Math.round(salTotTheo * (1 - m.repartitionA) * 100) / 100;
-    const realSalA = result.famA.salNet;
-    const realSalB = result.famB.salNet;
-
-    const indemJourA = tauxPJ * m.indemEntretien * indemRA;
-    const indemJourB = tauxPJ * m.indemEntretien * indemRB;
-    const joursOuv   = result.joursOuv;
-    const theoIndemA = Math.round(joursOuv * indemJourA * 100) / 100;
-    const theoIndemB = Math.round(joursOuv * indemJourB * 100) / 100;
-    const realIndemA = result.famA.entretien;
-    const realIndemB = result.famB.entretien;
-
-    const hasEcart = (
-      theoSalA - realSalA > 0.01 ||
-      theoSalB - realSalB > 0.01 ||
-      theoIndemA - realIndemA > 0.01 ||
-      theoIndemB - realIndemB > 0.01
-    );
-    if (!hasEcart) return null;
-
-    const holidays = frenchHolidays(annee);
-    const monthEvts: MonthEvt[] = [];
-
-    for (const e of evts) {
-      const workingDays = joursOuvrablesIntersect(e.debut, e.fin, annee, mois);
-      if (workingDays === 0) continue;
-      const type = e.type as MonthEvtType;
-
-      if (e.type === 'maladie_nounou') {
-        monthEvts.push({
-          type: 'maladie_nounou', debut: e.debut, fin: e.fin, workingDays,
-          salImpactA: Math.round(theoSalA * (workingDays / joursOuv) * 100) / 100,
-          salImpactB: Math.round(theoSalB * (workingDays / joursOuv) * 100) / 100,
-          indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
-          indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
-        });
-      } else if (e.type === 'conge_paye' || e.type === 'jour_repos') {
-        monthEvts.push({
-          type, debut: e.debut, fin: e.fin, workingDays,
-          salImpactA: 0, salImpactB: 0,
-          indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
-          indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
-        });
-      } else if (type === 'absence_famille_a' || type === 'absence_famille_b') {
-        monthEvts.push({ type, debut: e.debut, fin: e.fin, workingDays, salImpactA: 0, salImpactB: 0, indemImpactA: 0, indemImpactB: 0 });
-      }
-    }
-
-    // Jours fériés tombant un jour ouvré dans le mois
-    const cur = new Date(annee, mois - 1, 1);
-    const end = new Date(annee, mois, 0);
-    while (cur <= end) {
-      const dow = cur.getDay();
-      const ds  = dateStr(cur);
-      if (dow >= 1 && dow <= 5 && holidays.has(ds)) {
-        monthEvts.push({
-          type: 'holiday', debut: ds, fin: ds, workingDays: 1,
-          salImpactA: 0, salImpactB: 0,
-          indemImpactA: Math.round(indemJourA * 100) / 100,
-          indemImpactB: Math.round(indemJourB * 100) / 100,
-        });
-      }
-      cur.setDate(cur.getDate() + 1);
-    }
-
-    // Jours offerts : famille A et famille B absentes le même jour ouvré → entretien non dû
-    for (const ds of joursOffertsMois(evts, annee, mois)) {
-      monthEvts.push({
-        type: 'jour_offert', debut: ds, fin: ds, workingDays: 1,
-        salImpactA: 0, salImpactB: 0,
-        indemImpactA: Math.round(indemJourA * 100) / 100,
-        indemImpactB: Math.round(indemJourB * 100) / 100,
-      });
-    }
-
-    monthEvts.sort((a, b) => a.debut.localeCompare(b.debut));
-
-    return { theoSalA, realSalA, theoSalB, realSalB, theoIndemA, realIndemA, theoIndemB, realIndemB, monthEvts };
-  })();
+  const prevuReel = (garde?.modele && result)
+    ? buildPrevuReel({ annee, mois, evts, result, modele: garde.modele })
+    : null;
 
   // ── Note maladie ─────────────────────────────────────────────────
   const sickInfo: SickInfo | null = (() => {

@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
-import { calculSoldeCP, calculSoldeRepos, type CompteCP, type CompteRepos, type CongesJson } from '@/lib/calcul';
+import { calculSoldeCP, calculSoldeRepos, parseCongesJson, type CompteCP, type CompteRepos, type CongesJson } from '@/lib/calcul';
 
 export type { CompteCP, CompteRepos, CongesJson };
 
@@ -12,17 +12,6 @@ function dateISO(d: Date): string {
 
 function finMoisISO(annee: number, mois: number): string {
   return dateISO(new Date(annee, mois, 0));
-}
-
-/** Lit congesJson en gérant l'ancien format plat (CompteCP au top-level, sans compte repos). */
-function parseCongesJson(raw: string | null): { cp: CompteCP | null; repos: CompteRepos | null } {
-  if (!raw) return { cp: null, repos: null };
-  const parsed = JSON.parse(raw);
-  if (parsed && typeof parsed === 'object' && 'cp' in parsed) {
-    return { cp: parsed.cp ?? null, repos: parsed.repos ?? null };
-  }
-  // Ancien format : CompteCP directement à la racine (regle/nbSemaines/...).
-  return { cp: parsed as CompteCP, repos: null };
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
