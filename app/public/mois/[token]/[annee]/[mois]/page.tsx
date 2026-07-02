@@ -138,12 +138,17 @@ export default function PublicMoisPage() {
 }
 
 function CongesReadCard({ conges }: { conges: CongesData }) {
+  const totalFinMois = Math.round(((conges.cp?.soldeEstime ?? 0) + (conges.repos?.soldeEstime ?? 0)) * 10) / 10;
   return (
     <div className="mt-3 bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
       <div className="px-4 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-medium text-[var(--dust)] uppercase tracking-wide">
         🏖 Congés &amp; repos
       </div>
       <div className="px-4 py-3">
+        <div className="text-xs mb-2.5">
+          <span className="font-semibold text-[var(--sage)]">{totalFinMois} j</span>
+          <span className="text-[var(--dust)] ml-1">disponibles à la fin de ce mois</span>
+        </div>
         <table className="w-full text-xs">
           <thead>
             <tr className="text-[9px] text-[var(--dust)] uppercase tracking-wide">
