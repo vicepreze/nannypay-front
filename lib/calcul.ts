@@ -44,6 +44,7 @@ export interface CalcResult {
   joursAbsRepos:   number;
   joursAbs:        number;
   joursOffert:     number;
+  joursFeries:     number;
   joursTrav:       number;
   ratio:           number;
   hTotalSemaine:   number;
@@ -470,6 +471,58 @@ export function joursOffertsMois(evenements: Evt[], annee: number, mois: number)
   return joursOuvMois.filter(d => famASet.has(d) && famBSet.has(d) && !maladieSet.has(d) && !cpSet.has(d) && !reposSet.has(d));
 }
 
+// ── Jours fériés français ──────────────────────────────────────────
+
+function easterDate(year: number): Date {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day   = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+export function frenchHolidays(year: number): Set<string> {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const ds  = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const add = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
+  const p   = year;
+  const easter = easterDate(year);
+  return new Set([
+    `${p}-01-01`,
+    ds(add(easter, 1)),
+    `${p}-05-01`,
+    `${p}-05-08`,
+    ds(add(easter, 39)),
+    ds(add(easter, 50)),
+    `${p}-07-14`,
+    `${p}-08-15`,
+    `${p}-11-01`,
+    `${p}-11-11`,
+    `${p}-12-25`,
+  ]);
+}
+
+/**
+ * Jours fériés tombant un jour ouvré du mois, hors ceux déjà couverts par une maladie nounou, un congé payé,
+ * un jour de repos ou un jour offert (entretien déjà exclu ailleurs — pas de double déduction).
+ */
+export function joursFeriesMois(evenements: Evt[], annee: number, mois: number): string[] {
+  const joursOuvMois = joursOuvrablesDatesMois(annee, mois);
+  const holidays   = frenchHolidays(annee);
+  const maladieSet = joursCouvertsParType(evenements, 'maladie_nounou', joursOuvMois);
+  const cpSet      = joursCouvertsParType(evenements, 'conge_paye',     joursOuvMois);
+  const reposSet   = joursCouvertsParType(evenements, 'jour_repos',     joursOuvMois);
+  const offertSet  = new Set(joursOffertsMois(evenements, annee, mois));
+  return joursOuvMois.filter(d =>
+    holidays.has(d) && !maladieSet.has(d) && !cpSet.has(d) && !reposSet.has(d) && !offertSet.has(d)
+  );
+}
+
 // ── Calcul principal ──────────────────────────────────────────────
 
 export function calculerMois(input: CalcInput): CalcResult {
@@ -506,11 +559,12 @@ export function calculerMois(input: CalcInput): CalcResult {
 
   const joursAbs    = joursAbsMaladie + joursAbsCP + joursAbsRepos;
   const joursOffert = joursOffertsMois(evenements, annee, mois).length;
+  const joursFeries = joursFeriesMois(evenements, annee, mois).length;
   const joursTrav   = Math.max(0, joursOuv - joursAbsMaladie);
   const ratio       = joursOuv > 0 ? joursTrav / joursOuv : 1;
 
   const tauxPresenceJour   = joursActifsParSemaine > 0 ? joursActifsParSemaine / 5 : 1;
-  const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP - joursAbsRepos - joursOffert);
+  const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP - joursAbsRepos - joursOffert - joursFeries);
 
   function calcFam(qp: number, indemRatio: number, aides: AidesInput | undefined): FamResult {
     const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
@@ -542,7 +596,7 @@ export function calculerMois(input: CalcInput): CalcResult {
   const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
   const hTotalSemaine = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
 
-  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbsRepos, joursAbs, joursOffert, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, racOptionActive };
+  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbsRepos, joursAbs, joursOffert, joursFeries, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, racOptionActive };
 }
 
 // ── Soldes de congés (CP + Jours de repos) ─────────────────────────

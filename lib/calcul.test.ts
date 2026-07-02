@@ -294,7 +294,6 @@ describe('calculerMois', () => {
 
   describe('jour offert (absences A+B simultanées)', () => {
     it('1 jour où A et B sont absentes → entretien réduit d\'1 jour sur les deux familles', () => {
-      const plein  = calculerMois(baseInput());
       const offert = calculerMois({
         ...baseInput(),
         evenements: [
@@ -303,8 +302,8 @@ describe('calculerMois', () => {
         ],
       });
       expect(offert.joursOffert).toBe(1);
-      const joursOuv = offert.joursOuv;
-      const attendu = Math.round((plein.famA.entretien * (joursOuv - 1) / joursOuv) * 100) / 100;
+      // joursEntretienBase = joursOuv(23) − joursFeries(1, jour de l'an) − joursOffert(1) = 21
+      const attendu = Math.round(21 * 6 * 0.5 * 100) / 100;
       expect(offert.famA.entretien).toBeCloseTo(attendu, 2);
       expect(offert.famB.entretien).toBeCloseTo(attendu, 2);
     });
@@ -497,10 +496,10 @@ describe('Scénario 1 — Garde partagée 50/50 avec majorations (avr. 2029, 21 
     expect(result.famB.transport).toBe(45.40);
   });
 
-  it('indemnité d\'entretien : 63,00 € par famille (21 j × 6 € / 2)', () => {
-    // joursEntretienBase = joursOuv − maladie − CP = 21 − 0 − 0 = 21
-    expect(result.famA.entretien).toBe(63.00);
-    expect(result.famB.entretien).toBe(63.00);
+  it('indemnité d\'entretien : 60,00 € par famille (21 j − 1 j férié [lundi de Pâques 02/04] = 20 j × 6 € / 2)', () => {
+    // joursEntretienBase = joursOuv − maladie − CP − férié = 21 − 0 − 0 − 1 = 20
+    expect(result.famA.entretien).toBe(60.00);
+    expect(result.famB.entretien).toBe(60.00);
   });
 
   it('pas d\'indemnité kilométrique', () => {
@@ -618,24 +617,26 @@ describe('Scénario 2 — Garde 60 %/40 % avec majorations (jan. 2025, 23 j.)', 
     expect(result.famB.transport).toBe(45.40);
   });
 
-  it('entretien par défaut (repartitionIndemA = 0.5) : 69 € par famille (23 j × 6 € × 50%)', () => {
+  it('entretien par défaut (repartitionIndemA = 0.5) : 66 € par famille (23 j − 1 j férié [jour de l\'an] = 22 j × 6 € × 50%)', () => {
     // repartitionIndemA est indépendant de qp — défaut 0.5 quelle que soit la répartition salariale
-    // famA : round(23 × 6 × 0.5 × 100) / 100 = 69.00
-    // famB : round(23 × 6 × 0.5 × 100) / 100 = 69.00
-    expect(result.famA.entretien).toBe(69.00);
-    expect(result.famB.entretien).toBe(69.00);
+    // joursEntretienBase = 23 − 1 (01/01) = 22
+    // famA : round(22 × 6 × 0.5 × 100) / 100 = 66.00
+    // famB : round(22 × 6 × 0.5 × 100) / 100 = 66.00
+    expect(result.famA.entretien).toBe(66.00);
+    expect(result.famB.entretien).toBe(66.00);
   });
 
-  it('entretien avec repartitionIndemA = 0.6 : 82,80 € (A) et 55,20 € (B)', () => {
+  it('entretien avec repartitionIndemA = 0.6 : 79,20 € (A) et 52,80 € (B)', () => {
     // Quand repartitionIndemA correspond au ratio salarial, on retrouve l'ancienne logique
-    // famA : round(23 × 6 × 0.6 × 100) / 100 = 82.80
-    // famB : round(23 × 6 × 0.4 × 100) / 100 = 55.20
+    // joursEntretienBase = 22 (23 j − 1 j férié)
+    // famA : round(22 × 6 × 0.6 × 100) / 100 = 79.20
+    // famB : round(22 × 6 × 0.4 × 100) / 100 = 52.80
     const r = calculerMois({ ...input, repartitionIndemA: 0.6 });
-    expect(r.famA.entretien).toBe(82.80);
-    expect(r.famB.entretien).toBe(55.20);
+    expect(r.famA.entretien).toBe(79.20);
+    expect(r.famB.entretien).toBe(52.80);
   });
 
-  it('entretien à 50%, 6 €/j, mai 2026 (21 j ouvrables) → 63 € par famille (multiple de 3 ✓)', () => {
+  it('entretien à 50%, 6 €/j, mai 2026 (21 j ouvrables, 4 j fériés : 01/05, 08/05, Ascension 14/05, lundi de Pentecôte 25/05) → 51 € par famille', () => {
     const r = calculerMois({
       ...input,
       annee: 2026, mois: 5,
@@ -645,11 +646,9 @@ describe('Scénario 2 — Garde 60 %/40 % avec majorations (jan. 2025, 23 j.)', 
       joursActifsParSemaine: 5,
       evenements: [],
     });
-    // 21 j ouvrables × 6 €/j × 50% = 63 €
-    expect(r.famA.entretien).toBe(63.00);
-    expect(r.famB.entretien).toBe(63.00);
-    expect(r.famA.entretien % 3).toBe(0);  // multiple de 3
-    expect(r.famB.entretien % 3).toBe(0);
+    // joursEntretienBase = 21 − 4 = 17 j ouvrés × 6 €/j × 50% = 51 €
+    expect(r.famA.entretien).toBe(51.00);
+    expect(r.famB.entretien).toBe(51.00);
   });
 
   // ── Asymétrie des charges ────────────────────────────────────────────────────

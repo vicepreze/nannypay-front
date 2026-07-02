@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import {
   type Evt, type CalcResult, calculerMois,
   calcSalNetMensuel, calcHeuresSemaineFromPlanning, joursOuvrablesIntersect, joursOffertsMois,
+  frenchHolidays,
 } from '@/lib/calcul';
 import { CongesCard } from '@/components/CongesCard';
 
@@ -11,41 +12,6 @@ const MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oc
 
 function dateStr(d: Date) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
-
-// ── Jours fériés français ──────────────────────────────────────────
-function easterDate(year: number): Date {
-  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
-  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4), k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31);
-  const day   = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(year, month - 1, day);
-}
-
-export function frenchHolidays(year: number): Set<string> {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const ds  = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const add = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
-  const p   = year;
-  const easter = easterDate(year);
-  return new Set([
-    `${p}-01-01`,
-    ds(add(easter, 1)),
-    `${p}-05-01`,
-    `${p}-05-08`,
-    ds(add(easter, 39)),
-    ds(add(easter, 50)),
-    `${p}-07-14`,
-    `${p}-08-15`,
-    `${p}-11-01`,
-    `${p}-11-11`,
-    `${p}-12-25`,
-  ]);
 }
 
 // ── Types exportés ─────────────────────────────────────────────────
