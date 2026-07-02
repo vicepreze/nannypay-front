@@ -41,3 +41,5 @@ next-env.d.ts
 .env
 *.db
 _archive
+.env*
+.claude/settings.json

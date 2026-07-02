@@ -1,8 +1,7 @@
 # PROGRESS.md — nounoulink · Suivi des Travaux
 
-> Dernière mise à jour : 14 juin 2026  
-> Branch active : `calendar-color` (preview Vercel)  
-> Branch principale : `main`
+> Dernière mise à jour : 26 juin 2026  
+> Branch active : `main`
 
 ---
 
@@ -16,6 +15,17 @@
 ---
 
 ## Historique des Livraisons
+
+### ✅ PR #19 — Vue mensuelle : grammaire couleur, Prévu→Réel, absences famille
+**Mergé** : `98ac3f6` (squash, 26 juin 2026) — branch `calendar-color` → `main`
+
+- **Grammaire couleur calendrier** : cellules colorées par `DayType` (worked/cp/sick/holiday/off), détection auto des jours fériés français (algo Pâques grégorien), tags par cellule, heures/jour affichées sur les jours travaillés
+- **Vue mensuelle refactorisée** : sidebar gauche supprimée (invitation/partage/archivage/validation), layout 2 colonnes `[1fr 280px]`
+- **Absences famille A/B** (`absence_famille_a`/`absence_famille_b`) : nouveaux types d'événements, aucun impact financier, **cumulables avec n'importe quel autre événement** (maladie/CP restent mutuellement exclusifs entre eux). Tags affichés sur tous les types de jour, pas seulement `worked`.
+- **Bloc "Prévu → Réel"** dans la sidebar : comparaison salaire net + indemnités entretien (théorique vs réel) par famille, n'apparaît que s'il y a un écart réel. Waterfall des événements du mois avec chips d'impact (`salaire −X €`, `entretien −X €`, `→ IJSS sécu`, `🔒 intact`). Remplace l'ancien bouton "Voir le calcul détaillé"/`DetailedCalcTable`.
+- **Notes maladie CCN IDCC 3239** : vue familles (démarche Cerfa S3201 si arrêt ≥ 4 jours ouvrés consécutifs, sinon note légère) + vue nounou (démarche CPAM/IRCEM), non dismissables
+- **Fix** : `repartitionIndemA` était silencieusement ignoré dans l'appel à `calculerMois` (page privée) — corrigé
+- Helpers exportés : `frenchHolidays` (depuis `CalendrierMoisView`), `joursOuvrablesIntersect` (depuis `lib/calcul`)
 
 ### ✅ #7–8 — Blog SEO + Premier article
 Création structure blog + article "calculer le salaire d'une nounou en garde partagée".
@@ -52,23 +62,7 @@ Suppression prop `totalRac` de `FamPreview` (inutilisée).
 
 ## En Cours
 
-### 🟡 `calendar-color` — Vue mensuelle + grammaire couleur
-**Commits** : `dc5971b`, `9539af9`, `1037e80`  
-**Preview Vercel** : déployée ✅ (build passé après 2 rounds de fix ESLint)
-
-**Ce qui a changé :**
-- `app/gardes/[id]/mois/[annee]/[mois]/page.tsx` : sidebar gauche supprimée entièrement (invitation, partage, archivage, validation). Layout 2 colonnes `[1fr 280px]`.
-- `components/CalendrierMoisView.tsx` : 
-  - Grammaire couleur complète (`DayType`: worked / cp / sick / holiday / off)
-  - Détection automatique des jours fériés français (algo Pâques grégorien + 11 fériés)
-  - Tags dans chaque cellule
-  - Affichage heures/jour sur les jours travaillés (`heuresParJour`, badge `+` si heures sup)
-  - Props supprimées : `jaValide`, `saving`, `monLabel`, `onValider`, `racOptionActive`
-  - Props ajoutées : `heuresParJour?: number | null`, `hasOvertime?: boolean`
-  - Bannière stats (Résumé), carte Validation, lignes RAC — **supprimées**
-
-**À faire avant merge :**
-- [ ] Créer la PR `calendar-color` → `main`
+_Rien en cours — dernier lot livré ci-dessous._
 
 ---
 
