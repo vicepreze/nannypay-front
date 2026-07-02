@@ -9,6 +9,7 @@ import {
   calculerMois,
   ciPlafondMensuel,
   estimerCMG2025,
+  joursOffertsMois,
 } from './calcul';
 import type { CalcInput } from './calcul';
 
@@ -284,6 +285,72 @@ describe('calculerMois', () => {
     expect(cp.famA.salNet).toBeCloseTo(plein.famA.salNet, 2);
     // Indemnité d'entretien réduite (joursCP exclus)
     expect(cp.famA.entretien).toBeLessThan(plein.famA.entretien);
+  });
+
+  // ── Jour offert (absences A+B simultanées) ──
+
+  describe('jour offert (absences A+B simultanées)', () => {
+    it('1 jour où A et B sont absentes → entretien réduit d\'1 jour sur les deux familles', () => {
+      const plein  = calculerMois(baseInput());
+      const offert = calculerMois({
+        ...baseInput(),
+        evenements: [
+          { type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-06' },
+          { type: 'absence_famille_b', debut: '2025-01-06', fin: '2025-01-06' },
+        ],
+      });
+      expect(offert.joursOffert).toBe(1);
+      const joursOuv = offert.joursOuv;
+      const attendu = Math.round((plein.famA.entretien * (joursOuv - 1) / joursOuv) * 100) / 100;
+      expect(offert.famA.entretien).toBeCloseTo(attendu, 2);
+      expect(offert.famB.entretien).toBeCloseTo(attendu, 2);
+    });
+
+    it('chevauchement partiel (A lun-mer, B mar-jeu) → seuls mar/mer comptent comme offerts', () => {
+      const r = calculerMois({
+        ...baseInput(),
+        evenements: [
+          { type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-08' }, // lun-mer
+          { type: 'absence_famille_b', debut: '2025-01-07', fin: '2025-01-09' }, // mar-jeu
+        ],
+      });
+      expect(r.joursOffert).toBe(2); // mar (07) + mer (08)
+      expect(joursOffertsMois(
+        [
+          { type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-08' },
+          { type: 'absence_famille_b', debut: '2025-01-07', fin: '2025-01-09' },
+        ],
+        2025, 1,
+      )).toEqual(['2025-01-07', '2025-01-08']);
+    });
+
+    it('A absente seule (B présente) : aucun impact sur l\'entretien', () => {
+      const plein = calculerMois(baseInput());
+      const r = calculerMois({
+        ...baseInput(),
+        evenements: [{ type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-10' }],
+      });
+      expect(r.joursOffert).toBe(0);
+      expect(r.famA.entretien).toBeCloseTo(plein.famA.entretien, 2);
+      expect(r.famB.entretien).toBeCloseTo(plein.famB.entretien, 2);
+    });
+
+    it('jour offert qui coïncide avec une maladie nounou : pas de double déduction', () => {
+      const maladieSeule = calculerMois({
+        ...baseInput(),
+        evenements: [{ type: 'maladie_nounou', debut: '2025-01-06', fin: '2025-01-06' }],
+      });
+      const maladieEtOffert = calculerMois({
+        ...baseInput(),
+        evenements: [
+          { type: 'maladie_nounou',    debut: '2025-01-06', fin: '2025-01-06' },
+          { type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-06' },
+          { type: 'absence_famille_b', debut: '2025-01-06', fin: '2025-01-06' },
+        ],
+      });
+      expect(maladieEtOffert.joursOffert).toBe(0); // exclu car déjà maladie
+      expect(maladieEtOffert.famA.entretien).toBeCloseTo(maladieSeule.famA.entretien, 2);
+    });
   });
 
   // ── Charges ──

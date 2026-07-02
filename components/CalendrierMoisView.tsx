@@ -46,7 +46,7 @@ export function frenchHolidays(year: number): Set<string> {
 }
 
 // ── Types exportés ─────────────────────────────────────────────────
-export type MonthEvtType = 'maladie_nounou' | 'conge_paye' | 'absence_famille_a' | 'absence_famille_b' | 'holiday';
+export type MonthEvtType = 'maladie_nounou' | 'conge_paye' | 'absence_famille_a' | 'absence_famille_b' | 'holiday' | 'jour_offert';
 
 export interface MonthEvt {
   type: MonthEvtType;
@@ -106,7 +106,12 @@ function tagsForDay(dt: DayType, famAAbsent = false, famBAbsent = false): TagDef
     case 'holiday': tags.push({ label: 'férié',      extra: { background: '#D3D1C7', color: '#444441' } }); break;
     case 'off':     return [];
   }
-  // Les absences famille sont cumulables : affichées en plus, quel que soit le type de jour.
+  // Absences famille A+B le même jour travaillé → jour offert (entretien non dû), tag combiné.
+  if (dt === 'worked' && famAAbsent && famBAbsent) {
+    tags.push({ label: 'jour offert', extra: { background: '#EDD99A', color: '#633806' } });
+    return tags;
+  }
+  // Sinon, cumulables : affichées en plus, quel que soit le type de jour.
   if (famAAbsent) tags.push({ label: 'absence A', extra: { background: '#185FA5', color: '#fff' } });
   if (famBAbsent) tags.push({ label: 'absence B', extra: { background: '#E6F1FB', color: '#0C447C', border: '0.5px solid #85B7EB' } });
   return tags;
@@ -359,6 +364,7 @@ const EVT_DOT: Record<MonthEvtType, string> = {
   absence_famille_a: '#185FA5',
   absence_famille_b: '#85B7EB',
   holiday:           '#D3D1C7',
+  jour_offert:       '#EDD99A',
 };
 
 const EVT_LABEL: Record<MonthEvtType, string> = {
@@ -367,6 +373,7 @@ const EVT_LABEL: Record<MonthEvtType, string> = {
   absence_famille_a: '👶 Absent Fam. A',
   absence_famille_b: '👶 Absent Fam. B',
   holiday:           '📅 Jour férié',
+  jour_offert:       '🎁 Jour offert',
 };
 
 function fmtRange(debut: string, fin: string): string {
@@ -497,6 +504,9 @@ function WaterfallRow({ evt }: { evt: MonthEvt }) {
   } else if (evt.type === 'absence_famille_a' || evt.type === 'absence_famille_b') {
     chips.push(<Chip key="sal" label="🔒 salaire intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
     chips.push(<Chip key="ind" label="🔒 entretien intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
+  } else if (evt.type === 'jour_offert') {
+    chips.push(<Chip key="sal" label="🔒 salaire intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
+    chips.push(<Chip key="ind" label={`entretien −${(evt.indemImpactA + evt.indemImpactB).toFixed(0)} €`} style={{ background: '#FDF3E0', color: '#633806' }} />);
   } else if (evt.type === 'holiday') {
     chips.push(<Chip key="sal" label="🔒 salaire intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
     chips.push(<Chip key="ind" label={`entretien −${(evt.indemImpactA + evt.indemImpactB).toFixed(0)} €`} style={{ background: '#FDF3E0', color: '#633806' }} />);

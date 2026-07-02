@@ -42,6 +42,7 @@ export interface CalcResult {
   joursAbsMaladie: number;
   joursAbsCP:      number;
   joursAbs:        number;
+  joursOffert:     number;
   joursTrav:       number;
   ratio:           number;
   hTotalSemaine:   number;
@@ -422,6 +423,46 @@ export function joursOuvrablesIntersect(debut: string, fin: string, annee: numbe
   return nb;
 }
 
+function dateISO(d: Date): string {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function joursOuvrablesDatesMois(annee: number, mois: number): string[] {
+  const dates: string[] = [];
+  const cur = new Date(annee, mois - 1, 1);
+  const fin = new Date(annee, mois, 0);
+  while (cur <= fin) {
+    const d = cur.getDay();
+    if (d >= 1 && d <= 5) dates.push(dateISO(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+function joursCouvertsParType(evenements: Evt[], type: string, joursOuvMois: string[]): Set<string> {
+  const set = new Set<string>();
+  for (const e of evenements) {
+    if (e.type !== type) continue;
+    for (const d of joursOuvMois) {
+      if (d >= e.debut && d <= e.fin) set.add(d);
+    }
+  }
+  return set;
+}
+
+/**
+ * Jours ouvrables où la famille A ET la famille B sont absentes le même jour (« jour offert »).
+ * Exclut les jours déjà couverts par une maladie nounou ou un congé payé (entretien déjà exclu ailleurs).
+ */
+export function joursOffertsMois(evenements: Evt[], annee: number, mois: number): string[] {
+  const joursOuvMois = joursOuvrablesDatesMois(annee, mois);
+  const maladieSet = joursCouvertsParType(evenements, 'maladie_nounou',    joursOuvMois);
+  const cpSet      = joursCouvertsParType(evenements, 'conge_paye',        joursOuvMois);
+  const famASet    = joursCouvertsParType(evenements, 'absence_famille_a', joursOuvMois);
+  const famBSet    = joursCouvertsParType(evenements, 'absence_famille_b', joursOuvMois);
+  return joursOuvMois.filter(d => famASet.has(d) && famBSet.has(d) && !maladieSet.has(d) && !cpSet.has(d));
+}
+
 // ── Calcul principal ──────────────────────────────────────────────
 
 export function calculerMois(input: CalcInput): CalcResult {
@@ -452,12 +493,13 @@ export function calculerMois(input: CalcInput): CalcResult {
     .filter(e => e.type === 'conge_paye')
     .reduce((acc, e) => acc + joursOuvrablesIntersect(e.debut, e.fin, annee, mois), 0);
 
-  const joursAbs  = joursAbsMaladie + joursAbsCP;
-  const joursTrav = Math.max(0, joursOuv - joursAbsMaladie);
-  const ratio     = joursOuv > 0 ? joursTrav / joursOuv : 1;
+  const joursAbs    = joursAbsMaladie + joursAbsCP;
+  const joursOffert = joursOffertsMois(evenements, annee, mois).length;
+  const joursTrav   = Math.max(0, joursOuv - joursAbsMaladie);
+  const ratio       = joursOuv > 0 ? joursTrav / joursOuv : 1;
 
   const tauxPresenceJour   = joursActifsParSemaine > 0 ? joursActifsParSemaine / 5 : 1;
-  const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP);
+  const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP - joursOffert);
 
   function calcFam(qp: number, indemRatio: number, aides: AidesInput | undefined): FamResult {
     const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
@@ -489,5 +531,5 @@ export function calculerMois(input: CalcInput): CalcResult {
   const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
   const hTotalSemaine = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
 
-  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbs, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, racOptionActive };
+  return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbs, joursOffert, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, racOptionActive };
 }

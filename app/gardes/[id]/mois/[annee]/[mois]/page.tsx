@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  calculerMois, calcHeuresSemaineFromPlanning, calcSalNetMensuel, joursOuvrablesIntersect,
+  calculerMois, calcHeuresSemaineFromPlanning, calcSalNetMensuel, joursOuvrablesIntersect, joursOffertsMois,
   type Evt, type CalcResult,
 } from '@/lib/calcul';
 import {
@@ -242,6 +242,16 @@ export default function MoisPage() {
         });
       }
       cur.setDate(cur.getDate() + 1);
+    }
+
+    // Jours offerts : famille A et famille B absentes le même jour ouvré → entretien non dû
+    for (const ds of joursOffertsMois(evts, annee, mois)) {
+      monthEvts.push({
+        type: 'jour_offert', debut: ds, fin: ds, workingDays: 1,
+        salImpactA: 0, salImpactB: 0,
+        indemImpactA: Math.round(indemJourA * 100) / 100,
+        indemImpactB: Math.round(indemJourB * 100) / 100,
+      });
     }
 
     monthEvts.sort((a, b) => a.debut.localeCompare(b.debut));
