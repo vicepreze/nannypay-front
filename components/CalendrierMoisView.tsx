@@ -1,7 +1,11 @@
 'use client';
 
 import { useCallback } from 'react';
-import { type Evt, type CalcResult, calculerMois } from '@/lib/calcul';
+import {
+  type Evt, type CalcResult, calculerMois,
+  calcSalNetMensuel, calcHeuresSemaineFromPlanning, joursOuvrablesIntersect, joursOffertsMois,
+  frenchHolidays,
+} from '@/lib/calcul';
 import { CongesCard } from '@/components/CongesCard';
 
 const MOIS_COURTS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
@@ -10,43 +14,8 @@ function dateStr(d: Date) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-// ── Jours fériés français ──────────────────────────────────────────
-function easterDate(year: number): Date {
-  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
-  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4), k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31);
-  const day   = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(year, month - 1, day);
-}
-
-export function frenchHolidays(year: number): Set<string> {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const ds  = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const add = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
-  const p   = year;
-  const easter = easterDate(year);
-  return new Set([
-    `${p}-01-01`,
-    ds(add(easter, 1)),
-    `${p}-05-01`,
-    `${p}-05-08`,
-    ds(add(easter, 39)),
-    ds(add(easter, 50)),
-    `${p}-07-14`,
-    `${p}-08-15`,
-    `${p}-11-01`,
-    `${p}-11-11`,
-    `${p}-12-25`,
-  ]);
-}
-
 // ── Types exportés ─────────────────────────────────────────────────
-export type MonthEvtType = 'maladie_nounou' | 'conge_paye' | 'absence_famille_a' | 'absence_famille_b' | 'holiday';
+export type MonthEvtType = 'maladie_nounou' | 'conge_paye' | 'jour_repos' | 'absence_famille_a' | 'absence_famille_b' | 'holiday' | 'jour_offert';
 
 export interface MonthEvt {
   type: MonthEvtType;
@@ -72,12 +41,116 @@ export interface SickInfo {
   sickDaysConsecutive: number;
 }
 
+export interface PrevuReelModele {
+  hNormalesSemaine: number;
+  hSup25Semaine:    number;
+  hSup50Semaine:    number;
+  tauxHoraireNet:   number;
+  repartitionA:     number;
+  indemEntretien:   number;
+  repartitionIndemA?: number;
+  joursJson:        string;
+}
+
+/** Compare le prévu (théorique, d'après le modèle) au réel (calculé avec les événements du mois) — n'apparaît que s'il y a un écart. */
+export function buildPrevuReel(params: {
+  annee: number; mois: number; evts: Evt[]; result: CalcResult; modele: PrevuReelModele;
+}): PrevuReelData | null {
+  const { annee, mois, evts, result, modele: m } = params;
+  const { joursActifsParSemaine } = calcHeuresSemaineFromPlanning(m.joursJson || '{}');
+  const tauxPJ  = (joursActifsParSemaine || 5) / 5;
+  const indemRA = m.repartitionIndemA ?? 0.5;
+  const indemRB = 1 - indemRA;
+
+  const salTotTheo = calcSalNetMensuel(m.hNormalesSemaine, m.hSup25Semaine, m.hSup50Semaine, m.tauxHoraireNet);
+  const theoSalA = Math.round(salTotTheo * m.repartitionA * 100) / 100;
+  const theoSalB = Math.round(salTotTheo * (1 - m.repartitionA) * 100) / 100;
+  const realSalA = result.famA.salNet;
+  const realSalB = result.famB.salNet;
+
+  const indemJourA = tauxPJ * m.indemEntretien * indemRA;
+  const indemJourB = tauxPJ * m.indemEntretien * indemRB;
+  const joursOuv   = result.joursOuv;
+  const theoIndemA = Math.round(joursOuv * indemJourA * 100) / 100;
+  const theoIndemB = Math.round(joursOuv * indemJourB * 100) / 100;
+  const realIndemA = result.famA.entretien;
+  const realIndemB = result.famB.entretien;
+
+  const hasEcart = (
+    theoSalA - realSalA > 0.01 ||
+    theoSalB - realSalB > 0.01 ||
+    theoIndemA - realIndemA > 0.01 ||
+    theoIndemB - realIndemB > 0.01
+  );
+  if (!hasEcart) return null;
+
+  const holidays = frenchHolidays(annee);
+  const monthEvts: MonthEvt[] = [];
+
+  for (const e of evts) {
+    const workingDays = joursOuvrablesIntersect(e.debut, e.fin, annee, mois);
+    if (workingDays === 0) continue;
+    const type = e.type as MonthEvtType;
+
+    if (e.type === 'maladie_nounou') {
+      monthEvts.push({
+        type: 'maladie_nounou', debut: e.debut, fin: e.fin, workingDays,
+        salImpactA: Math.round(theoSalA * (workingDays / joursOuv) * 100) / 100,
+        salImpactB: Math.round(theoSalB * (workingDays / joursOuv) * 100) / 100,
+        indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
+        indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
+      });
+    } else if (e.type === 'conge_paye' || e.type === 'jour_repos') {
+      monthEvts.push({
+        type, debut: e.debut, fin: e.fin, workingDays,
+        salImpactA: 0, salImpactB: 0,
+        indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
+        indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
+      });
+    } else if (type === 'absence_famille_a' || type === 'absence_famille_b') {
+      monthEvts.push({ type, debut: e.debut, fin: e.fin, workingDays, salImpactA: 0, salImpactB: 0, indemImpactA: 0, indemImpactB: 0 });
+    }
+  }
+
+  // Jours fériés tombant un jour ouvré dans le mois
+  const cur = new Date(annee, mois - 1, 1);
+  const end = new Date(annee, mois, 0);
+  while (cur <= end) {
+    const dow = cur.getDay();
+    const ds  = dateStr(cur);
+    if (dow >= 1 && dow <= 5 && holidays.has(ds)) {
+      monthEvts.push({
+        type: 'holiday', debut: ds, fin: ds, workingDays: 1,
+        salImpactA: 0, salImpactB: 0,
+        indemImpactA: Math.round(indemJourA * 100) / 100,
+        indemImpactB: Math.round(indemJourB * 100) / 100,
+      });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  // Jours offerts : famille A et famille B absentes le même jour ouvré → entretien non dû
+  for (const ds of joursOffertsMois(evts, annee, mois)) {
+    monthEvts.push({
+      type: 'jour_offert', debut: ds, fin: ds, workingDays: 1,
+      salImpactA: 0, salImpactB: 0,
+      indemImpactA: Math.round(indemJourA * 100) / 100,
+      indemImpactB: Math.round(indemJourB * 100) / 100,
+    });
+  }
+
+  monthEvts.sort((a, b) => a.debut.localeCompare(b.debut));
+
+  return { theoSalA, realSalA, theoSalB, realSalB, theoIndemA, realIndemA, theoIndemB, realIndemB, monthEvts };
+}
+
 // ── Grammaire couleur ──────────────────────────────────────────────
-type DayType = 'worked' | 'cp' | 'sick' | 'holiday' | 'off';
+type DayType = 'worked' | 'cp' | 'repos' | 'sick' | 'holiday' | 'off';
 
 const CELL_STYLE: Record<DayType, React.CSSProperties> = {
   worked:  { background: '#EAF3DE', border: '0.5px solid #C0DD97' },
   cp:      { background: '#FCE8F3', border: '0.5px solid #F4C0D1' },
+  repos:   { background: '#EAE7FB', border: '0.5px solid #C7C2F0' },
   sick:    { background: '#FCEBEB', border: '0.5px solid #F09595' },
   holiday: { background: '#F1EFE8', border: '0.5px solid #D3D1C7' },
   off:     { background: 'var(--paper)', border: '0.5px solid var(--line)', opacity: 0.35 },
@@ -86,6 +159,7 @@ const CELL_STYLE: Record<DayType, React.CSSProperties> = {
 const DAY_NUM_COLOR: Record<DayType, string> = {
   worked:  '#27500A',
   cp:      '#72243E',
+  repos:   '#3D3579',
   sick:    '#791F1F',
   holiday: '#444441',
   off:     'var(--dust)',
@@ -102,11 +176,17 @@ function tagsForDay(dt: DayType, famAAbsent = false, famBAbsent = false): TagDef
   switch (dt) {
     case 'worked':  tags.push({ label: 'travaillé',  extra: { background: 'transparent', color: '#3B6D11', border: '0.5px solid #3B6D11' } }); break;
     case 'cp':      tags.push({ label: 'congé payé', extra: { background: '#F4C0D1', color: '#72243E' } }); break;
+    case 'repos':   tags.push({ label: 'jour de repos', extra: { background: '#C7C2F0', color: '#3D3579' } }); break;
     case 'sick':    tags.push({ label: 'maladie',    extra: { background: '#FAEEDA', color: '#633806' } }); break;
     case 'holiday': tags.push({ label: 'férié',      extra: { background: '#D3D1C7', color: '#444441' } }); break;
     case 'off':     return [];
   }
-  // Les absences famille sont cumulables : affichées en plus, quel que soit le type de jour.
+  // Absences famille A+B le même jour travaillé → jour offert (entretien non dû), tag combiné.
+  if (dt === 'worked' && famAAbsent && famBAbsent) {
+    tags.push({ label: 'jour offert', extra: { background: '#EDD99A', color: '#633806' } });
+    return tags;
+  }
+  // Sinon, cumulables : affichées en plus, quel que soit le type de jour.
   if (famAAbsent) tags.push({ label: 'absence A', extra: { background: '#185FA5', color: '#fff' } });
   if (famBAbsent) tags.push({ label: 'absence B', extra: { background: '#E6F1FB', color: '#0C447C', border: '0.5px solid #85B7EB' } });
   return tags;
@@ -181,6 +261,7 @@ export function CalendrierMoisView({
 
           if (holidays.has(ds))                                    dayType = 'holiday';
           else if (absEvts.some(e => e.type === 'conge_paye'))     dayType = 'cp';
+          else if (absEvts.some(e => e.type === 'jour_repos'))     dayType = 'repos';
           else if (absEvts.some(e => e.type === 'maladie_nounou')) dayType = 'sick';
           else                                                      dayType = 'worked';
         }
@@ -260,12 +341,14 @@ export function CalendrierMoisView({
                 : `${d1} ${MOIS_COURTS[mo1-1]} → ${d2} ${MOIS_COURTS[mo2-1]}`;
               const evtLabel: Record<string, string> = {
                 conge_paye:        '🏖 Congé payé',
+                jour_repos:        '😌 Jour de repos',
                 maladie_nounou:    '🤒 Maladie',
                 absence_famille_a: '👶 Absent Fam. A',
                 absence_famille_b: '👶 Absent Fam. B',
               };
               const evtColor: Record<string, string> = {
                 conge_paye:        'bg-blue-100 text-blue-700',
+                jour_repos:        'bg-[#EAE7FB] text-[#3D3579]',
                 maladie_nounou:    'bg-red-100 text-red-700',
                 absence_famille_a: 'bg-[#E6F1FB] text-[#0C447C]',
                 absence_famille_b: 'bg-[#E6F1FB] text-[#0C447C]',
@@ -288,7 +371,7 @@ export function CalendrierMoisView({
         {/* CongesCard — privé seulement */}
         {!readonly && gardeId && (
           <div className="mt-3">
-            <CongesCard gardeId={gardeId} annee={annee} mois={mois} cpThisMonth={result?.joursAbsCP ?? 0} refreshKey={evtsSaveCount} />
+            <CongesCard gardeId={gardeId} annee={annee} mois={mois} refreshKey={evtsSaveCount} />
           </div>
         )}
       </div>
@@ -356,17 +439,21 @@ function ResultCard({ label, nom, r }: {
 const EVT_DOT: Record<MonthEvtType, string> = {
   maladie_nounou:    '#F09595',
   conge_paye:        '#F4C0D1',
+  jour_repos:        '#C7C2F0',
   absence_famille_a: '#185FA5',
   absence_famille_b: '#85B7EB',
   holiday:           '#D3D1C7',
+  jour_offert:       '#EDD99A',
 };
 
 const EVT_LABEL: Record<MonthEvtType, string> = {
   maladie_nounou:    '🤒 Maladie',
   conge_paye:        '🏖 Congé payé',
+  jour_repos:        '😌 Jour de repos',
   absence_famille_a: '👶 Absent Fam. A',
   absence_famille_b: '👶 Absent Fam. B',
   holiday:           '📅 Jour férié',
+  jour_offert:       '🎁 Jour offert',
 };
 
 function fmtRange(debut: string, fin: string): string {
@@ -491,12 +578,15 @@ function WaterfallRow({ evt }: { evt: MonthEvt }) {
     chips.push(<Chip key="sal" label={`salaire −${(evt.salImpactA + evt.salImpactB).toFixed(0)} €`} style={{ background: '#FCEBEB', color: '#A32D2D' }} />);
     chips.push(<Chip key="ind" label={`entretien −${(evt.indemImpactA + evt.indemImpactB).toFixed(0)} €`} style={{ background: '#FDF3E0', color: '#633806' }} />);
     chips.push(<Chip key="ijss" label="→ IJSS sécu" style={{ background: '#E6F1FB', color: '#0C447C' }} />);
-  } else if (evt.type === 'conge_paye') {
+  } else if (evt.type === 'conge_paye' || evt.type === 'jour_repos') {
     chips.push(<Chip key="sal" label="🔒 salaire intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
     chips.push(<Chip key="ind" label={`entretien −${(evt.indemImpactA + evt.indemImpactB).toFixed(0)} €`} style={{ background: '#FDF3E0', color: '#633806' }} />);
   } else if (evt.type === 'absence_famille_a' || evt.type === 'absence_famille_b') {
     chips.push(<Chip key="sal" label="🔒 salaire intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
     chips.push(<Chip key="ind" label="🔒 entretien intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
+  } else if (evt.type === 'jour_offert') {
+    chips.push(<Chip key="sal" label="🔒 salaire intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
+    chips.push(<Chip key="ind" label={`entretien −${(evt.indemImpactA + evt.indemImpactB).toFixed(0)} €`} style={{ background: '#FDF3E0', color: '#633806' }} />);
   } else if (evt.type === 'holiday') {
     chips.push(<Chip key="sal" label="🔒 salaire intact" style={{ background: 'var(--paper)', color: 'var(--dust)', border: '0.5px solid var(--line)' }} />);
     chips.push(<Chip key="ind" label={`entretien −${(evt.indemImpactA + evt.indemImpactB).toFixed(0)} €`} style={{ background: '#FDF3E0', color: '#633806' }} />);
