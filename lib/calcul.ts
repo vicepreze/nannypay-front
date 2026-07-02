@@ -587,6 +587,11 @@ function finMoisISO(annee: number, mois: number): string {
   return `${annee}-${String(mois).padStart(2, '0')}-${String(new Date(annee, mois, 0).getDate()).padStart(2, '0')}`;
 }
 
+/** Premier jour ISO du mois de référence d'un décompte de départ (ex: {2026,4} → "2026-04-01"). */
+function debutMoisISO(annee: number, mois: number): string {
+  return `${annee}-${String(mois).padStart(2, '0')}-01`;
+}
+
 /** Jours d'un type d'événement donné, ouvrés, entre deux dates ISO (bornes incluses), tous mois confondus. */
 function joursTypeEntreDates(moisRecords: MoisEvtRecord[], type: string, rangeDebut: string, rangeFin: string): number {
   let nb = 0;
@@ -643,13 +648,16 @@ function calculSoldeCycle(config: CycleGrantConfig, moisRecords: MoisEvtRecord[]
   const acquisA = (): number => config.total;
 
   const dep = config.decompteDepart;
-  const depFinMois = finMoisISO(dep.annee, dep.mois);
+  const depFinMois   = finMoisISO(dep.annee, dep.mois);
+  const depDebutMois = debutMoisISO(dep.annee, dep.mois);
   const consommeJusqua = (refISO: string): number => {
     const cycleStart = cycleStartFor(refISO);
     // Le décompte de départ ne compte que s'il tombe dans le même cycle que refISO — sinon il a été remis à zéro.
     const depDansCycle = depFinMois >= cycleStart;
     const baseline  = depDansCycle ? dep.jousConso : 0;
-    const fromDate  = depDansCycle ? dateISO_incr(depFinMois) : cycleStart;
+    // On ne recompte que les événements réels des mois STRICTEMENT avant le mois de référence : ceux du mois de
+    // référence lui-même doivent rester comptés normalement (ex: un congé posé plus tard dans ce même mois).
+    const fromDate  = depDansCycle ? depDebutMois : cycleStart;
     return baseline + joursTypeEntreDates(moisRecords, evtType, fromDate, refISO);
   };
 
@@ -674,11 +682,12 @@ export function calculSoldeCP(config: CompteCP, moisRecords: MoisEvtRecord[], to
   };
 
   const dep = config.decompteDepart;
-  const depFinMois = finMoisISO(dep.annee, dep.mois);
+  const depDebutMois = debutMoisISO(dep.annee, dep.mois);
   const consommeJusqua = (refISO: string): number => {
-    if (refISO <= depFinMois) return dep.jousConso;
-    // Le décompte de départ couvre jusqu'à depFinMois inclus — on ne recompte que la suite.
-    return dep.jousConso + joursTypeEntreDates(moisRecords, 'conge_paye', dateISO_incr(depFinMois), refISO);
+    if (refISO < depDebutMois) return dep.jousConso;
+    // On ne recompte que les événements réels des mois STRICTEMENT avant le mois de référence : ceux du mois de
+    // référence lui-même doivent rester comptés normalement (ex: un congé posé plus tard dans ce même mois).
+    return dep.jousConso + joursTypeEntreDates(moisRecords, 'conge_paye', depDebutMois, refISO);
   };
 
   return soldeCompte(acquisA, consommeJusqua, todayISO, targetFinISO);
@@ -689,10 +698,4 @@ export function calculSoldeRepos(config: CompteRepos, moisRecords: MoisEvtRecord
     { total: config.totalAnnuel, cycleDebut: config.cycleDebut, decompteDepart: config.decompteDepart },
     moisRecords, 'jour_repos', todayISO, targetFinISO,
   );
-}
-
-/** Jour ISO suivant celui donné. */
-function dateISO_incr(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return dateISO(new Date(y, m - 1, d + 1));
 }

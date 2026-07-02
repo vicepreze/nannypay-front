@@ -988,6 +988,22 @@ describe('calculSoldeCP — regle "semaines" : octroi complet par cycle (comme l
     expect(r.soldeEstime).toBeCloseTo(r.soldeInitial - r.joursPoses + r.aAcquerir, 10);
   });
 
+  it('régression : un congé payé posé dans le mois de référence du décompte de départ reste compté (ne doit pas disparaître)', () => {
+    // Bug observé : le mois de référence du décompte de départ est souvent le mois courant (valeur par défaut du
+    // formulaire de réglages). Un congé payé posé plus tard dans ce même mois disparaissait silencieusement du
+    // tableau au lieu de s'ajouter au décompte manuel.
+    const configDecompteMoisCourant: CompteCP = {
+      ...config,
+      decompteDepart: { annee: 2026, mois: 7, jousConso: 10 },
+    };
+    const moisRecords = [
+      { annee: 2026, mois: 7, evenementsJson: JSON.stringify([{ type: 'conge_paye', debut: '2026-07-22', fin: '2026-07-22' }]) },
+    ];
+    const r = calculSoldeCP(configDecompteMoisCourant, moisRecords, '2026-07-02', '2026-07-31');
+    expect(r.joursPoses).toBe(11); // 10 (décompte) + 1 (congé du 22 juillet, mercredi)
+    expect(r.soldeEstime).toBe(14); // 25 − 11
+  });
+
   it('renouvellement de cycle : "aujourd\'hui" avant l\'ancre configurée retombe correctement dans le cycle précédent', () => {
     // cycleDebut dans le futur proche (comme un cycle déjà en cours configuré après coup) : "aujourd'hui"
     // doit être rattaché au cycle N-1, pas traité comme "avant tout cycle".
