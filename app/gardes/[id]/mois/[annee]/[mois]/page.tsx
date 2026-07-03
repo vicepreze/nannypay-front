@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  calculerMois, calcHeuresSemaineFromPlanning, calcSalNetMensuel, joursOuvrablesIntersect,
+  calculerMois, calcHeuresSemaineFromPlanning, joursOuvrablesIntersect,
   type Evt, type CalcResult,
 } from '@/lib/calcul';
 import {
-  CalendrierMoisView, frenchHolidays,
-  type PrevuReelData, type MonthEvt, type MonthEvtType, type SickInfo, SickNoteBlock,
+  CalendrierMoisView, buildPrevuReel,
+  type SickInfo, SickNoteBlock,
 } from '@/components/CalendrierMoisView';
 
 const MOIS_LONGS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -57,6 +57,8 @@ export default function MoisPage() {
   const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [evtsSaveCount, setEvtsSaveCount] = useState(0);
+  const [sharing,      setSharing]      = useState(false);
+  const [shareFeedback, setShareFeedback] = useState('');
 
   // Modal event
   const [modalOpen,  setModalOpen]  = useState(false);
@@ -146,6 +148,30 @@ export default function MoisPage() {
     setEvts(newEvts); sauvegarderEvts(newEvts);
   }
 
+  async function partagerMois() {
+    if (!garde) return;
+    setSharing(true);
+    setShareFeedback('');
+    let token = garde.publicTokenNounou;
+    if (!token) {
+      const res  = await fetch(`/api/gardes/${gardeId}/public-token`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setShareFeedback('Réservé au créateur de la garde');
+        setSharing(false);
+        setTimeout(() => setShareFeedback(''), 2500);
+        return;
+      }
+      token = data.token;
+      setGarde({ ...garde, publicTokenNounou: token });
+    }
+    const url = `${window.location.origin}/public/mois/${token}/${annee}/${mois}`;
+    await navigator.clipboard.writeText(url);
+    setShareFeedback('Lien copié !');
+    setSharing(false);
+    setTimeout(() => setShareFeedback(''), 2500);
+  }
+
   const heuresParJour = (() => {
     if (!garde?.modele) return null;
     const m = garde.modele;
@@ -169,85 +195,9 @@ export default function MoisPage() {
   const nextMois = mois === 12 ? [annee + 1, 1]  : [annee, mois + 1];
 
   // ── Prévu → Réel ─────────────────────────────────────────────────
-  const prevuReel: PrevuReelData | null = (() => {
-    if (!garde?.modele || !result) return null;
-    const m = garde.modele;
-    const { joursActifsParSemaine } = calcHeuresSemaineFromPlanning(m.joursJson || '{}');
-    const tauxPJ  = (joursActifsParSemaine || 5) / 5;
-    const indemRA = m.repartitionIndemA ?? 0.5;
-    const indemRB = 1 - indemRA;
-
-    const salTotTheo = calcSalNetMensuel(m.hNormalesSemaine, m.hSup25Semaine, m.hSup50Semaine, m.tauxHoraireNet);
-    const theoSalA = Math.round(salTotTheo * m.repartitionA * 100) / 100;
-    const theoSalB = Math.round(salTotTheo * (1 - m.repartitionA) * 100) / 100;
-    const realSalA = result.famA.salNet;
-    const realSalB = result.famB.salNet;
-
-    const indemJourA = tauxPJ * m.indemEntretien * indemRA;
-    const indemJourB = tauxPJ * m.indemEntretien * indemRB;
-    const joursOuv   = result.joursOuv;
-    const theoIndemA = Math.round(joursOuv * indemJourA * 100) / 100;
-    const theoIndemB = Math.round(joursOuv * indemJourB * 100) / 100;
-    const realIndemA = result.famA.entretien;
-    const realIndemB = result.famB.entretien;
-
-    const hasEcart = (
-      theoSalA - realSalA > 0.01 ||
-      theoSalB - realSalB > 0.01 ||
-      theoIndemA - realIndemA > 0.01 ||
-      theoIndemB - realIndemB > 0.01
-    );
-    if (!hasEcart) return null;
-
-    const holidays = frenchHolidays(annee);
-    const monthEvts: MonthEvt[] = [];
-
-    for (const e of evts) {
-      const workingDays = joursOuvrablesIntersect(e.debut, e.fin, annee, mois);
-      if (workingDays === 0) continue;
-      const type = e.type as MonthEvtType;
-
-      if (e.type === 'maladie_nounou') {
-        monthEvts.push({
-          type: 'maladie_nounou', debut: e.debut, fin: e.fin, workingDays,
-          salImpactA: Math.round(theoSalA * (workingDays / joursOuv) * 100) / 100,
-          salImpactB: Math.round(theoSalB * (workingDays / joursOuv) * 100) / 100,
-          indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
-          indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
-        });
-      } else if (e.type === 'conge_paye') {
-        monthEvts.push({
-          type: 'conge_paye', debut: e.debut, fin: e.fin, workingDays,
-          salImpactA: 0, salImpactB: 0,
-          indemImpactA: Math.round(workingDays * indemJourA * 100) / 100,
-          indemImpactB: Math.round(workingDays * indemJourB * 100) / 100,
-        });
-      } else if (type === 'absence_famille_a' || type === 'absence_famille_b') {
-        monthEvts.push({ type, debut: e.debut, fin: e.fin, workingDays, salImpactA: 0, salImpactB: 0, indemImpactA: 0, indemImpactB: 0 });
-      }
-    }
-
-    // Jours fériés tombant un jour ouvré dans le mois
-    const cur = new Date(annee, mois - 1, 1);
-    const end = new Date(annee, mois, 0);
-    while (cur <= end) {
-      const dow = cur.getDay();
-      const ds  = dateStr(cur);
-      if (dow >= 1 && dow <= 5 && holidays.has(ds)) {
-        monthEvts.push({
-          type: 'holiday', debut: ds, fin: ds, workingDays: 1,
-          salImpactA: 0, salImpactB: 0,
-          indemImpactA: Math.round(indemJourA * 100) / 100,
-          indemImpactB: Math.round(indemJourB * 100) / 100,
-        });
-      }
-      cur.setDate(cur.getDate() + 1);
-    }
-
-    monthEvts.sort((a, b) => a.debut.localeCompare(b.debut));
-
-    return { theoSalA, realSalA, theoSalB, realSalB, theoIndemA, realIndemA, theoIndemB, realIndemB, monthEvts };
-  })();
+  const prevuReel = (garde?.modele && result)
+    ? buildPrevuReel({ annee, mois, evts, result, modele: garde.modele })
+    : null;
 
   // ── Note maladie ─────────────────────────────────────────────────
   const sickInfo: SickInfo | null = (() => {
@@ -287,9 +237,20 @@ export default function MoisPage() {
         <div className="pt-6">
           <div className="flex items-center justify-between mb-5">
             <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
-            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
-              {statutLabel[statut] ?? statut}
-            </span>
+            <div className="flex items-center gap-2">
+              {shareFeedback && <span className="text-xs text-[var(--sage)] font-medium">{shareFeedback}</span>}
+              <button
+                onClick={partagerMois}
+                disabled={sharing}
+                title="Copier un lien de suivi (lecture seule) à envoyer à la nounou ou l'autre famille"
+                className="text-xs px-3 py-1.5 rounded-full font-medium border-[1.5px] border-[var(--line)] text-[var(--dust)] hover:border-[var(--sage)] hover:text-[var(--sage)] transition-colors bg-white disabled:opacity-50"
+              >
+                🔗 Partager ce mois
+              </button>
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${locked ? 'bg-[var(--sage-light)] text-[var(--sage)]' : 'bg-[var(--paper)] text-[var(--dust)]'}`}>
+                {statutLabel[statut] ?? statut}
+              </span>
+            </div>
           </div>
 
           <CalendrierMoisView
@@ -315,6 +276,7 @@ export default function MoisPage() {
             <div className="grid grid-cols-2 gap-2 mb-4">
               {([
                 ['conge_paye',        '🏖 Congé payé'],
+                ['jour_repos',        '😌 Jour de repos'],
                 ['maladie_nounou',    '🤒 Maladie nounou'],
                 ['absence_famille_a', '👶 Absent Famille A'],
                 ['absence_famille_b', '👶 Absent Famille B'],

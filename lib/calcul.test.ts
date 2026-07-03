@@ -7,10 +7,14 @@ import {
   calcHeuresSemaineFromPlanning,
   calcSalNetMensuel,
   calculerMois,
+  calculSoldeCP,
+  calculSoldeRepos,
   ciPlafondMensuel,
   estimerCMG2025,
+  joursOffertsMois,
+  joursOuvrablesEntreDates,
 } from './calcul';
-import type { CalcInput } from './calcul';
+import type { CalcInput, CompteCP, CompteRepos } from './calcul';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -286,6 +290,71 @@ describe('calculerMois', () => {
     expect(cp.famA.entretien).toBeLessThan(plein.famA.entretien);
   });
 
+  // ── Jour offert (absences A+B simultanées) ──
+
+  describe('jour offert (absences A+B simultanées)', () => {
+    it('1 jour où A et B sont absentes → entretien réduit d\'1 jour sur les deux familles', () => {
+      const offert = calculerMois({
+        ...baseInput(),
+        evenements: [
+          { type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-06' },
+          { type: 'absence_famille_b', debut: '2025-01-06', fin: '2025-01-06' },
+        ],
+      });
+      expect(offert.joursOffert).toBe(1);
+      // joursEntretienBase = joursOuv(23) − joursFeries(1, jour de l'an) − joursOffert(1) = 21
+      const attendu = Math.round(21 * 6 * 0.5 * 100) / 100;
+      expect(offert.famA.entretien).toBeCloseTo(attendu, 2);
+      expect(offert.famB.entretien).toBeCloseTo(attendu, 2);
+    });
+
+    it('chevauchement partiel (A lun-mer, B mar-jeu) → seuls mar/mer comptent comme offerts', () => {
+      const r = calculerMois({
+        ...baseInput(),
+        evenements: [
+          { type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-08' }, // lun-mer
+          { type: 'absence_famille_b', debut: '2025-01-07', fin: '2025-01-09' }, // mar-jeu
+        ],
+      });
+      expect(r.joursOffert).toBe(2); // mar (07) + mer (08)
+      expect(joursOffertsMois(
+        [
+          { type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-08' },
+          { type: 'absence_famille_b', debut: '2025-01-07', fin: '2025-01-09' },
+        ],
+        2025, 1,
+      )).toEqual(['2025-01-07', '2025-01-08']);
+    });
+
+    it('A absente seule (B présente) : aucun impact sur l\'entretien', () => {
+      const plein = calculerMois(baseInput());
+      const r = calculerMois({
+        ...baseInput(),
+        evenements: [{ type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-10' }],
+      });
+      expect(r.joursOffert).toBe(0);
+      expect(r.famA.entretien).toBeCloseTo(plein.famA.entretien, 2);
+      expect(r.famB.entretien).toBeCloseTo(plein.famB.entretien, 2);
+    });
+
+    it('jour offert qui coïncide avec une maladie nounou : pas de double déduction', () => {
+      const maladieSeule = calculerMois({
+        ...baseInput(),
+        evenements: [{ type: 'maladie_nounou', debut: '2025-01-06', fin: '2025-01-06' }],
+      });
+      const maladieEtOffert = calculerMois({
+        ...baseInput(),
+        evenements: [
+          { type: 'maladie_nounou',    debut: '2025-01-06', fin: '2025-01-06' },
+          { type: 'absence_famille_a', debut: '2025-01-06', fin: '2025-01-06' },
+          { type: 'absence_famille_b', debut: '2025-01-06', fin: '2025-01-06' },
+        ],
+      });
+      expect(maladieEtOffert.joursOffert).toBe(0); // exclu car déjà maladie
+      expect(maladieEtOffert.famA.entretien).toBeCloseTo(maladieSeule.famA.entretien, 2);
+    });
+  });
+
   // ── Charges ──
 
   it('chargesSalariales = salNet × K_SAL (à 0.01 € près)', () => {
@@ -427,10 +496,10 @@ describe('Scénario 1 — Garde partagée 50/50 avec majorations (avr. 2029, 21 
     expect(result.famB.transport).toBe(45.40);
   });
 
-  it('indemnité d\'entretien : 63,00 € par famille (21 j × 6 € / 2)', () => {
-    // joursEntretienBase = joursOuv − maladie − CP = 21 − 0 − 0 = 21
-    expect(result.famA.entretien).toBe(63.00);
-    expect(result.famB.entretien).toBe(63.00);
+  it('indemnité d\'entretien : 60,00 € par famille (21 j − 1 j férié [lundi de Pâques 02/04] = 20 j × 6 € / 2)', () => {
+    // joursEntretienBase = joursOuv − maladie − CP − férié = 21 − 0 − 0 − 1 = 20
+    expect(result.famA.entretien).toBe(60.00);
+    expect(result.famB.entretien).toBe(60.00);
   });
 
   it('pas d\'indemnité kilométrique', () => {
@@ -548,24 +617,26 @@ describe('Scénario 2 — Garde 60 %/40 % avec majorations (jan. 2025, 23 j.)', 
     expect(result.famB.transport).toBe(45.40);
   });
 
-  it('entretien par défaut (repartitionIndemA = 0.5) : 69 € par famille (23 j × 6 € × 50%)', () => {
+  it('entretien par défaut (repartitionIndemA = 0.5) : 66 € par famille (23 j − 1 j férié [jour de l\'an] = 22 j × 6 € × 50%)', () => {
     // repartitionIndemA est indépendant de qp — défaut 0.5 quelle que soit la répartition salariale
-    // famA : round(23 × 6 × 0.5 × 100) / 100 = 69.00
-    // famB : round(23 × 6 × 0.5 × 100) / 100 = 69.00
-    expect(result.famA.entretien).toBe(69.00);
-    expect(result.famB.entretien).toBe(69.00);
+    // joursEntretienBase = 23 − 1 (01/01) = 22
+    // famA : round(22 × 6 × 0.5 × 100) / 100 = 66.00
+    // famB : round(22 × 6 × 0.5 × 100) / 100 = 66.00
+    expect(result.famA.entretien).toBe(66.00);
+    expect(result.famB.entretien).toBe(66.00);
   });
 
-  it('entretien avec repartitionIndemA = 0.6 : 82,80 € (A) et 55,20 € (B)', () => {
+  it('entretien avec repartitionIndemA = 0.6 : 79,20 € (A) et 52,80 € (B)', () => {
     // Quand repartitionIndemA correspond au ratio salarial, on retrouve l'ancienne logique
-    // famA : round(23 × 6 × 0.6 × 100) / 100 = 82.80
-    // famB : round(23 × 6 × 0.4 × 100) / 100 = 55.20
+    // joursEntretienBase = 22 (23 j − 1 j férié)
+    // famA : round(22 × 6 × 0.6 × 100) / 100 = 79.20
+    // famB : round(22 × 6 × 0.4 × 100) / 100 = 52.80
     const r = calculerMois({ ...input, repartitionIndemA: 0.6 });
-    expect(r.famA.entretien).toBe(82.80);
-    expect(r.famB.entretien).toBe(55.20);
+    expect(r.famA.entretien).toBe(79.20);
+    expect(r.famB.entretien).toBe(52.80);
   });
 
-  it('entretien à 50%, 6 €/j, mai 2026 (21 j ouvrables) → 63 € par famille (multiple de 3 ✓)', () => {
+  it('entretien à 50%, 6 €/j, mai 2026 (21 j ouvrables, 4 j fériés : 01/05, 08/05, Ascension 14/05, lundi de Pentecôte 25/05) → 51 € par famille', () => {
     const r = calculerMois({
       ...input,
       annee: 2026, mois: 5,
@@ -575,11 +646,9 @@ describe('Scénario 2 — Garde 60 %/40 % avec majorations (jan. 2025, 23 j.)', 
       joursActifsParSemaine: 5,
       evenements: [],
     });
-    // 21 j ouvrables × 6 €/j × 50% = 63 €
-    expect(r.famA.entretien).toBe(63.00);
-    expect(r.famB.entretien).toBe(63.00);
-    expect(r.famA.entretien % 3).toBe(0);  // multiple de 3
-    expect(r.famB.entretien % 3).toBe(0);
+    // joursEntretienBase = 21 − 4 = 17 j ouvrés × 6 €/j × 50% = 51 €
+    expect(r.famA.entretien).toBe(51.00);
+    expect(r.famB.entretien).toBe(51.00);
   });
 
   // ── Asymétrie des charges ────────────────────────────────────────────────────
@@ -857,5 +926,143 @@ describe('calcEquitableRatioIteratif — scénario 3 enfants (47,5h @ 12,80 €)
 
   it('meilleurRatio < targetRatioA (CMG A > CMG B donc A peut absorber moins)', () => {
     expect(res.meilleurRatio).toBeLessThan(TARGET);
+  });
+});
+
+// ── joursOuvrablesEntreDates ────────────────────────────────────────────────
+
+describe('joursOuvrablesEntreDates', () => {
+  it('clippe un événement à une fenêtre de dates arbitraire (1 semaine ouvrée)', () => {
+    // 2026-01-05 = lundi, 2026-01-09 = vendredi
+    expect(joursOuvrablesEntreDates('2026-01-01', '2026-01-31', '2026-01-05', '2026-01-09')).toBe(5);
+  });
+
+  it('retourne 0 si l\'événement se termine avant le début de la fenêtre', () => {
+    expect(joursOuvrablesEntreDates('2026-01-01', '2026-01-04', '2026-01-05', '2026-01-09')).toBe(0);
+  });
+});
+
+// ── calculSoldeCP / calculSoldeRepos — soldes à 2 comptes (style Lucca) ─────
+
+describe('calculSoldeCP — regle "semaines" : octroi complet par cycle (comme les Jours de repos)', () => {
+  const config: CompteCP = {
+    regle: 'semaines', nbSemaines: 5, cycleDebut: '2026-01-01',
+    decompteDepart: { annee: 2026, mois: 1, jousConso: 0 },
+  };
+
+  it('les 25 jours sont disponibles dès le début du cycle, pas de montée progressive mensuelle', () => {
+    const r = calculSoldeCP(config, [], '2026-04-15', '2026-04-30');
+    expect(r.soldeInitial).toBe(25);
+    expect(r.joursPoses).toBe(0);
+    expect(r.aAcquerir).toBe(0);
+    expect(r.soldeEstime).toBe(25);
+  });
+
+  it('3 semaines déjà posées en août alors qu\'on est en avril : jours posés = 15, visibles avant même d\'y arriver', () => {
+    const moisRecords = [
+      { annee: 2026, mois: 8, evenementsJson: JSON.stringify([{ type: 'conge_paye', debut: '2026-08-03', fin: '2026-08-21' }]) },
+    ];
+    const r = calculSoldeCP(config, moisRecords, '2026-04-15', '2026-08-31');
+    expect(r.joursPoses).toBe(15);
+    expect(r.soldeInitial).toBe(25);      // total brut du cycle, constant
+    expect(r.soldeEstime).toBe(10);       // 25 − 15 posés
+    expect(r.aAcquerir).toBe(0);          // même cycle : rien de plus à acquérir
+    // Contrôle de cohérence : l'équation affichée doit être exacte, pas juste approchée.
+    expect(r.soldeEstime).toBeCloseTo(r.soldeInitial - r.joursPoses + r.aAcquerir, 10);
+  });
+
+  it('le décompte de départ (jours déjà consommés) est visible dans "jours posés" dès l\'initialisation', () => {
+    const configAvecDepart: CompteCP = {
+      ...config,
+      decompteDepart: { annee: 2026, mois: 3, jousConso: 4 },
+    };
+    const moisRecords = [
+      { annee: 2026, mois: 2, evenementsJson: JSON.stringify([{ type: 'conge_paye', debut: '2026-02-02', fin: '2026-02-05' }]) },
+    ];
+    const r = calculSoldeCP(configAvecDepart, moisRecords, '2026-04-15', '2026-04-30');
+    expect(r.soldeInitial).toBe(25);
+    expect(r.joursPoses).toBe(4);   // le décompte de départ (4 j.) apparaît, pas l'événement de février
+                                      // (antérieur au décompte : déjà couvert, pas de double comptage)
+    expect(r.soldeEstime).toBe(21); // 25 − 4 posés
+    expect(r.soldeEstime).toBeCloseTo(r.soldeInitial - r.joursPoses + r.aAcquerir, 10);
+  });
+
+  it('régression : un congé payé posé dans le mois de référence du décompte de départ reste compté (ne doit pas disparaître)', () => {
+    // Bug observé : le mois de référence du décompte de départ est souvent le mois courant (valeur par défaut du
+    // formulaire de réglages). Un congé payé posé plus tard dans ce même mois disparaissait silencieusement du
+    // tableau au lieu de s'ajouter au décompte manuel.
+    const configDecompteMoisCourant: CompteCP = {
+      ...config,
+      decompteDepart: { annee: 2026, mois: 7, jousConso: 10 },
+    };
+    const moisRecords = [
+      { annee: 2026, mois: 7, evenementsJson: JSON.stringify([{ type: 'conge_paye', debut: '2026-07-22', fin: '2026-07-22' }]) },
+    ];
+    const r = calculSoldeCP(configDecompteMoisCourant, moisRecords, '2026-07-02', '2026-07-31');
+    expect(r.joursPoses).toBe(11); // 10 (décompte) + 1 (congé du 22 juillet, mercredi)
+    expect(r.soldeEstime).toBe(14); // 25 − 11
+  });
+
+  it('renouvellement de cycle : "aujourd\'hui" avant l\'ancre configurée retombe correctement dans le cycle précédent', () => {
+    // cycleDebut dans le futur proche (comme un cycle déjà en cours configuré après coup) : "aujourd'hui"
+    // doit être rattaché au cycle N-1, pas traité comme "avant tout cycle".
+    const configFutureAnchor: CompteCP = {
+      regle: 'semaines', nbSemaines: 5, cycleDebut: '2026-09-01',
+      decompteDepart: { annee: 2025, mois: 9, jousConso: 15 },
+    };
+    const r = calculSoldeCP(configFutureAnchor, [], '2026-07-02', '2026-07-31');
+    expect(r.soldeInitial).toBe(25);
+    expect(r.joursPoses).toBe(15); // le décompte de départ doit être visible, pas ignoré
+    expect(r.soldeEstime).toBe(10);
+  });
+});
+
+describe('calculSoldeCP — regle "jours_par_mois" : acquisition progressive ouverte (E)', () => {
+  const config: CompteCP = {
+    regle: 'jours_par_mois', joursParMois: 2.5, debutSuivi: '2026-09-01',
+    decompteDepart: { annee: 2026, mois: 8, jousConso: 0 },
+  };
+
+  it('rien acquis avant le début du suivi, puis progression régulière ensuite', () => {
+    const juillet = calculSoldeCP(config, [], '2026-07-15', '2026-07-31');
+    const aout    = calculSoldeCP(config, [], '2026-07-15', '2026-08-31');
+    const sept    = calculSoldeCP(config, [], '2026-07-15', '2026-09-30');
+    const oct     = calculSoldeCP(config, [], '2026-07-15', '2026-10-31');
+    expect(juillet.soldeEstime).toBe(0);
+    expect(aout.soldeEstime).toBe(0);
+    expect(sept.soldeEstime).toBeCloseTo(2.5, 1);
+    expect(oct.soldeEstime).toBeCloseTo(5, 1);
+  });
+});
+
+describe('calculSoldeRepos', () => {
+  const config: CompteRepos = {
+    totalAnnuel: 6, cycleDebut: '2026-01-01',
+    decompteDepart: { annee: 2026, mois: 1, jousConso: 1 },
+  };
+
+  it('pas de prorata mensuel : solde initial = total brut du cycle, le décompte de départ apparaît dans "posés"', () => {
+    const r = calculSoldeRepos(config, [], '2026-03-01', '2026-03-31');
+    expect(r.soldeInitial).toBe(6);  // brut : total du cycle en cours, avant déduction
+    expect(r.joursPoses).toBe(1);    // le décompte de départ (1 j.) déjà posé
+    expect(r.aAcquerir).toBe(0);
+    expect(r.soldeEstime).toBe(5);   // 6 − 1
+  });
+
+  it('traverse un renouvellement de cycle : le solde repart à 6, la conso de l\'ancien cycle n\'est pas reportée', () => {
+    const r = calculSoldeRepos(config, [], '2026-12-15', '2027-02-28');
+    expect(r.soldeInitial).toBe(6);  // brut : total du cycle (constant, remis à zéro chaque année)
+    expect(r.soldeEstime).toBe(6);   // nouveau cycle 2027 : rien consommé
+    expect(r.joursPoses).toBe(0);    // le décompte 2026 ne compte plus dans le nouveau cycle
+  });
+
+  it('jour de repos déjà posé dans le nouveau cycle avant la cible', () => {
+    const moisRecords = [
+      { annee: 2027, mois: 2, evenementsJson: JSON.stringify([{ type: 'jour_repos', debut: '2027-02-02', fin: '2027-02-02' }]) },
+    ];
+    const r = calculSoldeRepos(config, moisRecords, '2026-12-15', '2027-02-28');
+    expect(r.joursPoses).toBe(1);
+    expect(r.soldeEstime).toBe(5); // 6 − 1 posé dans le nouveau cycle
+    expect(r.soldeEstime).toBeCloseTo(r.soldeInitial - r.joursPoses + r.aAcquerir, 10);
   });
 });
