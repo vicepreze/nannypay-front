@@ -225,8 +225,6 @@ export default function MoisPage() {
           <span className="font-medium text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link href={`/gardes/${gardeId}/mois/${prevMois[0]}/${prevMois[1]}`} className="text-[var(--dust)] hover:text-[var(--ink)] no-underline text-sm">←</Link>
-          <Link href={`/gardes/${gardeId}/mois/${nextMois[0]}/${nextMois[1]}`} className="text-[var(--dust)] hover:text-[var(--ink)] no-underline text-sm">→</Link>
           <Link href="/dashboard" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Dashboard</Link>
           <Link href="/demo" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Démo</Link>
           {saving && <span className="text-xs text-[var(--dust)]">Sauvegarde…</span>}
@@ -236,7 +234,23 @@ export default function MoisPage() {
       <div className="pt-14 max-w-[1280px] mx-auto px-4 pb-16">
         <div className="pt-6">
           <div className="flex items-center justify-between mb-5">
-            <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/gardes/${gardeId}/mois/${prevMois[0]}/${prevMois[1]}`}
+                aria-label="Mois précédent"
+                className="flex items-center justify-center w-9 h-9 rounded-full border-[1.5px] border-[var(--line)] text-[var(--ink)] text-lg font-bold hover:border-[var(--sage)] hover:text-[var(--sage)] hover:bg-[var(--sage-light)] transition-colors no-underline"
+              >
+                ←
+              </Link>
+              <h1 className="font-serif text-2xl text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</h1>
+              <Link
+                href={`/gardes/${gardeId}/mois/${nextMois[0]}/${nextMois[1]}`}
+                aria-label="Mois suivant"
+                className="flex items-center justify-center w-9 h-9 rounded-full border-[1.5px] border-[var(--line)] text-[var(--ink)] text-lg font-bold hover:border-[var(--sage)] hover:text-[var(--sage)] hover:bg-[var(--sage-light)] transition-colors no-underline"
+              >
+                →
+              </Link>
+            </div>
             <div className="flex items-center gap-2">
               {shareFeedback && <span className="text-xs text-[var(--sage)] font-medium">{shareFeedback}</span>}
               <button
