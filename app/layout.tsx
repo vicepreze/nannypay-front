@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
 import { Analytics } from '@vercel/analytics/react';
+import FeedbackButton from '@/components/FeedbackButton';
 
 export const metadata: Metadata = {
   title: 'nounoulink — Garde partagée simplifiée',
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <Providers>{children}</Providers>
+        <FeedbackButton />
         <Analytics />
       </body>
     </html>
