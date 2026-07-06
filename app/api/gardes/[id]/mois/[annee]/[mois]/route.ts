@@ -14,9 +14,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const annee = parseInt(params.annee);
   const mois  = parseInt(params.mois);
 
-  // Vérifie accès
+  // Vérifie accès (Famille A/B ou nounou rattachée)
   const garde = await prisma.garde.findFirst({
-    where: { id: params.id, familles: { some: { utilisateurId: userId } } },
+    where: {
+      id: params.id,
+      OR: [{ familles: { some: { utilisateurId: userId } } }, { nounou: { utilisateurId: userId } }],
+    },
     include: { familles: true, modele: true, enfants: true, nounou: { select: { prenom: true } } },
   });
   if (!garde) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
@@ -40,7 +43,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const mois  = parseInt(params.mois);
 
   const garde = await prisma.garde.findFirst({
-    where: { id: params.id, familles: { some: { utilisateurId: userId } } },
+    where: {
+      id: params.id,
+      OR: [{ familles: { some: { utilisateurId: userId } } }, { nounou: { utilisateurId: userId } }],
+    },
     include: { familles: true },
   });
   if (!garde) return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
@@ -56,7 +62,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   const body = await req.json();
-  const monLabel = garde.familles.find(f => f.utilisateurId === userId)?.label ?? 'A';
+  const monLabel = garde.familles.find(f => f.utilisateurId === userId)?.label; // undefined = nounou
 
   const data: Record<string, unknown> = {};
 
@@ -65,8 +71,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     data.evenementsJson = JSON.stringify(body.evenements);
   }
 
-  // Validation
+  // Validation — réservée aux familles, la nounou ne valide pas un mois
   if (body.valider) {
+    if (!monLabel) {
+      return NextResponse.json({ error: 'Seules les familles peuvent valider un mois' }, { status: 403 });
+    }
     if (monLabel === 'A') {
       data.statut = rec.statut === 'valide_b' ? 'valide_ab' : 'valide_a';
     } else {

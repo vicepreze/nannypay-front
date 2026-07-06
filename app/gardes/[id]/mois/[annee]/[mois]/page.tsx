@@ -23,7 +23,6 @@ type Famille = {
 type GardeInfo = {
   id: string; nom: string | null;
   proprietaireId: string;
-  invitationTokenB: string | null;
   publicTokenNounou: string | null;
   familles: Famille[];
   nounou: { prenom: string } | null;
