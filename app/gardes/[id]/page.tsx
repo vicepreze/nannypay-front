@@ -10,10 +10,14 @@ export default async function GardePage({ params }: Props) {
   const { userId } = await auth();
   if (!userId) redirect('/');
 
-  const famille = await prisma.famille.findFirst({
-    where: { gardeId: params.id, utilisateurId: userId },
+  const garde = await prisma.garde.findFirst({
+    where: {
+      id: params.id,
+      OR: [{ familles: { some: { utilisateurId: userId } } }, { nounou: { utilisateurId: userId } }],
+    },
+    select: { id: true },
   });
-  if (!famille) redirect('/dashboard');
+  if (!garde) redirect('/dashboard');
 
   const now   = new Date();
   const annee = now.getFullYear();

@@ -12,7 +12,10 @@ export default async function SettingsPage({ params }: Props) {
   if (!userId) redirect('/');
 
   const garde = await prisma.garde.findFirst({
-    where: { id: params.id, familles: { some: { utilisateurId: userId } } },
+    where: {
+      id: params.id,
+      OR: [{ familles: { some: { utilisateurId: userId } } }, { nounou: { utilisateurId: userId } }],
+    },
     include: { familles: true, nounou: true, modele: true, enfants: true, archiveeVersGarde: { select: { id: true, nom: true } } },
   });
   if (!garde) redirect('/dashboard');

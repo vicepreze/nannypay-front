@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { SignOutButton } from '@/components/SignOutButton';
 import { ArchiveButton } from '@/components/ArchiveButton';
+import { PartageGardeButton } from '@/components/PartageGardeButton';
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -15,24 +16,20 @@ export default async function DashboardPage() {
   const annee = now.getFullYear();
   const mois  = now.getMonth() + 1;
 
+  const monAcces = { OR: [{ familles: { some: { utilisateurId: userId } } }, { nounou: { utilisateurId: userId } }] };
+
   const [actives, archivees] = await Promise.all([
     prisma.garde.findMany({
-      where: {
-        familles: { some: { utilisateurId: userId } },
-        statut: { not: 'archivé' },
-      },
+      where: { ...monAcces, statut: { not: 'archivé' } },
       include: {
-        nounou:   { select: { prenom: true } },
+        nounou:   { select: { prenom: true, utilisateurId: true } },
         familles: { select: { label: true, nomAffiche: true, statutAcces: true } },
         enfants:  { select: { prenom: true, fam: true } },
       },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.garde.findMany({
-      where: {
-        familles: { some: { utilisateurId: userId } },
-        statut: 'archivé',
-      },
+      where: { ...monAcces, statut: 'archivé' },
       include: {
         familles: { select: { label: true, nomAffiche: true } },
         archiveeVersGarde: { select: { id: true, nom: true } },
@@ -84,6 +81,9 @@ export default async function DashboardPage() {
               const famA = g.familles.find(f => f.label === 'A');
               const famB = g.familles.find(f => f.label === 'B');
               const famBActif = famB?.statutAcces === 'invite_actif';
+              const nounouEligible = !!g.nounou && !g.nounou.utilisateurId;
+              const peutPartager = !famBActif || nounouEligible;
+              const tokenValide = g.invitationToken && g.invitationTokenExpiresAt && g.invitationTokenExpiresAt > now;
               return (
                 <div key={g.id} className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-5">
                   <div className="mb-3">
@@ -114,6 +114,9 @@ export default async function DashboardPage() {
                       className="px-4 py-2 border border-[var(--line)] text-[var(--ink)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] bg-white transition-colors no-underline">
                       Paramètres
                     </Link>
+                    {peutPartager && (
+                      <PartageGardeButton gardeId={g.id} initialToken={tokenValide ? g.invitationToken : null} />
+                    )}
                     <ArchiveButton gardeId={g.id}
                       className="ml-auto text-xs text-[var(--dust)] hover:text-[var(--red)] transition-colors px-2 py-1" />
                   </div>

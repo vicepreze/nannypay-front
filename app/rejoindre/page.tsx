@@ -12,6 +12,9 @@ function RejoindreContent() {
 
   const [gardeName, setGardeName] = useState('');
   const [tokenErr,  setTokenErr]  = useState('');
+  const [famBDisponible,   setFamBDisponible]   = useState(true);
+  const [nounouDisponible, setNounouDisponible] = useState(true);
+  const [role,      setRole]      = useState<'B' | 'nounou' | null>(null);
   const [tab,       setTab]       = useState<'login' | 'register'>('register');
   const [nomFam,    setNomFam]    = useState('');
   const [joining,   setJoining]   = useState(false);
@@ -23,19 +26,21 @@ function RejoindreContent() {
     fetch(`/api/public/invitation/${token}`)
       .then(r => r.json())
       .then(d => {
-        if (d.error) setTokenErr(d.error);
-        else setGardeName(d.garde.nom ?? 'une garde partagée');
+        if (d.error) { setTokenErr(d.error); return; }
+        setGardeName(d.garde.nom ?? 'une garde partagée');
+        setFamBDisponible(d.famBDisponible);
+        setNounouDisponible(d.nounouDisponible);
       });
   }, [token]);
 
-  // Dès que l'utilisateur est connecté, on le rattache automatiquement à la garde
+  // Dès que l'utilisateur est connecté (et a choisi son rôle), on le rattache à la garde
   useEffect(() => {
-    if (!isLoaded || !userId || !token || tokenErr) return;
+    if (!isLoaded || !userId || !token || tokenErr || !role) return;
     setJoining(true);
     fetch(`/api/public/invitation/${token}`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, nomAffiche: nomFam || undefined }),
+      body: JSON.stringify({ userId, role, nomAffiche: role === 'B' ? (nomFam || undefined) : undefined }),
     })
       .then(r => r.json())
       .then(d => {
@@ -43,7 +48,7 @@ function RejoindreContent() {
         else router.push(`/gardes/${d.gardeId}`);
       })
       .catch(() => { setError('Erreur réseau'); setJoining(false); });
-  }, [isLoaded, userId, token, tokenErr]); // nomFam intentionnellement absent pour ne pas re-trigger
+  }, [isLoaded, userId, token, tokenErr, role]); // nomFam intentionnellement absent pour ne pas re-trigger
 
   if (tokenErr) {
     return (
@@ -65,6 +70,51 @@ function RejoindreContent() {
     );
   }
 
+  if (!famBDisponible && !nounouDisponible) {
+    return (
+      <div className="min-h-screen bg-[var(--paper)] flex items-center justify-center p-6">
+        <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] p-8 max-w-sm text-center">
+          <div className="text-4xl mb-4">✅</div>
+          <h1 className="font-medium text-[var(--ink)] mb-2">Ce lien a déjà été utilisé</h1>
+          <p className="text-sm text-[var(--dust)]">Famille B et la nounou ont déjà rejoint cette garde.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // L'invité se déclare (Famille B ou nounou) avant de créer/se connecter à son compte
+  if (!role) {
+    return (
+      <div className="min-h-screen bg-[var(--paper)] flex flex-col items-center justify-center p-6 gap-6">
+        <div className="text-center mb-2">
+          <a href="/" className="font-serif text-xl">nounoulink<em className="text-[var(--sage)] not-italic">.</em></a>
+          {gardeName && (
+            <p className="text-sm text-[var(--dust)] mt-2">
+              Vous avez été invité(e) à rejoindre <strong className="text-[var(--ink)]">{gardeName}</strong>.
+            </p>
+          )}
+        </div>
+        <div className="w-full max-w-sm space-y-3">
+          <p className="text-sm font-medium text-[var(--ink)] text-center mb-1">Vous êtes :</p>
+          <button
+            onClick={() => setRole('B')}
+            disabled={!famBDisponible}
+            className="w-full px-4 py-3 bg-white border-[1.5px] border-[var(--line)] rounded-[var(--radius)] text-sm font-medium text-[var(--ink)] hover:border-[var(--sage)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            👨‍👩‍👧 L&apos;autre famille (Famille B){!famBDisponible && ' · déjà rejoint'}
+          </button>
+          <button
+            onClick={() => setRole('nounou')}
+            disabled={!nounouDisponible}
+            className="w-full px-4 py-3 bg-white border-[1.5px] border-[var(--line)] rounded-[var(--radius)] text-sm font-medium text-[var(--ink)] hover:border-[var(--sage)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            👩 La nounou{!nounouDisponible && ' · déjà rejoint'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Utilisateur déjà connecté → le useEffect s'en charge
   if (userId) return null;
 
@@ -80,18 +130,20 @@ function RejoindreContent() {
         )}
       </div>
 
-      {/* Nom famille optionnel */}
-      <div className="w-full max-w-sm">
-        <label className="block text-sm font-medium mb-1.5 text-[var(--ink)]">
-          Votre nom de famille <span className="text-[var(--dust)] font-normal text-xs">(optionnel)</span>
-        </label>
-        <input
-          className="w-full px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm outline-none focus:border-[var(--sage)] bg-white placeholder:text-gray-300"
-          value={nomFam}
-          onChange={e => setNomFam(e.target.value)}
-          placeholder="Martin"
-        />
-      </div>
+      {/* Nom famille optionnel — uniquement pour Famille B */}
+      {role === 'B' && (
+        <div className="w-full max-w-sm">
+          <label className="block text-sm font-medium mb-1.5 text-[var(--ink)]">
+            Votre nom de famille <span className="text-[var(--dust)] font-normal text-xs">(optionnel)</span>
+          </label>
+          <input
+            className="w-full px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm outline-none focus:border-[var(--sage)] bg-white placeholder:text-gray-300"
+            value={nomFam}
+            onChange={e => setNomFam(e.target.value)}
+            placeholder="Martin"
+          />
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 w-full max-w-sm text-center">{error}</p>

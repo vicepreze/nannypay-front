@@ -40,10 +40,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     abattementCharges: famB?.abattementCharges ?? 0, aideVille: famB?.aideVille ?? 0, creditImpot: famB?.creditImpot ?? 0,
   };
 
-  // Famille B pas encore active → on lui génère une nouvelle invitation pour la nouvelle garde
-  const famBPending = !famB?.utilisateurId;
-  const newInvitationToken  = famBPending ? crypto.randomBytes(24).toString('hex') : null;
-  const newInvitationExpiry = famBPending ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null;
+  // Si Famille B et/ou la nounou n'ont pas encore de compte, on régénère un lien
+  // de partage pour la nouvelle garde afin qu'ils/elles puissent la rejoindre.
+  const famBPending    = !famB?.utilisateurId;
+  const nounouPending  = !!oldGarde.nounou && !oldGarde.nounou.utilisateurId;
+  const needsInvitation = famBPending || nounouPending;
+  const newInvitationToken  = needsInvitation ? crypto.randomBytes(24).toString('hex') : null;
+  const newInvitationExpiry = needsInvitation ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null;
 
   try {
     const newGarde = await prisma.$transaction(async (tx) => {
@@ -52,8 +55,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           nom: oldGarde.nom,
           statut: 'actif',
           proprietaireId: oldGarde.proprietaireId,
-          invitationTokenB: newInvitationToken,
-          invitationTokenBExpiresAt: newInvitationExpiry,
+          invitationToken: newInvitationToken,
+          invitationTokenExpiresAt: newInvitationExpiry,
           congesJson: oldGarde.congesJson,
 
           nounou: oldGarde.nounou ? {
@@ -61,6 +64,7 @@ export async function POST(req: NextRequest, { params }: Params) {
               prenom: oldGarde.nounou.prenom,
               nom:    oldGarde.nounou.nom,
               email:  oldGarde.nounou.email,
+              utilisateurId: oldGarde.nounou.utilisateurId,
             },
           } : undefined,
 

@@ -21,6 +21,7 @@ model User {
 
   gardes   Garde[]
   familles Famille[]
+  nounous  Nounou[]
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -35,8 +36,10 @@ model Garde {
   proprietaireId String
   proprietaire   User   @relation(fields: [proprietaireId], references: [id])
 
-  invitationTokenB          String?
-  invitationTokenBExpiresAt DateTime?
+  // Lien de partage générique : rejoint par Famille B et/ou la nounou
+  // (chacun se déclare sur /rejoindre), donne accès en lecture/écriture.
+  invitationToken          String?
+  invitationTokenExpiresAt DateTime?
 
   publicTokenNounou String?
 
@@ -65,6 +68,10 @@ model Nounou {
   prenom  String
   nom     String?
   email   String?
+
+  // Renseigné quand la nounou rejoint la garde via le lien de partage
+  utilisateurId String?
+  utilisateur   User?   @relation(fields: [utilisateurId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
