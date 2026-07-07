@@ -66,7 +66,7 @@ export default async function SettingsPage({ params }: Props) {
         racOptionActive:   garde.modele.racOptionActive,
         joursJson:         garde.modele.joursJson,
       } : null}
-      enfants={garde.enfants.map(e => ({ prenom: e.prenom, fam: e.fam }))}
+      enfants={garde.enfants.map(e => ({ id: e.id, prenom: e.prenom, fam: e.fam }))}
     />
   );
 }

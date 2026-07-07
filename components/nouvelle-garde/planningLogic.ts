@@ -11,7 +11,7 @@ export const JOURS = [
 export type Slot     = { actif: boolean; debut: string; fin: string };
 export type PerDay   = Record<string, Slot>;
 export type Planning = Record<string, PerDay>;
-export type Enfant   = { prenom: string; fam: string };
+export type Enfant   = { prenom: string; fam: string; id?: string };
 
 export function hhmm(t: string) {
   const [h, m] = (t || '').split(':').map(Number);
