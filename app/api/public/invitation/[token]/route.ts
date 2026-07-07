@@ -40,6 +40,19 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 });
   }
 
+  // Garantir que l'utilisateur existe en DB (le webhook Clerk peut ne pas avoir encore tiré)
+  try {
+    await prisma.user.upsert({
+      where:  { id: userId },
+      update: {},
+      create: { id: userId, email: `${userId}@clerk.placeholder` },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[POST /api/public/invitation] upsert user failed:', msg);
+    return NextResponse.json({ error: `Erreur profil: ${msg}` }, { status: 500 });
+  }
+
   const garde = await prisma.garde.findFirst({
     where: {
       invitationToken: params.token,
