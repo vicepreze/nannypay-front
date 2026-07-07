@@ -14,7 +14,15 @@ function RejoindreContent() {
   const [tokenErr,  setTokenErr]  = useState('');
   const [famBDisponible,   setFamBDisponible]   = useState(true);
   const [nounouDisponible, setNounouDisponible] = useState(true);
-  const [role,      setRole]      = useState<'B' | 'nounou' | null>(null);
+  // Le rôle est aussi lu depuis l'URL : Clerk peut faire un aller-retour de
+  // page complet pendant l'inscription (vérification email, OAuth…), ce qui
+  // réinitialiserait un simple state React.
+  const roleParam = params.get('role');
+  const [role, setRoleState] = useState<'B' | 'nounou' | null>(roleParam === 'B' || roleParam === 'nounou' ? roleParam : null);
+  function chooseRole(r: 'B' | 'nounou') {
+    setRoleState(r);
+    router.replace(`/rejoindre?token=${token}&role=${r}`);
+  }
   const [tab,       setTab]       = useState<'login' | 'register'>('register');
   const [nomFam,    setNomFam]    = useState('');
   const [joining,   setJoining]   = useState(false);
@@ -97,14 +105,14 @@ function RejoindreContent() {
         <div className="w-full max-w-sm space-y-3">
           <p className="text-sm font-medium text-[var(--ink)] text-center mb-1">Vous êtes :</p>
           <button
-            onClick={() => setRole('B')}
+            onClick={() => chooseRole('B')}
             disabled={!famBDisponible}
             className="w-full px-4 py-3 bg-white border-[1.5px] border-[var(--line)] rounded-[var(--radius)] text-sm font-medium text-[var(--ink)] hover:border-[var(--sage)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             👨‍👩‍👧 L&apos;autre famille (Famille B){!famBDisponible && ' · déjà rejoint'}
           </button>
           <button
-            onClick={() => setRole('nounou')}
+            onClick={() => chooseRole('nounou')}
             disabled={!nounouDisponible}
             className="w-full px-4 py-3 bg-white border-[1.5px] border-[var(--line)] rounded-[var(--radius)] text-sm font-medium text-[var(--ink)] hover:border-[var(--sage)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
@@ -166,8 +174,8 @@ function RejoindreContent() {
 
         <div className="flex justify-center">
           {tab === 'register'
-            ? <SignUp routing="hash" />
-            : <SignIn  routing="hash" />
+            ? <SignUp routing="hash" forceRedirectUrl={`/rejoindre?token=${token}&role=${role}`} />
+            : <SignIn  routing="hash" forceRedirectUrl={`/rejoindre?token=${token}&role=${role}`} />
           }
         </div>
       </div>
