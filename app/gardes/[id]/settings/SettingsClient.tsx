@@ -94,6 +94,13 @@ export function SettingsClient({
   const [prenomN, setPrenomN] = useState(nounou?.prenom ?? '');
   const [nomN,    setNomN]    = useState(nounou?.nom ?? '');
 
+  // Prénoms des enfants — édités séparément car ils servent aussi de clé
+  // dans le planning (joursJson) ; le rename doit être propagé partout.
+  const [enfantsEdit, setEnfantsEdit] = useState(
+    () => enfants.map(e => ({ id: e.id ?? '', prenom: e.prenom, fam: e.fam }))
+  );
+  const enfantsBaseline = useRef(enfantsEdit.map(e => ({ ...e })));
+
   // ── Planning ───────────────────────────────────────────────────────
   const [planning, setPlanning] = useState<Planning>(() =>
     buildPlanning(enfants, modele ? safeParsePlanning(modele.joursJson) : null)
@@ -176,6 +183,13 @@ export function SettingsClient({
 
   async function saveActeurs() {
     setSaving(true); setError('');
+
+    const changedEnfants = enfantsEdit.filter(e => {
+      const base = enfantsBaseline.current.find(b => b.id === e.id);
+      const prenom = e.prenom.trim();
+      return e.id && base && prenom.length > 0 && base.prenom !== prenom;
+    });
+
     const res = await fetch(`/api/gardes/${gardeId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -184,9 +198,32 @@ export function SettingsClient({
         familleA: { nomAffiche: nomA },
         familleB: { nomAffiche: nomB },
         nounou:   { prenom: prenomN, nom: nomN || null },
+        ...(changedEnfants.length > 0
+          ? { enfants: changedEnfants.map(e => ({ id: e.id, prenom: e.prenom.trim() })) }
+          : {}),
       }),
     });
     if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Erreur'); setSaving(false); return; }
+
+    if (changedEnfants.length > 0) {
+      // Renomme les clés du planning local pour ne pas perdre les horaires
+      // déjà saisis pour l'enfant renommé (le planning est keyé par prénom).
+      setPlanning(prev => {
+        const next = { ...prev };
+        for (const e of changedEnfants) {
+          const base = enfantsBaseline.current.find(b => b.id === e.id)!;
+          const newName = e.prenom.trim();
+          if (Object.prototype.hasOwnProperty.call(next, base.prenom)) {
+            next[newName] = next[base.prenom];
+            if (newName !== base.prenom) delete next[base.prenom];
+          }
+        }
+        return next;
+      });
+      setEnfantsEdit(cur => cur.map(e => ({ ...e, prenom: e.prenom.trim() })));
+      enfantsBaseline.current = enfantsEdit.map(e => ({ ...e, prenom: e.prenom.trim() }));
+    }
+
     flash(); router.refresh();
     setSaving(false);
   }
@@ -313,6 +350,16 @@ export function SettingsClient({
               <Card title="Famille B">
                 <F label="Nom affiché" value={nomB} onChange={setNomB} />
               </Card>
+              {enfantsEdit.length > 0 && (
+                <Card title="Enfants">
+                  <div className="grid grid-cols-2 gap-3">
+                    {enfantsEdit.map((e, i) => (
+                      <F key={e.id} label={`Fam. ${e.fam}`} value={e.prenom}
+                        onChange={v => setEnfantsEdit(cur => cur.map((c, j) => (j === i ? { ...c, prenom: v } : c)))} />
+                    ))}
+                  </div>
+                </Card>
+              )}
               <div className="flex justify-end">
                 <Btn onClick={saveActeurs} disabled={saving || readOnly} label={saveLabel} />
               </div>
@@ -321,11 +368,11 @@ export function SettingsClient({
 
           {tab === 'planning' && (
             modele ? (
-              enfants.length === 0 ? (
+              enfantsEdit.length === 0 ? (
                 <EmptyNotice text="Aucun enfant rattaché à cette garde." />
               ) : (
                 <div className="space-y-4">
-                  <PlanningForm enfants={enfants} planning={planning} onChange={setPlanning} />
+                  <PlanningForm enfants={enfantsEdit} planning={planning} onChange={setPlanning} />
                   <PlanningSummaryCard planning={planning} />
                   {planningError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{planningError}</p>}
                   <div className="flex justify-end">
@@ -347,7 +394,7 @@ export function SettingsClient({
                   nomA={nomA || 'Famille A'}
                   nomB={nomB || 'Famille B'}
                   joursJson={JSON.stringify(planning)}
-                  enfants={enfants}
+                  enfants={enfantsEdit}
                 />
                 <div className="flex justify-end">
                   <Btn onClick={handleSaveModele} disabled={saving || readOnly} label={saveLabel} />

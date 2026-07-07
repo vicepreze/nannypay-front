@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { SignOutButton } from '@/components/SignOutButton';
 import { ArchiveButton } from '@/components/ArchiveButton';
 import { PartageGardeButton } from '@/components/PartageGardeButton';
+import { EditableEnfantsBadges } from '@/components/EditableEnfantsBadges';
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
       include: {
         nounou:   { select: { prenom: true, utilisateurId: true } },
         familles: { select: { label: true, nomAffiche: true, statutAcces: true } },
-        enfants:  { select: { prenom: true, fam: true } },
+        enfants:  { select: { id: true, prenom: true, fam: true } },
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -96,13 +97,7 @@ export default async function DashboardPage() {
                       </span>
                     </div>
                     {g.enfants.length > 0 && (
-                      <div className="flex gap-1.5 mt-2">
-                        {g.enfants.map((e, i) => (
-                          <span key={i} className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${e.fam === 'A' ? 'bg-[var(--blue-light)] text-[var(--blue)]' : 'bg-[var(--sage-light)] text-[var(--sage)]'}`}>
-                            {e.prenom}
-                          </span>
-                        ))}
-                      </div>
+                      <EditableEnfantsBadges gardeId={g.id} enfants={g.enfants} editable={g.proprietaireId === userId} />
                     )}
                   </div>
                   <div className="flex items-center gap-2 pt-3 border-t border-[var(--line)]">
