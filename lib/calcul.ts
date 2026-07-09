@@ -29,6 +29,7 @@ export interface FamResult {
   entretien:         number;
   km:                number;
   total:             number;  // salNet + transport + entretien + km (versé à la nounou)
+  exonerationHS:     number;  // réduction cotisations salariales HS (Art. L241-17 CSS) — en plus de salNet/total
   chargesSalariales: number;  // salNet × K_SAL
   chargesPatronales: number;  // salNet × K_PAT
   aidesTotal:        number;  // total aides mensuelles CAF
@@ -370,6 +371,25 @@ export function calcSalNetMensuel(
   return Math.round((base + sup25 + sup50) * 100) / 100;
 }
 
+export const TAUX_EXONERATION_HS = 0.1131; // Réduction salariale HS (Art. L241-17 CSS), taux stable depuis 2019 — vérifier BOSS avant de modifier
+
+/**
+ * Réduction de cotisations salariales sur heures supplémentaires (11,31 %), en plus du
+ * salaire net habituel — porte sur la rémunération des heures sup (majoration comprise).
+ * `hSup25`/`hSup50` sont des heures mensualisées (déjà pondérées par la part famille le cas
+ * échéant) ; `ratioPresence` doit être appliqué au même niveau que pour le reste du salaire
+ * (voir `salNet` dans `calcFam`), pour éviter une double proratisation.
+ */
+export function calculerExonerationHS(
+  hSup25:        number,
+  hSup50:        number,
+  taux:          number,
+  ratioPresence: number = 1,
+): number {
+  const remuHS = hSup25 * taux * 1.25 + hSup50 * taux * 1.50;
+  return Math.round(remuHS * TAUX_EXONERATION_HS * ratioPresence * 100) / 100;
+}
+
 function unionMin(intervals: { s: number; e: number }[]): number {
   if (!intervals.length) return 0;
   const sorted = [...intervals].sort((a, b) => a.s - b.s);
@@ -575,6 +595,7 @@ export function calculerMois(input: CalcInput): CalcResult {
     const sup25Net = Math.round(H_SUP25_MENS * qp * taux * 1.25 * ratio * 100) / 100;
     const sup50Net = Math.round(H_SUP50_MENS * qp * taux * 1.50 * ratio * 100) / 100;
     const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
+    const exonerationHS = calculerExonerationHS(H_SUP25_MENS * qp, H_SUP50_MENS * qp, taux, ratio);
 
     const transport = Math.round(navigo   * indemRatio * 100) / 100;
     // L'indemnité d'entretien est due par enfant et par jour de présence — pondérée par la répartition des indemnités
@@ -587,7 +608,7 @@ export function calculerMois(input: CalcInput): CalcResult {
     const aidesTotal        = aides ? monthlyAides(aides) : 0;
     const resteCharge       = Math.round((total + chargesSalariales + chargesPatronales - aidesTotal) * 100) / 100;
 
-    return { qp, hNorm, hSup25, hSup50, salNet, transport, entretien, km, total, chargesSalariales, chargesPatronales, aidesTotal, resteCharge };
+    return { qp, hNorm, hSup25, hSup50, salNet, transport, entretien, km, total, exonerationHS, chargesSalariales, chargesPatronales, aidesTotal, resteCharge };
   }
 
   const famA = calcFam(repartitionA,     repartitionIndemA,       racOptionActive ? aidesA : undefined);

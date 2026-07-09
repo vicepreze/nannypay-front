@@ -7,6 +7,7 @@ export interface FamCalcData {
   hSup25: number;
   hSup50: number;
   salNet: number;
+  exonerationHS: number;
   chargesSalariales: number;
   chargesPatronales: number;
   navigo: number;
@@ -27,6 +28,7 @@ export interface NounouCalcData {
   salBrut: number;
   chargesSalariales: number;
   salNet: number;
+  exonerationHS: number;
   navigo: number;
   entretien: number;
   km: number;
@@ -104,6 +106,7 @@ function RACRow({ label, a, b }: { label: string; a: string; b: string }) {
 export function DetailedCalcTable({ famA, famB, nounou, racOptionActive }: Props) {
   const hasSup25 = famA.hSup25 + famB.hSup25 + nounou.hSup25 > 0;
   const hasSup50 = famA.hSup50 + famB.hSup50 + nounou.hSup50 > 0;
+  const hasExonerationHS = famA.exonerationHS + famB.exonerationHS + nounou.exonerationHS > 0;
   const hasNavigo = famA.navigo + famB.navigo + nounou.navigo > 0;
   const hasEntretien = famA.entretien + famB.entretien + nounou.entretien > 0;
   const hasKm = famA.km + famB.km + nounou.km > 0;
@@ -157,6 +160,13 @@ export function DetailedCalcTable({ famA, famB, nounou, racOptionActive }: Props
             indent
           />
           <Row label="Salaire net" a={eur(famA.salNet)} b={eur(famB.salNet)} n={eur(nounou.salNet)} bold />
+          {hasExonerationHS && (
+            <Row
+              label="dont exonération HS (11,31 %)"
+              a={`+ ${eur(famA.exonerationHS)}`} b={`+ ${eur(famB.exonerationHS)}`} n={`+ ${eur(nounou.exonerationHS)}`}
+              indent green
+            />
+          )}
           <Row label="Cotisations patronales" a={eur(famA.chargesPatronales)} b={eur(famB.chargesPatronales)} n={dash} indent />
 
           {/* Indemnités */}

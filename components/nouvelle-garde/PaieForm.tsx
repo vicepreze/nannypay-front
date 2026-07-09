@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   calcBModeRepartition,
   calcEquitableRatioIteratif,
+  calculerExonerationHS,
   estimerCMG2025,
   ciPlafondMensuel,
   K_TOTAL,
@@ -86,6 +87,13 @@ export function PaieForm({
     return Math.round((base + sup25 + sup50) * 100) / 100;
   }, [planningHours, taux]);
 
+  // Exonération de cotisations salariales sur heures sup (11,31 %) — en plus de salNetTotalMens
+  const exonerationHSTotalMens = useMemo(() => {
+    const hSup25Mens = planningHours.hSup25Semaine * 52/12;
+    const hSup50Mens = planningHours.hSup50Semaine * 52/12;
+    return calculerExonerationHS(hSup25Mens, hSup50Mens, taux);
+  }, [planningHours, taux]);
+
   const totalHeuresMensPhys = useMemo(() => {
     return (planningHours.hNormalesSemaine + planningHours.hSup25Semaine + planningHours.hSup50Semaine) * 52/12;
   }, [planningHours]);
@@ -113,8 +121,11 @@ export function PaieForm({
   const preview = useMemo(() => {
     const salNetA = Math.round(repartA * salNetTotalMens * 100) / 100;
     const salNetB = Math.round((1 - repartA) * salNetTotalMens * 100) / 100;
-    return { salNetA, salNetB };
-  }, [repartA, salNetTotalMens]);
+    // L'exonération HS se répartit comme le salaire (repartA), pas comme les indemnités
+    const exonA = Math.round(repartA * exonerationHSTotalMens * 100) / 100;
+    const exonB = Math.round((1 - repartA) * exonerationHSTotalMens * 100) / 100;
+    return { salNetA, salNetB, exonA, exonB };
+  }, [repartA, salNetTotalMens, exonerationHSTotalMens]);
 
   const liveRac = useMemo(() => {
     if (!racOption) return { racA: 0, racB: 0, totalRac: 0 };
@@ -150,7 +161,7 @@ export function PaieForm({
     const hSup50MensTotal = planningHours.hSup50Semaine    * 52 / 12;
     const joursActifsMens = (planningHours.joursActifsParSemaine || 5) * 52 / 12;
 
-    const buildFam = (ratio: number, indemRatio: number, salNet: number, rac: number, isA: boolean): FamCalcData => {
+    const buildFam = (ratio: number, indemRatio: number, salNet: number, exonerationHS: number, rac: number, isA: boolean): FamCalcData => {
       const chargeSal = Math.round(salNet * K_SAL * 100) / 100;
       const chargePat = Math.round(salNet * K_PAT * 100) / 100;
       const navigoFam    = Math.round(navigo    * indemRatio * 100) / 100;
@@ -177,7 +188,7 @@ export function PaieForm({
         hNorm: Math.round(hNormMensTotal * ratio * 10) / 10,
         hSup25: Math.round(hSup25MensTotal * ratio * 10) / 10,
         hSup50: Math.round(hSup50MensTotal * ratio * 10) / 10,
-        salNet, chargesSalariales: chargeSal, chargesPatronales: chargePat,
+        salNet, exonerationHS, chargesSalariales: chargeSal, chargesPatronales: chargePat,
         navigo: navigoFam, entretien: entretienFam, km: kmFam,
         cmgCotisations: cmgCot, cmgRemuneration: cmgRemu,
         abattementCharges: 0, aideVille: 0, creditImpotMens,
@@ -185,8 +196,8 @@ export function PaieForm({
       };
     };
 
-    const famAData = buildFam(repartA, repartIndemA, preview.salNetA, liveRac.racA, true);
-    const famBData = buildFam(1 - repartA, 1 - repartIndemA, preview.salNetB, liveRac.racB, false);
+    const famAData = buildFam(repartA, repartIndemA, preview.salNetA, preview.exonA, liveRac.racA, true);
+    const famBData = buildFam(1 - repartA, 1 - repartIndemA, preview.salNetB, preview.exonB, liveRac.racB, false);
 
     const salNetTotal    = preview.salNetA + preview.salNetB;
     const chargeSalTotal = Math.round(salNetTotal * K_SAL * 100) / 100;
@@ -197,6 +208,7 @@ export function PaieForm({
       salBrut: Math.round((salNetTotal + chargeSalTotal) * 100) / 100,
       chargesSalariales: chargeSalTotal,
       salNet: salNetTotal,
+      exonerationHS: exonerationHSTotalMens,
       navigo: Math.round(navigo * 100) / 100,
       entretien: Math.round(entretien * joursActifsMens * 100) / 100,
       km: Math.round(indemKm * 100) / 100,
@@ -206,6 +218,7 @@ export function PaieForm({
   }, [
     planningHours, preview, repartA, repartIndemA, navigo, entretien, indemKm,
     racOption, modeExpert, racOptimal, aA, aB, liveRac, nomA, nomB, nbEnfantsA, nbEnfantsB,
+    exonerationHSTotalMens,
   ]);
 
   function handleRacToggle(on: boolean) {
@@ -301,12 +314,12 @@ export function PaieForm({
           <div className="grid grid-cols-2 gap-3">
             <FamPreview
               label={nomA} percent={repartA} color="sage"
-              salNet={preview.salNetA} rac={liveRac.racA} totalRac={liveRac.totalRac}
+              salNet={preview.salNetA} exonerationHS={preview.exonA} rac={liveRac.racA} totalRac={liveRac.totalRac}
               racOption={racOption} magicMode={isMagicMode} racPct={racPctA}
             />
             <FamPreview
               label={nomB} percent={1 - repartA} color="blue"
-              salNet={preview.salNetB} rac={liveRac.racB} totalRac={liveRac.totalRac}
+              salNet={preview.salNetB} exonerationHS={preview.exonB} rac={liveRac.racB} totalRac={liveRac.totalRac}
               racOption={racOption} magicMode={isMagicMode} racPct={racPctB}
             />
           </div>
@@ -469,13 +482,15 @@ function SliderRow({ value, onChange, min, max, markers }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, magicMode, racPct }: {
+function FamPreview({ label, percent, color, salNet, exonerationHS, rac, totalRac, racOption, magicMode, racPct }: {
   label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; rac: number; totalRac: number;
+  salNet: number; exonerationHS: number; rac: number; totalRac: number;
   racOption: boolean; magicMode?: boolean; racPct?: number;
 }) {
   const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
   const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
+  const netAVerserReel = salNet + exonerationHS;
+  const hasExoneration = exonerationHS > 0.01;
 
   if (magicMode && racOption) {
     return (
@@ -484,8 +499,19 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, m
           <span className={`text-sm font-semibold ${text}`}>{label}</span>
           <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
         </div>
-        <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
-        <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
+        {hasExoneration ? (
+          <>
+            <div className="text-[11px] text-[var(--dust)] mb-0.5">Net à déclarer sur Pajemploi</div>
+            <div className={`text-sm font-medium ${text} mb-1`}>{salNet.toFixed(2)} €</div>
+            <div className="text-[11px] text-[var(--dust)] mb-0.5">Net à verser réellement à votre nounou</div>
+            <div className={`text-xl font-bold ${text} mb-3`}>{netAVerserReel.toFixed(2)} €</div>
+          </>
+        ) : (
+          <>
+            <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
+            <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
+          </>
+        )}
         <div className="pt-3 border-t border-white/70">
           <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
           <div className="flex items-baseline gap-2 flex-wrap">
@@ -506,8 +532,19 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, m
         <span className={`text-sm font-semibold ${text}`}>{label}</span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
       </div>
-      <div className="text-[11px] text-[var(--dust)]">Salaire net à verser</div>
-      <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
+      {hasExoneration ? (
+        <>
+          <div className="text-[11px] text-[var(--dust)]">Net à déclarer sur Pajemploi</div>
+          <div className={`text-sm font-medium ${text} mb-1`}>{salNet.toFixed(2)} €</div>
+          <div className="text-[11px] text-[var(--dust)]">Net à verser réellement à votre nounou</div>
+          <div className={`text-xl font-bold ${text}`}>{netAVerserReel.toFixed(2)} €</div>
+        </>
+      ) : (
+        <>
+          <div className="text-[11px] text-[var(--dust)]">Salaire net à verser</div>
+          <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
+        </>
+      )}
 
       {racOption && (
         <div className="mt-3 pt-3 border-t border-white/70">

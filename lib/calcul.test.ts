@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   K_SAL, K_PAT, K_TOTAL,
+  TAUX_EXONERATION_HS,
   calcBModeRepartition,
   calcEquitableRatioA,
   calcEquitableRatioIteratif,
   calcHeuresSemaineFromPlanning,
   calcSalNetMensuel,
+  calculerExonerationHS,
   calculerMois,
   calculSoldeCP,
   calculSoldeRepos,
@@ -61,6 +63,47 @@ describe('constants', () => {
   it('K_TOTAL = 1 + K_SAL + K_PAT ≈ 1.8523', () => {
     expect(K_TOTAL).toBeCloseTo(1 + K_SAL + K_PAT, 10);
     expect(K_TOTAL).toBeCloseTo(1.8523, 3);
+  });
+
+  it('TAUX_EXONERATION_HS = 11,31 %', () => {
+    expect(TAUX_EXONERATION_HS).toBe(0.1131);
+  });
+});
+
+// ── calculerExonerationHS ───────────────────────────────────────────────────
+//
+// Exonération de cotisations salariales sur heures supplémentaires (11,31 %,
+// Art. L241-17 CSS depuis 2019), en plus du salaire net habituel.
+// Cas mixte 25 %/50 % vérifié sur un bulletin Pajemploi réel :
+//   14h à +25 % et 2h à +50 %, taux 16 €/h → brut HS = 328 € → exonération 37,10 €.
+
+describe('calculerExonerationHS', () => {
+  it('cas nominal : heures sup 25 % seules', () => {
+    // 10h × 16 €/h × 1,25 = 200 € → × 11,31 % = 22,62 €
+    expect(calculerExonerationHS(10, 0, 16)).toBe(22.62);
+  });
+
+  it('cas heures sup 50 % seules', () => {
+    // 5h × 16 €/h × 1,50 = 120 € → × 11,31 % = 13,57 €
+    expect(calculerExonerationHS(0, 5, 16)).toBe(13.57);
+  });
+
+  it('cas mixte 25 % + 50 % — bulletin réel (14h/2h @ 16 €/h) = 37,10 €', () => {
+    expect(calculerExonerationHS(14, 2, 16)).toBe(37.10);
+  });
+
+  it('semaine de maladie (0h sup) → exonération nulle', () => {
+    expect(calculerExonerationHS(0, 0, 16)).toBe(0);
+  });
+
+  it('ratioPresence < 1 réduit l\'exonération proportionnellement', () => {
+    const plein  = calculerExonerationHS(14, 2, 16, 1);
+    const demi   = calculerExonerationHS(14, 2, 16, 0.5);
+    expect(demi).toBeCloseTo(plein / 2, 2);
+  });
+
+  it('sans heures sup du tout → 0', () => {
+    expect(calculerExonerationHS(0, 0, 11)).toBe(0);
   });
 });
 
@@ -288,6 +331,42 @@ describe('calculerMois', () => {
     expect(cp.famA.salNet).toBeCloseTo(plein.famA.salNet, 2);
     // Indemnité d'entretien réduite (joursCP exclus)
     expect(cp.famA.entretien).toBeLessThan(plein.famA.entretien);
+  });
+
+  // ── Exonération HS (11,31 %) ──
+
+  describe('exonération heures sup', () => {
+    it('sans heures sup du tout → exonerationHS = 0, total inchangé', () => {
+      const r = calculerMois(baseInput());
+      expect(r.famA.exonerationHS).toBe(0);
+      expect(r.famB.exonerationHS).toBe(0);
+      // netAVerserReel (= total + exonerationHS) === netADeclarer (= total) quand exonerationHS = 0
+      expect(r.famA.total + r.famA.exonerationHS).toBe(r.famA.total);
+    });
+
+    it('avec heures sup : exonerationHS > 0, et salNet (netADeclarer) reste inchangé', () => {
+      const inputHS: CalcInput = { ...baseInput(), hSup25Semaine: 8, hSup50Semaine: 1 };
+      const r = calculerMois(inputHS);
+      expect(r.famA.exonerationHS).toBeGreaterThan(0);
+      expect(r.famB.exonerationHS).toBeGreaterThan(0);
+      // netADeclarer = salNet, jamais modifié par l'exonération
+      expect(r.famA.salNet).toBe(calculerMois(inputHS).famA.salNet);
+    });
+
+    it('semaine de maladie : exonerationHS suit le même ratioPresence que salNet (pas de double proratisation)', () => {
+      const inputHS: CalcInput = { ...baseInput(), hSup25Semaine: 8, hSup50Semaine: 1 };
+      const plein  = calculerMois(inputHS);
+      const malade = calculerMois({
+        ...inputHS,
+        evenements: [{ type: 'maladie_nounou', debut: '2025-01-06', fin: '2025-01-10' }],
+      });
+      expect(malade.ratio).toBeLessThan(1);
+      expect(malade.famA.exonerationHS).toBeLessThan(plein.famA.exonerationHS);
+      // exonerationHS et salNet sont réduits exactement dans la même proportion (même ratio, un seul niveau de proratisation)
+      const ratioExon = malade.famA.exonerationHS / plein.famA.exonerationHS;
+      const ratioSal  = malade.famA.salNet       / plein.famA.salNet;
+      expect(ratioExon).toBeCloseTo(ratioSal, 2);
+    });
   });
 
   // ── Jour offert (absences A+B simultanées) ──
