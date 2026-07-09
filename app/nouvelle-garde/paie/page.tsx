@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   PaieForm, aidesZero, type PaieFormValue, type Enfant,
 } from '@/components/nouvelle-garde/PaieForm';
+import { calcBModeRepartition } from '@/lib/calcul';
 
 export default function PaiePage() {
   const router = useRouter();
@@ -40,6 +41,9 @@ export default function PaiePage() {
 
       const planningData = planning?.planning ?? planning ?? {};
       setJoursJson(JSON.stringify(planningData));
+
+      const defaultRepartA = calcBModeRepartition(JSON.stringify(planningData), enf);
+      setValue(v => ({ ...v, repartA: defaultRepartA }));
 
       if (saved) {
         setValue(v => ({
