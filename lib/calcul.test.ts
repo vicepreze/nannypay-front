@@ -10,6 +10,7 @@ import {
   calculerCotisationsDetaillees,
   calculerExonerationHS,
   calculerMois,
+  calculerSalaireEtCotisations,
   calculSoldeCP,
   calculSoldeRepos,
   ciPlafondMensuel,
@@ -180,6 +181,35 @@ describe('calculerCotisationsDetaillees', () => {
     expect(vide.totalSalarie).toBe(0);
     expect(vide.totalEmployeur).toBe(0);
     expect(vide.lignes.every(l => l.montantSalarie === 0 && l.montantEmployeur === 0)).toBe(true);
+  });
+});
+
+// ── calculerSalaireEtCotisations ─────────────────────────────────────────────
+//
+// Le salaire net doit rester calculé sur les heures mensualisées EXACTES, jamais sur les heures
+// arrondies au 0,5 sup. (celles-ci ne servent qu'à l'affichage "heures déclarées") — sinon
+// l'arrondi (toujours vers le haut) gonfle artificiellement le salaire réellement versé.
+// Vérifié sur deux bulletins Pajemploi réels du même foyer partagé (taux 12,50 €/h) :
+//   Famille A : 69h normales, 14h sup 25 %, 2h sup 50 % → 1 118,75 €
+//   Famille B : 106h normales, 20h sup 25 %, 2h sup 50 % → 1 675,00 €
+
+describe('calculerSalaireEtCotisations', () => {
+  it('bulletin réel Famille A : 69h/14h/2h @ 12,50 €/h → salNet = 1 118,75 €', () => {
+    const r = calculerSalaireEtCotisations(69, 14, 2, 12.50);
+    expect(r.salNet).toBe(1118.75);
+  });
+
+  it('bulletin réel Famille B : 106h/20h/2h @ 12,50 €/h → salNet = 1 675,00 €', () => {
+    const r = calculerSalaireEtCotisations(106, 20, 2, 12.50);
+    expect(r.salNet).toBe(1675.00);
+  });
+
+  it('les heures déclarées (affichage) sont arrondies au 0,5 sup., mais salNet reste basé sur les heures exactes', () => {
+    // 68,7h exact → salNet doit utiliser 68,7, pas 69 (l'arrondi affiché)
+    const r = calculerSalaireEtCotisations(68.7, 0, 0, 12.50);
+    expect(r.hNorm).toBe(69); // arrondi au 0,5 sup. pour l'affichage
+    expect(r.salNet).toBe(Math.round(68.7 * 12.50 * 100) / 100); // calcul sur l'heure exacte
+    expect(r.salNet).not.toBe(Math.round(69 * 12.50 * 100) / 100); // pas sur l'heure arrondie
   });
 });
 

@@ -124,10 +124,10 @@ export interface AidesInput {
 
 export interface FamResult {
   qp:                number;
-  hNorm:             number;   // heures déclarées Pajemploi — arrondi au 0,5 sup.
+  hNorm:             number;   // heures déclarées Pajemploi (affichage) — arrondi au 0,5 sup.
   hSup25:            number;   // idem
   hSup50:            number;   // idem
-  salNet:            number;   // "Salaire net déclaré" Pajemploi — calculé sur les heures arrondies
+  salNet:            number;   // "Salaire net déclaré" Pajemploi — calculé sur les heures mensualisées exactes (non arrondies)
   transport:         number;
   entretien:         number;
   km:                number;
@@ -498,10 +498,10 @@ export function calculerExonerationHS(
 }
 
 export interface SalaireEtCotisations {
-  hNorm:         number; // heures déclarées Pajemploi — arrondi au 0,5 sup.
+  hNorm:         number; // heures déclarées Pajemploi (affichage) — arrondi au 0,5 sup.
   hSup25:        number;
   hSup50:        number;
-  salNet:        number; // "Salaire net déclaré" Pajemploi
+  salNet:        number; // "Salaire net déclaré" Pajemploi — sur heures mensualisées exactes
   exonerationHS: number;
   brut:          number; // salaire brut équivalent (salNet / 0,7812)
   cotisations:   CotisationsDetail;
@@ -511,9 +511,12 @@ export interface SalaireEtCotisations {
  * Chaîne complète heures → salaire net → exonération HS → brut → cotisations détaillées,
  * partagée entre `calculerMois` (calcul réel d'un mois donné) et l'aperçu "moyenne mensuelle"
  * du wizard/Settings (`PaieForm`, sans calendrier précis). `hNormMens`/`hSup25Mens`/`hSup50Mens`
- * doivent déjà être mensualisées et pondérées (part famille, ratioPresence le cas échéant) —
- * l'arrondi au 0,5 sup. est le dernier maillon avant le calcul monétaire, pour ne jamais
- * proratiser après coup les heures qui seront réellement déclarées sur Pajemploi.
+ * doivent déjà être mensualisées et pondérées (part famille, ratioPresence le cas échéant).
+ *
+ * L'arrondi au 0,5 sup. (`hNorm`/`hSup25`/`hSup50` en sortie) sert UNIQUEMENT à l'affichage
+ * "heures déclarées" (seul incrément accepté par le formulaire Pajemploi) — il n'entre pas dans
+ * le calcul du salaire net, qui reste basé sur les heures mensualisées exactes. Vérifié sur deux
+ * bulletins réels (69h/14h/2h @ 12,50 €/h → 1 118,75 € ; 106h/20h/2h @ 12,50 €/h → 1 675,00 €).
  */
 export function calculerSalaireEtCotisations(
   hNormMens:  number,
@@ -521,15 +524,20 @@ export function calculerSalaireEtCotisations(
   hSup50Mens: number,
   taux:       number,
 ): SalaireEtCotisations {
+  // Heures déclarées Pajemploi (affichage uniquement) : arrondies au 0,5 sup., seul incrément
+  // accepté par le formulaire. Ne sert PAS de base au calcul monétaire ci-dessous — le salaire
+  // net reste calculé sur les heures mensualisées exactes, pour ne jamais gonfler artificiellement
+  // le salaire réellement versé (vérifié sur deux bulletins réels : 69h/14h/2h @ 12,50 €/h →
+  // 1 118,75 € et 106h/20h/2h @ 12,50 €/h → 1 675,00 €, tous deux exacts sans arrondi).
   const hNorm  = roundUpToHalf(hNormMens);
   const hSup25 = roundUpToHalf(hSup25Mens);
   const hSup50 = roundUpToHalf(hSup50Mens);
 
-  const baseNet  = Math.round(hNorm  * taux        * 100) / 100;
-  const sup25Net = Math.round(hSup25 * taux * 1.25 * 100) / 100;
-  const sup50Net = Math.round(hSup50 * taux * 1.50 * 100) / 100;
+  const baseNet  = Math.round(hNormMens  * taux        * 100) / 100;
+  const sup25Net = Math.round(hSup25Mens * taux * 1.25 * 100) / 100;
+  const sup50Net = Math.round(hSup50Mens * taux * 1.50 * 100) / 100;
   const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
-  const exonerationHS = calculerExonerationHS(hSup25, hSup50, taux, 1);
+  const exonerationHS = calculerExonerationHS(hSup25Mens, hSup50Mens, taux, 1);
 
   const brut        = Math.round(salNet * (1 + K_SAL) * 100) / 100; // brut = net / 0,7812
   const cotisations = calculerCotisationsDetaillees(brut);
@@ -734,9 +742,8 @@ export function calculerMois(input: CalcInput): CalcResult {
   const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP - joursAbsRepos - joursOffert - joursFeries);
 
   function calcFam(qp: number, indemRatio: number, aides: AidesInput | undefined): FamResult {
-    // ratioPresence (maladie) est appliqué AVANT l'arrondi au 0,5 sup. (dans calculerSalaireEtCotisations) —
-    // ce sont les heures arrondies qui seront réellement déclarées sur Pajemploi, donc c'est sur elles
-    // que tout le reste du calcul se base (pas de double proratisation).
+    // ratioPresence (maladie) appliqué une seule fois, ici, avant tout calcul (heures ET arrondi
+    // d'affichage dans calculerSalaireEtCotisations) — pas de double proratisation.
     const {
       hNorm, hSup25, hSup50, salNet, exonerationHS, brut, cotisations,
     } = calculerSalaireEtCotisations(H_NORM_MENS * qp * ratio, H_SUP25_MENS * qp * ratio, H_SUP50_MENS * qp * ratio, taux);
