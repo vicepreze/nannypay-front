@@ -314,12 +314,12 @@ export function PaieForm({
           <div className="grid grid-cols-2 gap-3">
             <FamPreview
               label={nomA} percent={repartA} color="sage"
-              salNet={preview.salNetA} exonerationHS={preview.exonA} rac={liveRac.racA} totalRac={liveRac.totalRac}
+              salNet={preview.salNetA} rac={liveRac.racA} totalRac={liveRac.totalRac}
               racOption={racOption} magicMode={isMagicMode} racPct={racPctA}
             />
             <FamPreview
               label={nomB} percent={1 - repartA} color="blue"
-              salNet={preview.salNetB} exonerationHS={preview.exonB} rac={liveRac.racB} totalRac={liveRac.totalRac}
+              salNet={preview.salNetB} rac={liveRac.racB} totalRac={liveRac.totalRac}
               racOption={racOption} magicMode={isMagicMode} racPct={racPctB}
             />
           </div>
@@ -482,15 +482,13 @@ function SliderRow({ value, onChange, min, max, markers }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, exonerationHS, rac, totalRac, racOption, magicMode, racPct }: {
+function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, magicMode, racPct }: {
   label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; exonerationHS: number; rac: number; totalRac: number;
+  salNet: number; rac: number; totalRac: number;
   racOption: boolean; magicMode?: boolean; racPct?: number;
 }) {
   const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
   const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
-  const netAVerserReel = salNet + exonerationHS;
-  const hasExoneration = exonerationHS > 0.01;
 
   if (magicMode && racOption) {
     return (
@@ -499,19 +497,8 @@ function FamPreview({ label, percent, color, salNet, exonerationHS, rac, totalRa
           <span className={`text-sm font-semibold ${text}`}>{label}</span>
           <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
         </div>
-        {hasExoneration ? (
-          <>
-            <div className="text-[11px] text-[var(--dust)] mb-0.5">Net à déclarer sur Pajemploi</div>
-            <div className={`text-sm font-medium ${text} mb-1`}>{salNet.toFixed(2)} €</div>
-            <div className="text-[11px] text-[var(--dust)] mb-0.5">Net à verser réellement à votre nounou</div>
-            <div className={`text-xl font-bold ${text} mb-3`}>{netAVerserReel.toFixed(2)} €</div>
-          </>
-        ) : (
-          <>
-            <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
-            <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
-          </>
-        )}
+        <div className="text-[11px] text-[var(--dust)] mb-0.5">Net à déclarer sur Pajemploi</div>
+        <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
         <div className="pt-3 border-t border-white/70">
           <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
           <div className="flex items-baseline gap-2 flex-wrap">
@@ -532,19 +519,8 @@ function FamPreview({ label, percent, color, salNet, exonerationHS, rac, totalRa
         <span className={`text-sm font-semibold ${text}`}>{label}</span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
       </div>
-      {hasExoneration ? (
-        <>
-          <div className="text-[11px] text-[var(--dust)]">Net à déclarer sur Pajemploi</div>
-          <div className={`text-sm font-medium ${text} mb-1`}>{salNet.toFixed(2)} €</div>
-          <div className="text-[11px] text-[var(--dust)]">Net à verser réellement à votre nounou</div>
-          <div className={`text-xl font-bold ${text}`}>{netAVerserReel.toFixed(2)} €</div>
-        </>
-      ) : (
-        <>
-          <div className="text-[11px] text-[var(--dust)]">Salaire net à verser</div>
-          <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
-        </>
-      )}
+      <div className="text-[11px] text-[var(--dust)]">Net à déclarer sur Pajemploi</div>
+      <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
 
       {racOption && (
         <div className="mt-3 pt-3 border-t border-white/70">
