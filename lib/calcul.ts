@@ -8,6 +8,109 @@
 export const K_SAL   = 0.2188 / 0.7812;         // ≈ 0,2801  charges salariales / salNet
 export const K_PAT   = 0.4470 / 0.7812;         // ≈ 0,5722  charges patronales / salNet
 export const K_TOTAL = 1 + K_SAL + K_PAT;       // ≈ 1,8523  coût employeur / salNet
+// K_SAL/K_PAT restent utilisés tels quels par le moteur RAC/CMG (calcEquitableRatioIteratif,
+// cmgDetail, estimerCMG2025) — non touchés ici, cf. TAUX_COTISATIONS pour le détail réel Urssaf.
+
+/** Arrondi au 0,5 supérieur — Pajemploi n'accepte les heures qu'en incréments de 0,5. */
+export function roundUpToHalf(n: number): number {
+  return Math.ceil(n * 2) / 2;
+}
+
+// ── Cotisations détaillées (Urssaf Pajemploi, CCN garde d'enfants à domicile) ─────
+// Vérifié ligne à ligne sur un bulletin réel (période 06/2026, volet social
+// n°2026182W63539) : brut 1432,10 € → 313,35 € de cotisations salariales
+// (= 21,88 % de K_SAL, à l'arrondi près) et 645,09 € de cotisations patronales.
+// Taux stables 2026 — vérifier urssaf.fr/taux-cotisations-particuliers avant de modifier.
+
+const ASSIETTE_CSG_CRDS = 0.9825; // abattement forfaitaire 1,75 % pour frais professionnels
+
+type BaseCotisation = 'brut' | 'brutCSG';
+
+interface TauxCotisation {
+  label:            string;
+  base:             BaseCotisation;
+  tauxSalarie:      number;
+  tauxEmployeur:    number;
+  plafondEmployeur?: number; // ex : contribution santé travail, plafonnée à 5 €/mois
+}
+
+const TAUX_COTISATIONS: TauxCotisation[] = [
+  { label: "CSG non déductible de l'impôt sur le revenu", base: 'brutCSG', tauxSalarie: 0.0290,  tauxEmployeur: 0 },
+  { label: "CSG déductible de l'impôt sur le revenu",     base: 'brutCSG', tauxSalarie: 0.0680,  tauxEmployeur: 0 },
+  { label: 'Maladie',                                     base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.1300 },
+  { label: 'Vieillesse plafonnée',                        base: 'brut',    tauxSalarie: 0.0690,  tauxEmployeur: 0.0855 },
+  { label: 'Vieillesse déplafonnée',                      base: 'brut',    tauxSalarie: 0.0040,  tauxEmployeur: 0.0211 },
+  { label: 'Allocations familiales',                      base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.0525 },
+  { label: 'Accident du travail',                         base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.0206 },
+  { label: 'FNAL',                                        base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.0010 },
+  { label: 'CSA',                                         base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.0030 },
+  { label: 'Formation professionnelle',                   base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.0085 },
+  { label: 'Contribution dialogue social',                base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.00016 },
+  { label: 'Contribution santé travail',                  base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.0270,  plafondEmployeur: 5.00 },
+  { label: 'Retraite complémentaire',                     base: 'brut',    tauxSalarie: 0.0401,  tauxEmployeur: 0.0601 },
+  { label: 'Prévoyance',                                  base: 'brut',    tauxSalarie: 0.0104,  tauxEmployeur: 0.0245 },
+  { label: 'Assurance chômage',                            base: 'brut',    tauxSalarie: 0,       tauxEmployeur: 0.0400 },
+];
+
+export interface LigneCotisation {
+  label:            string;
+  base:             number;
+  tauxSalarie:      number;
+  montantSalarie:   number;
+  tauxEmployeur:    number;
+  montantEmployeur: number;
+}
+
+export interface CotisationsDetail {
+  lignes:        LigneCotisation[];
+  totalSalarie:  number;
+  totalEmployeur: number;
+}
+
+/** Détail des cotisations obligatoires (Urssaf Pajemploi) à partir du salaire brut. */
+export function calculerCotisationsDetaillees(brut: number): CotisationsDetail {
+  const baseCSG = Math.round(brut * ASSIETTE_CSG_CRDS * 100) / 100;
+
+  const lignes: LigneCotisation[] = TAUX_COTISATIONS.map(c => {
+    const base = c.base === 'brutCSG' ? baseCSG : brut;
+    const montantSalarieRaw = base * c.tauxSalarie;
+    let montantEmployeurRaw = base * c.tauxEmployeur;
+    if (c.plafondEmployeur !== undefined) montantEmployeurRaw = Math.min(montantEmployeurRaw, c.plafondEmployeur);
+    return {
+      label: c.label, base,
+      tauxSalarie: c.tauxSalarie, montantSalarie: Math.round(montantSalarieRaw * 100) / 100,
+      tauxEmployeur: c.tauxEmployeur, montantEmployeur: Math.round(montantEmployeurRaw * 100) / 100,
+    };
+  });
+
+  const totalSalarie   = Math.round(lignes.reduce((s, l) => s + l.montantSalarie,   0) * 100) / 100;
+  const totalEmployeur = Math.round(lignes.reduce((s, l) => s + l.montantEmployeur, 0) * 100) / 100;
+
+  return { lignes, totalSalarie, totalEmployeur };
+}
+
+/**
+ * Somme ligne à ligne deux détails de cotisations (ex : Famille A + Famille B d'une garde
+ * partagée) — chaque famille reste un employeur Pajemploi distinct, ceci n'est qu'un total
+ * informatif combiné (les deux lignes viennent de la même table TAUX_COTISATIONS, même ordre).
+ */
+export function sommerCotisations(a: CotisationsDetail, b: CotisationsDetail): CotisationsDetail {
+  const lignes: LigneCotisation[] = a.lignes.map((la, i) => {
+    const lb = b.lignes[i];
+    return {
+      label: la.label,
+      base: Math.round((la.base + lb.base) * 100) / 100,
+      tauxSalarie: la.tauxSalarie, tauxEmployeur: la.tauxEmployeur,
+      montantSalarie:   Math.round((la.montantSalarie   + lb.montantSalarie)   * 100) / 100,
+      montantEmployeur: Math.round((la.montantEmployeur + lb.montantEmployeur) * 100) / 100,
+    };
+  });
+  return {
+    lignes,
+    totalSalarie:   Math.round((a.totalSalarie   + b.totalSalarie)   * 100) / 100,
+    totalEmployeur: Math.round((a.totalEmployeur + b.totalEmployeur) * 100) / 100,
+  };
+}
 
 export type Evt = { type: string; debut: string; fin: string };
 
@@ -21,19 +124,23 @@ export interface AidesInput {
 
 export interface FamResult {
   qp:                number;
-  hNorm:             number;
-  hSup25:            number;
-  hSup50:            number;
-  salNet:            number;
+  hNorm:             number;   // heures déclarées Pajemploi — arrondi au 0,5 sup.
+  hSup25:            number;   // idem
+  hSup50:            number;   // idem
+  salNet:            number;   // "Salaire net déclaré" Pajemploi — calculé sur les heures arrondies
   transport:         number;
   entretien:         number;
   km:                number;
-  total:             number;  // salNet + transport + entretien + km (versé à la nounou)
-  exonerationHS:     number;  // réduction cotisations salariales HS (Art. L241-17 CSS) — en plus de salNet/total
-  chargesSalariales: number;  // salNet × K_SAL
-  chargesPatronales: number;  // salNet × K_PAT
-  aidesTotal:        number;  // total aides mensuelles CAF
-  resteCharge:       number;  // (total + chargesSal + chargesPat) − aidesTotal
+  total:             number;   // salNet + transport + entretien + km (versé à la nounou)
+  exonerationHS:     number;   // réduction cotisations salariales HS (Art. L241-17 CSS) — en plus de salNet/total
+  brut:              number;   // salaire brut équivalent (salNet / 0,7812)
+  cotisations:       CotisationsDetail; // détail des cotisations obligatoires (table Urssaf réelle)
+  netAPayerAvantIR:  number;   // salNet + transport + km + exonerationHS — formule exacte du bulletin Pajemploi (hors entretien)
+  totalVerseReel:    number;   // netAPayerAvantIR + entretien — ce que la nounou reçoit réellement (entretien hors Pajemploi)
+  chargesSalariales: number;   // = cotisations.totalSalarie
+  chargesPatronales: number;   // = cotisations.totalEmployeur
+  aidesTotal:        number;   // total aides mensuelles CAF
+  resteCharge:       number;   // (total + chargesSal + chargesPat) − aidesTotal
 }
 
 export interface CalcResult {
@@ -390,6 +497,46 @@ export function calculerExonerationHS(
   return Math.round(remuHS * TAUX_EXONERATION_HS * ratioPresence * 100) / 100;
 }
 
+export interface SalaireEtCotisations {
+  hNorm:         number; // heures déclarées Pajemploi — arrondi au 0,5 sup.
+  hSup25:        number;
+  hSup50:        number;
+  salNet:        number; // "Salaire net déclaré" Pajemploi
+  exonerationHS: number;
+  brut:          number; // salaire brut équivalent (salNet / 0,7812)
+  cotisations:   CotisationsDetail;
+}
+
+/**
+ * Chaîne complète heures → salaire net → exonération HS → brut → cotisations détaillées,
+ * partagée entre `calculerMois` (calcul réel d'un mois donné) et l'aperçu "moyenne mensuelle"
+ * du wizard/Settings (`PaieForm`, sans calendrier précis). `hNormMens`/`hSup25Mens`/`hSup50Mens`
+ * doivent déjà être mensualisées et pondérées (part famille, ratioPresence le cas échéant) —
+ * l'arrondi au 0,5 sup. est le dernier maillon avant le calcul monétaire, pour ne jamais
+ * proratiser après coup les heures qui seront réellement déclarées sur Pajemploi.
+ */
+export function calculerSalaireEtCotisations(
+  hNormMens:  number,
+  hSup25Mens: number,
+  hSup50Mens: number,
+  taux:       number,
+): SalaireEtCotisations {
+  const hNorm  = roundUpToHalf(hNormMens);
+  const hSup25 = roundUpToHalf(hSup25Mens);
+  const hSup50 = roundUpToHalf(hSup50Mens);
+
+  const baseNet  = Math.round(hNorm  * taux        * 100) / 100;
+  const sup25Net = Math.round(hSup25 * taux * 1.25 * 100) / 100;
+  const sup50Net = Math.round(hSup50 * taux * 1.50 * 100) / 100;
+  const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
+  const exonerationHS = calculerExonerationHS(hSup25, hSup50, taux, 1);
+
+  const brut        = Math.round(salNet * (1 + K_SAL) * 100) / 100; // brut = net / 0,7812
+  const cotisations = calculerCotisationsDetaillees(brut);
+
+  return { hNorm, hSup25, hSup50, salNet, exonerationHS, brut, cotisations };
+}
+
 function unionMin(intervals: { s: number; e: number }[]): number {
   if (!intervals.length) return 0;
   const sorted = [...intervals].sort((a, b) => a.s - b.s);
@@ -587,15 +734,12 @@ export function calculerMois(input: CalcInput): CalcResult {
   const joursEntretienBase = Math.max(0, joursOuv - joursAbsMaladie - joursAbsCP - joursAbsRepos - joursOffert - joursFeries);
 
   function calcFam(qp: number, indemRatio: number, aides: AidesInput | undefined): FamResult {
-    const hNorm  = Math.round(H_NORM_MENS  * qp * ratio);
-    const hSup25 = Math.round(H_SUP25_MENS * qp * ratio);
-    const hSup50 = Math.round(H_SUP50_MENS * qp * ratio);
-
-    const baseNet  = Math.round(H_NORM_MENS  * qp * taux        * ratio * 100) / 100;
-    const sup25Net = Math.round(H_SUP25_MENS * qp * taux * 1.25 * ratio * 100) / 100;
-    const sup50Net = Math.round(H_SUP50_MENS * qp * taux * 1.50 * ratio * 100) / 100;
-    const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
-    const exonerationHS = calculerExonerationHS(H_SUP25_MENS * qp, H_SUP50_MENS * qp, taux, ratio);
+    // ratioPresence (maladie) est appliqué AVANT l'arrondi au 0,5 sup. (dans calculerSalaireEtCotisations) —
+    // ce sont les heures arrondies qui seront réellement déclarées sur Pajemploi, donc c'est sur elles
+    // que tout le reste du calcul se base (pas de double proratisation).
+    const {
+      hNorm, hSup25, hSup50, salNet, exonerationHS, brut, cotisations,
+    } = calculerSalaireEtCotisations(H_NORM_MENS * qp * ratio, H_SUP25_MENS * qp * ratio, H_SUP50_MENS * qp * ratio, taux);
 
     const transport = Math.round(navigo   * indemRatio * 100) / 100;
     // L'indemnité d'entretien est due par enfant et par jour de présence — pondérée par la répartition des indemnités
@@ -603,12 +747,21 @@ export function calculerMois(input: CalcInput): CalcResult {
     const km        = Math.round(indemKm  * indemRatio * 100) / 100;
     const total     = Math.round((salNet + transport + entretien + km) * 100) / 100;
 
-    const chargesSalariales = Math.round(salNet * K_SAL * 100) / 100;
-    const chargesPatronales = Math.round(salNet * K_PAT * 100) / 100;
+    const chargesSalariales = cotisations.totalSalarie;
+    const chargesPatronales = cotisations.totalEmployeur;
     const aidesTotal        = aides ? monthlyAides(aides) : 0;
     const resteCharge       = Math.round((total + chargesSalariales + chargesPatronales - aidesTotal) * 100) / 100;
 
-    return { qp, hNorm, hSup25, hSup50, salNet, transport, entretien, km, total, exonerationHS, chargesSalariales, chargesPatronales, aidesTotal, resteCharge };
+    // Formule exacte du bulletin Pajemploi : "Net à payer avant l'impôt sur le revenu" ne comprend
+    // PAS l'entretien (ce n'est pas une ligne Pajemploi, il est versé hors volet social).
+    const netAPayerAvantIR = Math.round((salNet + transport + km + exonerationHS) * 100) / 100;
+    const totalVerseReel   = Math.round((netAPayerAvantIR + entretien) * 100) / 100;
+
+    return {
+      qp, hNorm, hSup25, hSup50, salNet, transport, entretien, km, total, exonerationHS,
+      brut, cotisations, netAPayerAvantIR, totalVerseReel,
+      chargesSalariales, chargesPatronales, aidesTotal, resteCharge,
+    };
   }
 
   const famA = calcFam(repartitionA,     repartitionIndemA,       racOptionActive ? aidesA : undefined);

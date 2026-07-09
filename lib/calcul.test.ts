@@ -7,6 +7,7 @@ import {
   calcEquitableRatioIteratif,
   calcHeuresSemaineFromPlanning,
   calcSalNetMensuel,
+  calculerCotisationsDetaillees,
   calculerExonerationHS,
   calculerMois,
   calculSoldeCP,
@@ -15,6 +16,7 @@ import {
   estimerCMG2025,
   joursOffertsMois,
   joursOuvrablesEntreDates,
+  roundUpToHalf,
 } from './calcul';
 import type { CalcInput, CompteCP, CompteRepos } from './calcul';
 
@@ -104,6 +106,80 @@ describe('calculerExonerationHS', () => {
 
   it('sans heures sup du tout → 0', () => {
     expect(calculerExonerationHS(0, 0, 11)).toBe(0);
+  });
+});
+
+// ── roundUpToHalf ────────────────────────────────────────────────────────────
+//
+// Pajemploi n'accepte les heures qu'en incréments de 0,5 — toute valeur doit être
+// arrondie au 0,5 supérieur avant d'être déclarée (et donc avant d'être payée).
+
+describe('roundUpToHalf', () => {
+  it('valeur déjà un multiple de 0,5 → inchangée', () => {
+    expect(roundUpToHalf(8)).toBe(8);
+    expect(roundUpToHalf(8.5)).toBe(8.5);
+  });
+
+  it('arrondit au 0,5 supérieur (jamais à l\'inférieur)', () => {
+    expect(roundUpToHalf(8.1)).toBe(8.5);
+    expect(roundUpToHalf(8.49)).toBe(8.5);
+    expect(roundUpToHalf(8.51)).toBe(9);
+    expect(roundUpToHalf(8.99)).toBe(9);
+  });
+
+  it('0 → 0', () => {
+    expect(roundUpToHalf(0)).toBe(0);
+  });
+});
+
+// ── calculerCotisationsDetaillees ────────────────────────────────────────────
+//
+// Vérifié ligne à ligne sur un vrai bulletin Pajemploi (CCN garde d'enfants à
+// domicile, période 06/2026, volet social n°2026182W63539) :
+//   brut 1 432,10 € → 313,35 € de cotisations salariales, 645,09 € de patronales.
+// Tolérance de 0,02 € acceptée (cascade d'arrondis internes à Urssaf non répliquée).
+
+describe('calculerCotisationsDetaillees', () => {
+  const BRUT_BULLETIN = 1432.10;
+  const r = calculerCotisationsDetaillees(BRUT_BULLETIN);
+
+  it('total salarié ≈ 313,35 € (bulletin réel)', () => {
+    expect(r.totalSalarie).toBeCloseTo(313.35, 1);
+  });
+
+  it('total employeur = 645,09 € exactement (bulletin réel)', () => {
+    expect(r.totalEmployeur).toBe(645.09);
+  });
+
+  it('CSG déductible : base 98,25 % du brut, 6,80 % → 95,68 €', () => {
+    const ligne = r.lignes.find(l => l.label.includes('CSG déductible'));
+    expect(ligne?.base).toBeCloseTo(1407.04, 0);
+    expect(ligne?.montantSalarie).toBeCloseTo(95.68, 1);
+  });
+
+  it('maladie : 100 % employeur, 13,00 % du brut → 186,17 €', () => {
+    const ligne = r.lignes.find(l => l.label === 'Maladie');
+    expect(ligne?.montantSalarie).toBe(0);
+    expect(ligne?.montantEmployeur).toBeCloseTo(186.17, 1);
+  });
+
+  it('contribution santé travail : plafonnée à 5 € même si 2,7 % du brut dépasse le plafond', () => {
+    const ligne = r.lignes.find(l => l.label === 'Contribution santé travail');
+    expect(BRUT_BULLETIN * 0.027).toBeGreaterThan(5); // le plafond doit bien s'appliquer sur ce cas
+    expect(ligne?.montantEmployeur).toBe(5.00);
+  });
+
+  it('allocations familiales : 100 % employeur, aucune part salariale', () => {
+    const ligne = r.lignes.find(l => l.label === 'Allocations familiales');
+    expect(ligne?.montantSalarie).toBe(0);
+    expect(ligne?.montantEmployeur).toBeCloseTo(75.19, 1);
+  });
+
+  it('brut nul → toutes les lignes à 0', () => {
+    const vide = calculerCotisationsDetaillees(0);
+    expect(vide.totalSalarie).toBe(0);
+    expect(vide.totalEmployeur).toBe(0);
+    expect(vide.lignes.every(l => l.montantSalarie === 0 && l.montantEmployeur === 0)).toBe(true);
   });
 });
 
@@ -353,7 +429,7 @@ describe('calculerMois', () => {
       expect(r.famA.salNet).toBe(calculerMois(inputHS).famA.salNet);
     });
 
-    it('semaine de maladie : exonerationHS suit le même ratioPresence que salNet (pas de double proratisation)', () => {
+    it('semaine de maladie : ratioPresence réduit les heures déclarées AVANT l\'arrondi au 0,5 sup (pas de double proratisation)', () => {
       const inputHS: CalcInput = { ...baseInput(), hSup25Semaine: 8, hSup50Semaine: 1 };
       const plein  = calculerMois(inputHS);
       const malade = calculerMois({
@@ -362,10 +438,38 @@ describe('calculerMois', () => {
       });
       expect(malade.ratio).toBeLessThan(1);
       expect(malade.famA.exonerationHS).toBeLessThan(plein.famA.exonerationHS);
-      // exonerationHS et salNet sont réduits exactement dans la même proportion (même ratio, un seul niveau de proratisation)
-      const ratioExon = malade.famA.exonerationHS / plein.famA.exonerationHS;
-      const ratioSal  = malade.famA.salNet       / plein.famA.salNet;
-      expect(ratioExon).toBeCloseTo(ratioSal, 2);
+      expect(malade.famA.salNet).toBeLessThan(plein.famA.salNet);
+      // Les heures déclarées reflètent bien le ratio (arrondies au 0,5 sup, donc pas d'égalité stricte
+      // au ratio près — l'arrondi peut absorber une petite partie de la réduction).
+      expect(malade.famA.hSup25).toBeLessThanOrEqual(plein.famA.hSup25);
+      expect(malade.famA.hNorm).toBeCloseTo(plein.famA.hNorm * malade.ratio, 0);
+    });
+  });
+
+  // ── Net à payer avant IR / Total réellement versé ──
+  //
+  // netAPayerAvantIR reproduit exactement la formule du bulletin Pajemploi
+  // (salNet + km + transport + exonérationHS, SANS entretien — pas une ligne Pajemploi).
+  // totalVerseReel = netAPayerAvantIR + entretien (payé hors Pajemploi).
+
+  describe('netAPayerAvantIR / totalVerseReel', () => {
+    it('formule exacte : netAPayerAvantIR = salNet + transport + km + exonerationHS', () => {
+      const r = calculerMois({ ...baseInput(), hSup25Semaine: 8, hSup50Semaine: 1, indemKm: 15 });
+      const attendu = Math.round((r.famA.salNet + r.famA.transport + r.famA.km + r.famA.exonerationHS) * 100) / 100;
+      expect(r.famA.netAPayerAvantIR).toBe(attendu);
+    });
+
+    it('totalVerseReel = netAPayerAvantIR + entretien (entretien exclu du calcul Pajemploi)', () => {
+      const r = calculerMois(baseInput());
+      const attendu = Math.round((r.famA.netAPayerAvantIR + r.famA.entretien) * 100) / 100;
+      expect(r.famA.totalVerseReel).toBe(attendu);
+      expect(r.famA.totalVerseReel).toBeGreaterThan(r.famA.netAPayerAvantIR);
+    });
+
+    it('sans heures sup : netAPayerAvantIR = total − entretien (aucune exonération, entretien hors Pajemploi)', () => {
+      const r = calculerMois(baseInput());
+      const attendu = Math.round((r.famA.total - r.famA.entretien) * 100) / 100;
+      expect(r.famA.netAPayerAvantIR).toBeCloseTo(attendu, 2);
     });
   });
 
@@ -436,14 +540,20 @@ describe('calculerMois', () => {
 
   // ── Charges ──
 
-  it('chargesSalariales = salNet × K_SAL (à 0.01 € près)', () => {
+  it('chargesSalariales = total des cotisations salariales détaillées, proche de salNet × K_SAL (à 0.05 € près)', () => {
     const r = calculerMois(baseInput());
+    expect(r.famA.chargesSalariales).toBe(calculerCotisationsDetaillees(r.famA.brut).totalSalarie);
     expect(r.famA.chargesSalariales).toBeCloseTo(r.famA.salNet * K_SAL, 1);
   });
 
-  it('chargesPatronales = salNet × K_PAT (à 0.01 € près)', () => {
+  it('chargesPatronales = total des cotisations patronales détaillées ; ~K_PAT + contribution santé travail (≈5 €, plafonnée)', () => {
     const r = calculerMois(baseInput());
-    expect(r.famA.chargesPatronales).toBeCloseTo(r.famA.salNet * K_PAT, 1);
+    expect(r.famA.chargesPatronales).toBe(calculerCotisationsDetaillees(r.famA.brut).totalEmployeur);
+    // K_PAT ne couvre que les cotisations proportionnelles historiques — la contribution santé
+    // travail (2,7 % plafonnée à 5 €/mois, ajoutée en 2025) n'y est pas incluse, d'où l'écart.
+    const ecart = r.famA.chargesPatronales - r.famA.salNet * K_PAT;
+    expect(ecart).toBeGreaterThan(0);
+    expect(ecart).toBeLessThan(6);
   });
 
   // ── Mode RAC ──
