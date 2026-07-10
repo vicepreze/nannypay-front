@@ -156,7 +156,7 @@ export function DetailedCalcTable({ famA, famB, nounou, racOptionActive }: Props
           </tr>
         </thead>
         <tbody>
-          {/* Heures déclarées Pajemploi (arrondies au 0,5 sup.) */}
+          {/* Heures déclarées Pajemploi (arrondies à l'entier le plus proche) */}
           <SectionHeader label="Heures déclarées / mois" />
           <Row label="Normales" a={hrs(famA.hNorm)} b={hrs(famB.hNorm)} n={hrs(nounou.hNorm)} />
           {hasSup25 && <Row label="Sup. +25 %" a={hrs(famA.hSup25)} b={hrs(famB.hSup25)} n={hrs(nounou.hSup25)} />}

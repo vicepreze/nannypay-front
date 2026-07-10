@@ -81,7 +81,7 @@ export function PaieForm({
 
   // Base non arrondie (heures mensualisées exactes) — sert uniquement de repère continu à la
   // recherche itérative du ratio équitable (racOptimal, ci-dessous) ; les montants réellement
-  // affichés (aperçuA/aperçuB) utilisent les heures arrondies au 0,5 sup. comme Pajemploi.
+  // affichés (aperçuA/aperçuB) utilisent les heures arrondies à l'entier le plus proche comme Pajemploi.
   const salNetTotalMens = useMemo(() => {
     const base  = planningHours.hNormalesSemaine * 52/12 * taux;
     const sup25 = planningHours.hSup25Semaine    * 52/12 * taux * 1.25;
@@ -113,7 +113,7 @@ export function PaieForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [racOptimal, modeExpert]);
 
-  // Aperçu réel par famille : heures arrondies au 0,5 sup. (seul incrément accepté par Pajemploi),
+  // Aperçu réel par famille : heures arrondies à l'entier le plus proche (seul incrément accepté par Pajemploi),
   // salaire net + exonération HS + cotisations détaillées Urssaf — ce sont ces montants qui
   // s'afficheront partout (carte principale, calcul détaillé). Le Reste à Charge (Mode Magique)
   // continue de chercher son ratio optimal sur la base continue salNetTotalMens ci-dessus, pour

@@ -11,9 +11,12 @@ export const K_TOTAL = 1 + K_SAL + K_PAT;       // ≈ 1,8523  coût employeur /
 // K_SAL/K_PAT restent utilisés tels quels par le moteur RAC/CMG (calcEquitableRatioIteratif,
 // cmgDetail, estimerCMG2025) — non touchés ici, cf. TAUX_COTISATIONS pour le détail réel Urssaf.
 
-/** Arrondi au 0,5 supérieur — Pajemploi n'accepte les heures qu'en incréments de 0,5. */
-export function roundUpToHalf(n: number): number {
-  return Math.ceil(n * 2) / 2;
+/**
+ * Arrondi Pajemploi des heures déclarées : à l'entier le plus proche, sans décimale
+ * (règle officielle Urssaf — < 0,5 → entier inférieur, ≥ 0,5 → entier supérieur).
+ */
+export function arrondiHeuresDeclarees(n: number): number {
+  return Math.round(n);
 }
 
 // ── Cotisations détaillées (Urssaf Pajemploi, CCN garde d'enfants à domicile) ─────
@@ -124,7 +127,7 @@ export interface AidesInput {
 
 export interface FamResult {
   qp:                number;
-  hNorm:             number;   // heures déclarées Pajemploi (affichage) — arrondi au 0,5 sup.
+  hNorm:             number;   // heures déclarées Pajemploi (affichage) — arrondi à l'entier le plus proche
   hSup25:            number;   // idem
   hSup50:            number;   // idem
   salNet:            number;   // "Salaire net déclaré" Pajemploi — calculé sur les heures mensualisées exactes (non arrondies)
@@ -483,9 +486,12 @@ export const TAUX_EXONERATION_HS = 0.1131; // Réduction salariale HS (Art. L241
 /**
  * Réduction de cotisations salariales sur heures supplémentaires (11,31 %), en plus du
  * salaire net habituel — porte sur la rémunération des heures sup (majoration comprise).
- * `hSup25`/`hSup50` sont des heures mensualisées (déjà pondérées par la part famille le cas
- * échéant) ; `ratioPresence` doit être appliqué au même niveau que pour le reste du salaire
- * (voir `salNet` dans `calcFam`), pour éviter une double proratisation.
+ * `taux` doit être le taux horaire BRUT (pas net) : Pajemploi calcule cette exonération sur le
+ * salaire brut et les heures sup DÉCLARÉES (arrondies), jamais sur le net ni les heures réelles
+ * — piège vérifié : au taux net, la formule donne un montant sous-évalué (28,98 € au lieu de
+ * 37,10 € sur le bulletin réel 69h/14h/2h @ 16,00 €/h brut). `hSup25`/`hSup50` sont les heures
+ * mensualisées (déjà pondérées par la part famille le cas échéant) ; `ratioPresence` doit être
+ * appliqué au même niveau que pour le reste du salaire, pour éviter une double proratisation.
  */
 export function calculerExonerationHS(
   hSup25:        number,
@@ -498,7 +504,7 @@ export function calculerExonerationHS(
 }
 
 export interface SalaireEtCotisations {
-  hNorm:         number; // heures déclarées Pajemploi (affichage) — arrondi au 0,5 sup.
+  hNorm:         number; // heures déclarées Pajemploi (affichage) — arrondi à l'entier le plus proche
   hSup25:        number;
   hSup50:        number;
   salNet:        number; // "Salaire net déclaré" Pajemploi — sur heures mensualisées exactes
@@ -513,10 +519,15 @@ export interface SalaireEtCotisations {
  * du wizard/Settings (`PaieForm`, sans calendrier précis). `hNormMens`/`hSup25Mens`/`hSup50Mens`
  * doivent déjà être mensualisées et pondérées (part famille, ratioPresence le cas échéant).
  *
- * L'arrondi au 0,5 sup. (`hNorm`/`hSup25`/`hSup50` en sortie) sert UNIQUEMENT à l'affichage
- * "heures déclarées" (seul incrément accepté par le formulaire Pajemploi) — il n'entre pas dans
- * le calcul du salaire net, qui reste basé sur les heures mensualisées exactes. Vérifié sur deux
- * bulletins réels (69h/14h/2h @ 12,50 €/h → 1 118,75 € ; 106h/20h/2h @ 12,50 €/h → 1 675,00 €).
+ * Deux pipelines séparés (règles officielles Urssaf/Pajemploi) :
+ *  - `salNet` reste calculé sur les heures décimales EXACTES, jamais arrondies — c'est un montant
+ *    en euros, pas un nombre d'heures. Vérifié sur deux bulletins réels (69h/14h/2h @ 12,50 €/h
+ *    → 1 118,75 € ; 106h/20h/2h @ 12,50 €/h → 1 675,00 €).
+ *  - `hNorm`/`hSup25`/`hSup50` (heures DÉCLARÉES, arrondies à l'entier le plus proche) servent à
+ *    l'affichage ET à `exonerationHS` : Pajemploi calcule lui-même cette exonération sur le salaire
+ *    BRUT et les heures arrondies qu'il a reçues, pas sur les heures réelles (formule officielle :
+ *    (brut hSup déclarées × majoration) × 11,31 %, en taux horaire BRUT). Vérifié sur bulletin réel
+ *    (69h/14h/2h déclarées @ 16,00 €/h brut → 37,10 €).
  */
 export function calculerSalaireEtCotisations(
   hNormMens:  number,
@@ -524,20 +535,23 @@ export function calculerSalaireEtCotisations(
   hSup50Mens: number,
   taux:       number,
 ): SalaireEtCotisations {
-  // Heures déclarées Pajemploi (affichage uniquement) : arrondies au 0,5 sup., seul incrément
-  // accepté par le formulaire. Ne sert PAS de base au calcul monétaire ci-dessous — le salaire
-  // net reste calculé sur les heures mensualisées exactes, pour ne jamais gonfler artificiellement
-  // le salaire réellement versé (vérifié sur deux bulletins réels : 69h/14h/2h @ 12,50 €/h →
-  // 1 118,75 € et 106h/20h/2h @ 12,50 €/h → 1 675,00 €, tous deux exacts sans arrondi).
-  const hNorm  = roundUpToHalf(hNormMens);
-  const hSup25 = roundUpToHalf(hSup25Mens);
-  const hSup50 = roundUpToHalf(hSup50Mens);
+  // Heures déclarées Pajemploi : arrondies à l'entier le plus proche (aucune décimale acceptée
+  // par le formulaire). Affichage ET base de l'exonération HS ci-dessous.
+  const hNorm  = arrondiHeuresDeclarees(hNormMens);
+  const hSup25 = arrondiHeuresDeclarees(hSup25Mens);
+  const hSup50 = arrondiHeuresDeclarees(hSup50Mens);
 
+  // Salaire net dû : jamais arrondi, sur les heures décimales exactes — ne gonfle jamais
+  // artificiellement ce qui est réellement versé à la nounou.
   const baseNet  = Math.round(hNormMens  * taux        * 100) / 100;
   const sup25Net = Math.round(hSup25Mens * taux * 1.25 * 100) / 100;
   const sup50Net = Math.round(hSup50Mens * taux * 1.50 * 100) / 100;
   const salNet   = Math.round((baseNet + sup25Net + sup50Net) * 100) / 100;
-  const exonerationHS = calculerExonerationHS(hSup25Mens, hSup50Mens, taux, 1);
+
+  // Exonération HS : Pajemploi la calcule sur le salaire BRUT et les heures sup DÉCLARÉES
+  // (arrondies) — pas sur le net, pas sur les heures réelles.
+  const tauxBrut = taux * (1 + K_SAL); // brut = net / 0,7812
+  const exonerationHS = calculerExonerationHS(hSup25, hSup50, tauxBrut, 1);
 
   const brut        = Math.round(salNet * (1 + K_SAL) * 100) / 100; // brut = net / 0,7812
   const cotisations = calculerCotisationsDetaillees(brut);

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   K_SAL, K_PAT, K_TOTAL,
   TAUX_EXONERATION_HS,
+  arrondiHeuresDeclarees,
   calcBModeRepartition,
   calcEquitableRatioA,
   calcEquitableRatioIteratif,
@@ -17,7 +18,6 @@ import {
   estimerCMG2025,
   joursOffertsMois,
   joursOuvrablesEntreDates,
-  roundUpToHalf,
 } from './calcul';
 import type { CalcInput, CompteCP, CompteRepos } from './calcul';
 
@@ -77,8 +77,9 @@ describe('constants', () => {
 //
 // Exonération de cotisations salariales sur heures supplémentaires (11,31 %,
 // Art. L241-17 CSS depuis 2019), en plus du salaire net habituel.
+// Le taux passé ici est le taux horaire BRUT (Pajemploi calcule sur le brut, pas le net).
 // Cas mixte 25 %/50 % vérifié sur un bulletin Pajemploi réel :
-//   14h à +25 % et 2h à +50 %, taux 16 €/h → brut HS = 328 € → exonération 37,10 €.
+//   14h à +25 % et 2h à +50 %, taux BRUT 16 €/h → brut HS = 328 € → exonération 37,10 €.
 
 describe('calculerExonerationHS', () => {
   it('cas nominal : heures sup 25 % seules', () => {
@@ -110,26 +111,25 @@ describe('calculerExonerationHS', () => {
   });
 });
 
-// ── roundUpToHalf ────────────────────────────────────────────────────────────
+// ── arrondiHeuresDeclarees ───────────────────────────────────────────────────
 //
-// Pajemploi n'accepte les heures qu'en incréments de 0,5 — toute valeur doit être
-// arrondie au 0,5 supérieur avant d'être déclarée (et donc avant d'être payée).
+// Règle officielle Urssaf/Pajemploi : le nombre d'heures à déclarer ne comporte
+// aucune décimale — arrondi à l'entier le plus proche (< 0,5 → inférieur, ≥ 0,5 → supérieur).
 
-describe('roundUpToHalf', () => {
-  it('valeur déjà un multiple de 0,5 → inchangée', () => {
-    expect(roundUpToHalf(8)).toBe(8);
-    expect(roundUpToHalf(8.5)).toBe(8.5);
+describe('arrondiHeuresDeclarees', () => {
+  it('valeur déjà entière → inchangée', () => {
+    expect(arrondiHeuresDeclarees(8)).toBe(8);
+    expect(arrondiHeuresDeclarees(0)).toBe(0);
   });
 
-  it('arrondit au 0,5 supérieur (jamais à l\'inférieur)', () => {
-    expect(roundUpToHalf(8.1)).toBe(8.5);
-    expect(roundUpToHalf(8.49)).toBe(8.5);
-    expect(roundUpToHalf(8.51)).toBe(9);
-    expect(roundUpToHalf(8.99)).toBe(9);
+  it('< 0,5 → arrondi à l\'entier inférieur', () => {
+    expect(arrondiHeuresDeclarees(8.1)).toBe(8);
+    expect(arrondiHeuresDeclarees(8.49)).toBe(8);
   });
 
-  it('0 → 0', () => {
-    expect(roundUpToHalf(0)).toBe(0);
+  it('≥ 0,5 → arrondi à l\'entier supérieur', () => {
+    expect(arrondiHeuresDeclarees(8.5)).toBe(9);
+    expect(arrondiHeuresDeclarees(8.99)).toBe(9);
   });
 });
 
@@ -187,7 +187,7 @@ describe('calculerCotisationsDetaillees', () => {
 // ── calculerSalaireEtCotisations ─────────────────────────────────────────────
 //
 // Le salaire net doit rester calculé sur les heures mensualisées EXACTES, jamais sur les heures
-// arrondies au 0,5 sup. (celles-ci ne servent qu'à l'affichage "heures déclarées") — sinon
+// arrondies à l'entier le plus proche (celles-ci ne servent qu'à l'affichage "heures déclarées") — sinon
 // l'arrondi (toujours vers le haut) gonfle artificiellement le salaire réellement versé.
 // Vérifié sur deux bulletins Pajemploi réels du même foyer partagé (taux 12,50 €/h) :
 //   Famille A : 69h normales, 14h sup 25 %, 2h sup 50 % → 1 118,75 €
@@ -204,10 +204,23 @@ describe('calculerSalaireEtCotisations', () => {
     expect(r.salNet).toBe(1675.00);
   });
 
-  it('les heures déclarées (affichage) sont arrondies au 0,5 sup., mais salNet reste basé sur les heures exactes', () => {
+  it('bulletin réel Famille A : exonerationHS = 37,10 € (calculée sur le BRUT et les heures déclarées, pas le net)', () => {
+    // Piège vérifié : au taux NET (12,50 €), la formule donne 28,98 € — faux. Il faut le BRUT (16,00 €).
+    const r = calculerSalaireEtCotisations(69, 14, 2, 12.50);
+    expect(r.exonerationHS).toBe(37.10);
+  });
+
+  it('bulletin réel Famille A : reproduit le "Net à payer avant l\'impôt sur le revenu" du bulletin (1 264,25 €)', () => {
+    const r = calculerSalaireEtCotisations(69, 14, 2, 12.50);
+    const transport = 108.40, km = 0;
+    const netAPayerAvantIR = Math.round((r.salNet + transport + km + r.exonerationHS) * 100) / 100;
+    expect(netAPayerAvantIR).toBe(1264.25);
+  });
+
+  it('les heures déclarées (affichage) sont arrondies à l\'entier le plus proche, mais salNet reste basé sur les heures exactes', () => {
     // 68,7h exact → salNet doit utiliser 68,7, pas 69 (l'arrondi affiché)
     const r = calculerSalaireEtCotisations(68.7, 0, 0, 12.50);
-    expect(r.hNorm).toBe(69); // arrondi au 0,5 sup. pour l'affichage
+    expect(r.hNorm).toBe(69); // arrondi à l'entier le plus proche pour l'affichage
     expect(r.salNet).toBe(Math.round(68.7 * 12.50 * 100) / 100); // calcul sur l'heure exacte
     expect(r.salNet).not.toBe(Math.round(69 * 12.50 * 100) / 100); // pas sur l'heure arrondie
   });
@@ -459,7 +472,7 @@ describe('calculerMois', () => {
       expect(r.famA.salNet).toBe(calculerMois(inputHS).famA.salNet);
     });
 
-    it('semaine de maladie : ratioPresence réduit les heures déclarées AVANT l\'arrondi au 0,5 sup (pas de double proratisation)', () => {
+    it('semaine de maladie : ratioPresence réduit les heures déclarées AVANT l\'arrondi (pas de double proratisation)', () => {
       const inputHS: CalcInput = { ...baseInput(), hSup25Semaine: 8, hSup50Semaine: 1 };
       const plein  = calculerMois(inputHS);
       const malade = calculerMois({
@@ -469,8 +482,8 @@ describe('calculerMois', () => {
       expect(malade.ratio).toBeLessThan(1);
       expect(malade.famA.exonerationHS).toBeLessThan(plein.famA.exonerationHS);
       expect(malade.famA.salNet).toBeLessThan(plein.famA.salNet);
-      // Les heures déclarées reflètent bien le ratio (arrondies au 0,5 sup, donc pas d'égalité stricte
-      // au ratio près — l'arrondi peut absorber une petite partie de la réduction).
+      // Les heures déclarées reflètent bien le ratio (arrondies à l'entier le plus proche, donc pas
+      // d'égalité stricte au ratio près — l'arrondi peut absorber une petite partie de la réduction).
       expect(malade.famA.hSup25).toBeLessThanOrEqual(plein.famA.hSup25);
       expect(malade.famA.hNorm).toBeCloseTo(plein.famA.hNorm * malade.ratio, 0);
     });
