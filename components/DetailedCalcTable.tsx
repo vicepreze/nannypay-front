@@ -8,9 +8,6 @@ export interface FamCalcData {
   hSup50: number;
   salNet: number;
   exonerationHS: number;
-  brut: number;
-  cotisationsSalariales: number; // estimation — total des cotisations salariales obligatoires (Urssaf)
-  cotisationsPatronales: number; // estimation — total des cotisations patronales obligatoires (Urssaf)
   transport: number;
   entretien: number;
   km: number;
@@ -30,9 +27,6 @@ export interface NounouCalcData {
   hSup50: number;
   salNet: number;
   exonerationHS: number;
-  brut: number;
-  cotisationsSalariales: number;
-  cotisationsPatronales: number;
   transport: number;
   entretien: number;
   km: number;
@@ -128,8 +122,9 @@ export function DetailedCalcTable({ famA, famB, nounou, racOptionActive }: Props
   const hasTransport = famA.transport + famB.transport + nounou.transport > 0;
   const hasEntretien = famA.entretien + famB.entretien + nounou.entretien > 0;
 
-  const coutTotalA = famA.brut + famA.cotisationsPatronales + famA.transport + famA.entretien + famA.km;
-  const coutTotalB = famB.brut + famB.cotisationsPatronales + famB.transport + famB.entretien + famB.km;
+  const totalHeuresA = famA.hNorm + famA.hSup25 + famA.hSup50;
+  const totalHeuresB = famB.hNorm + famB.hSup25 + famB.hSup50;
+  const totalHeuresNounou = nounou.hNorm + nounou.hSup25 + nounou.hSup50;
 
   const totalAidesA = famA.cmgCotisations + famA.cmgRemuneration + famA.abattementCharges + famA.aideVille + famA.creditImpotMens;
   const totalAidesB = famB.cmgCotisations + famB.cmgRemuneration + famB.abattementCharges + famB.aideVille + famB.creditImpotMens;
@@ -161,25 +156,17 @@ export function DetailedCalcTable({ famA, famB, nounou, racOptionActive }: Props
           <Row label="Normales" a={hrs(famA.hNorm)} b={hrs(famB.hNorm)} n={hrs(nounou.hNorm)} />
           {hasSup25 && <Row label="Sup. +25 %" a={hrs(famA.hSup25)} b={hrs(famB.hSup25)} n={hrs(nounou.hSup25)} />}
           {hasSup50 && <Row label="Sup. +50 %" a={hrs(famA.hSup50)} b={hrs(famB.hSup50)} n={hrs(nounou.hSup50)} />}
+          <Row label="Nombre total d'heures" a={hrs(totalHeuresA)} b={hrs(totalHeuresB)} n={hrs(totalHeuresNounou)} />
 
-          {/* Cotisations Urssaf — estimation, détail par ligne non affiché ici */}
-          <SectionHeader label="Cotisations et contributions sociales obligatoires" />
-          <Row
-            label="Estimation du montant total des cotisations (salariales / patronales)"
-            a={`${eur(famA.cotisationsSalariales)} / ${eur(famA.cotisationsPatronales)}`}
-            b={`${eur(famB.cotisationsSalariales)} / ${eur(famB.cotisationsPatronales)}`}
-            n={`${eur(nounou.cotisationsSalariales)} / ${eur(nounou.cotisationsPatronales)}`}
-          />
-
-          {/* Net à payer avant l'impôt sur le revenu — formule exacte du bulletin Pajemploi */}
-          <SectionHeader label="Net à payer avant l'impôt sur le revenu" />
+          {/* Salaire déclaré — formule exacte du bulletin Pajemploi */}
+          <SectionHeader label="Salaire déclaré" />
           <Row label="Salaire net déclaré" a={eur(famA.salNet)} b={eur(famB.salNet)} n={eur(nounou.salNet)} />
           {hasKm        && <Row label="Indemnités kilométriques" a={eur(famA.km)}        b={eur(famB.km)}        n={eur(nounou.km)} />}
           {hasTransport && <Row label="Frais de transport"       a={eur(famA.transport)} b={eur(famB.transport)} n={eur(nounou.transport)} />}
           {hasExonerationHS && (
             <Row
               label="Exonération heures sup (11,31 %)"
-              a={`+ ${eur(famA.exonerationHS)}`} b={`+ ${eur(famB.exonerationHS)}`} n={`+ ${eur(nounou.exonerationHS)}`}
+              a={eur(famA.exonerationHS)} b={eur(famB.exonerationHS)} n={eur(nounou.exonerationHS)}
               green
             />
           )}
@@ -188,9 +175,6 @@ export function DetailedCalcTable({ famA, famB, nounou, racOptionActive }: Props
             <Row label="+ Entretien (versé hors Pajemploi)" a={eur(famA.entretien)} b={eur(famB.entretien)} n={eur(nounou.entretien)} indent />
           )}
           <FinalRow label="Total réellement versé à la nounou" a={eur(famA.totalVerseReel)} b={eur(famB.totalVerseReel)} n={eur(nounou.totalVerseReel)} />
-
-          {/* Coût employeur */}
-          <TotalRow label="Coût total employeur" a={eur(coutTotalA)} b={eur(coutTotalB)} n={dash} />
 
           {/* Aides + RAC */}
           {racOptionActive && (
