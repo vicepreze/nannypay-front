@@ -407,6 +407,9 @@ function ResultCard({ label, nom, r }: {
   r: ReturnType<typeof calculerMois>['famA'];
 }) {
   const color = label === 'A' ? 'text-[var(--blue)]' : 'text-[var(--sage)]';
+  const hasExoneration = r.exonerationHS > 0.01;
+  const netAVerserReel = r.salNet + r.exonerationHS;
+
   return (
     <div className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
       <div className={`px-4 py-2.5 border-b border-[var(--line)] text-[10px] font-medium uppercase tracking-wide bg-[var(--paper)] ${color} flex justify-between items-center`}>
@@ -414,13 +417,36 @@ function ResultCard({ label, nom, r }: {
         <span className="font-mono">{(r.qp * 100).toFixed(1)} %</span>
       </div>
       {[
-        ['Heures normales', r.hNorm  + ' h',               false],
-        ['Heures sup +25%', r.hSup25 + ' h',               r.hSup25 === 0],
-        ['Heures sup +50%', r.hSup50 + ' h',               r.hSup50 === 0],
-        ['Salaire net',     r.salNet.toFixed(2)    + ' €',  false],
-        ['Transport',       r.transport.toFixed(2) + ' €',  false],
-        ['Entretien',       r.entretien.toFixed(2) + ' €',  false],
-        ['Frais km',        r.km.toFixed(2)        + ' €',  r.km === 0],
+        ['Heures normales', r.hNorm  + ' h', false],
+        ['Heures sup +25%', r.hSup25 + ' h', r.hSup25 === 0],
+        ['Heures sup +50%', r.hSup50 + ' h', r.hSup50 === 0],
+      ].map(([l, v, dim]) => (
+        <div key={String(l)} className={'flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs ' + (dim ? 'opacity-40' : '')}>
+          <span className="text-[var(--dust)]">{l}</span>
+          <span className="font-medium font-mono">{v}</span>
+        </div>
+      ))}
+      {hasExoneration ? (
+        <>
+          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs">
+            <span className="text-[var(--dust)]">Net à déclarer sur Pajemploi</span>
+            <span className="font-medium font-mono">{r.salNet.toFixed(2)} €</span>
+          </div>
+          <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs">
+            <span className="text-[var(--dust)]">Net à verser réellement</span>
+            <span className="font-semibold font-mono">{netAVerserReel.toFixed(2)} €</span>
+          </div>
+        </>
+      ) : (
+        <div className="flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs">
+          <span className="text-[var(--dust)]">Salaire net</span>
+          <span className="font-medium font-mono">{r.salNet.toFixed(2)} €</span>
+        </div>
+      )}
+      {[
+        ['Transport', r.transport.toFixed(2) + ' €', false],
+        ['Entretien', r.entretien.toFixed(2) + ' €', false],
+        ['Frais km',  r.km.toFixed(2)        + ' €', r.km === 0],
       ].map(([l, v, dim]) => (
         <div key={String(l)} className={'flex justify-between px-4 py-1.5 border-b border-[var(--line)] text-xs ' + (dim ? 'opacity-40' : '')}>
           <span className="text-[var(--dust)]">{l}</span>

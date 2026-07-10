@@ -4,10 +4,10 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   calcBModeRepartition,
   calcEquitableRatioIteratif,
+  calculerSalaireEtCotisations,
   estimerCMG2025,
   ciPlafondMensuel,
   K_TOTAL,
-  K_SAL,
   K_PAT,
   calcHeuresSemaineFromPlanning,
 } from '@/lib/calcul';
@@ -79,6 +79,9 @@ export function PaieForm({
   const nbEnfantsA = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'A').length), [enfants]);
   const nbEnfantsB = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'B').length), [enfants]);
 
+  // Base non arrondie (heures mensualisées exactes) — sert uniquement de repère continu à la
+  // recherche itérative du ratio équitable (racOptimal, ci-dessous) ; les montants réellement
+  // affichés (aperçuA/aperçuB) utilisent les heures arrondies à l'entier le plus proche comme Pajemploi.
   const salNetTotalMens = useMemo(() => {
     const base  = planningHours.hNormalesSemaine * 52/12 * taux;
     const sup25 = planningHours.hSup25Semaine    * 52/12 * taux * 1.25;
@@ -110,16 +113,34 @@ export function PaieForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [racOptimal, modeExpert]);
 
-  const preview = useMemo(() => {
-    const salNetA = Math.round(repartA * salNetTotalMens * 100) / 100;
-    const salNetB = Math.round((1 - repartA) * salNetTotalMens * 100) / 100;
-    return { salNetA, salNetB };
-  }, [repartA, salNetTotalMens]);
+  // Aperçu réel par famille : heures arrondies à l'entier le plus proche (seul incrément accepté par Pajemploi),
+  // salaire net + exonération HS + cotisations détaillées Urssaf — ce sont ces montants qui
+  // s'afficheront partout (carte principale, calcul détaillé). Le Reste à Charge (Mode Magique)
+  // continue de chercher son ratio optimal sur la base continue salNetTotalMens ci-dessus, pour
+  // ne pas casser la recherche itérative — seul le résultat final (liveRac) reprend ces montants réels.
+  const apercuA = useMemo(
+    () => calculerSalaireEtCotisations(
+      planningHours.hNormalesSemaine * 52/12 * repartA,
+      planningHours.hSup25Semaine    * 52/12 * repartA,
+      planningHours.hSup50Semaine    * 52/12 * repartA,
+      taux,
+    ),
+    [planningHours, repartA, taux]
+  );
+  const apercuB = useMemo(
+    () => calculerSalaireEtCotisations(
+      planningHours.hNormalesSemaine * 52/12 * (1 - repartA),
+      planningHours.hSup25Semaine    * 52/12 * (1 - repartA),
+      planningHours.hSup50Semaine    * 52/12 * (1 - repartA),
+      taux,
+    ),
+    [planningHours, repartA, taux]
+  );
 
   const liveRac = useMemo(() => {
     if (!racOption) return { racA: 0, racB: 0, totalRac: 0 };
-    const salA = preview.salNetA;
-    const salB = preview.salNetB;
+    const salA = apercuA.salNet;
+    const salB = apercuB.salNet;
     if (modeExpert) {
       const aidesA = totalAidesMens(aA);
       const aidesB = totalAidesMens(aB);
@@ -138,22 +159,17 @@ export function PaieForm({
     const racA    = Math.round((coutA - cmgA - ciA) * 100) / 100;
     const racB    = Math.round((coutB - cmgB - ciB) * 100) / 100;
     return { racA, racB, totalRac: racA + racB };
-  }, [racOption, modeExpert, preview.salNetA, preview.salNetB, repartA, nbEnfantsA, nbEnfantsB, taux, totalHeuresMensPhys, aA, aB]);
+  }, [racOption, modeExpert, apercuA.salNet, apercuB.salNet, repartA, nbEnfantsA, nbEnfantsB, taux, totalHeuresMensPhys, aA, aB]);
 
   const racPctA = liveRac.totalRac > 0 ? Math.round((liveRac.racA / liveRac.totalRac) * 100) : 0;
   const racPctB = liveRac.totalRac > 0 ? Math.round((liveRac.racB / liveRac.totalRac) * 100) : 0;
   const isMagicMode = racOption && !modeExpert;
 
   const detailData = useMemo(() => {
-    const hNormMensTotal  = planningHours.hNormalesSemaine * 52 / 12;
-    const hSup25MensTotal = planningHours.hSup25Semaine    * 52 / 12;
-    const hSup50MensTotal = planningHours.hSup50Semaine    * 52 / 12;
     const joursActifsMens = (planningHours.joursActifsParSemaine || 5) * 52 / 12;
 
-    const buildFam = (ratio: number, indemRatio: number, salNet: number, rac: number, isA: boolean): FamCalcData => {
-      const chargeSal = Math.round(salNet * K_SAL * 100) / 100;
-      const chargePat = Math.round(salNet * K_PAT * 100) / 100;
-      const navigoFam    = Math.round(navigo    * indemRatio * 100) / 100;
+    const buildFam = (indemRatio: number, apercu: typeof apercuA, rac: number, isA: boolean): FamCalcData => {
+      const transportFam = Math.round(navigo    * indemRatio * 100) / 100;
       const entretienFam = Math.round(entretien * joursActifsMens * indemRatio * 100) / 100;
       const kmFam         = Math.round(indemKm  * indemRatio * 100) / 100;
 
@@ -171,40 +187,42 @@ export function PaieForm({
         }
       }
 
+      // Formule exacte du bulletin Pajemploi (hors entretien, versé hors volet social)
+      const netAPayerAvantIR = Math.round((apercu.salNet + transportFam + kmFam + apercu.exonerationHS) * 100) / 100;
+      const totalVerseReel   = Math.round((netAPayerAvantIR + entretienFam) * 100) / 100;
+
       return {
         nom: isA ? nomA : nomB,
         nbEnfants: isA ? nbEnfantsA : nbEnfantsB,
-        hNorm: Math.round(hNormMensTotal * ratio * 10) / 10,
-        hSup25: Math.round(hSup25MensTotal * ratio * 10) / 10,
-        hSup50: Math.round(hSup50MensTotal * ratio * 10) / 10,
-        salNet, chargesSalariales: chargeSal, chargesPatronales: chargePat,
-        navigo: navigoFam, entretien: entretienFam, km: kmFam,
+        hNorm: apercu.hNorm, hSup25: apercu.hSup25, hSup50: apercu.hSup50,
+        salNet: apercu.salNet, exonerationHS: apercu.exonerationHS,
+        transport: transportFam, entretien: entretienFam, km: kmFam,
+        netAPayerAvantIR, totalVerseReel,
         cmgCotisations: cmgCot, cmgRemuneration: cmgRemu,
         abattementCharges: 0, aideVille: 0, creditImpotMens,
         resteCharge: rac,
       };
     };
 
-    const famAData = buildFam(repartA, repartIndemA, preview.salNetA, liveRac.racA, true);
-    const famBData = buildFam(1 - repartA, 1 - repartIndemA, preview.salNetB, liveRac.racB, false);
+    const famAData = buildFam(repartIndemA, apercuA, liveRac.racA, true);
+    const famBData = buildFam(1 - repartIndemA, apercuB, liveRac.racB, false);
 
-    const salNetTotal    = preview.salNetA + preview.salNetB;
-    const chargeSalTotal = Math.round(salNetTotal * K_SAL * 100) / 100;
     const nounou: NounouCalcData = {
-      hNorm: Math.round(hNormMensTotal * 10) / 10,
-      hSup25: Math.round(hSup25MensTotal * 10) / 10,
-      hSup50: Math.round(hSup50MensTotal * 10) / 10,
-      salBrut: Math.round((salNetTotal + chargeSalTotal) * 100) / 100,
-      chargesSalariales: chargeSalTotal,
-      salNet: salNetTotal,
-      navigo: Math.round(navigo * 100) / 100,
+      hNorm:  Math.round((apercuA.hNorm  + apercuB.hNorm)  * 10) / 10,
+      hSup25: Math.round((apercuA.hSup25 + apercuB.hSup25) * 10) / 10,
+      hSup50: Math.round((apercuA.hSup50 + apercuB.hSup50) * 10) / 10,
+      salNet:        Math.round((apercuA.salNet        + apercuB.salNet)        * 100) / 100,
+      exonerationHS: Math.round((apercuA.exonerationHS + apercuB.exonerationHS) * 100) / 100,
+      transport: Math.round(navigo * 100) / 100,
       entretien: Math.round(entretien * joursActifsMens * 100) / 100,
       km: Math.round(indemKm * 100) / 100,
+      netAPayerAvantIR: Math.round((famAData.netAPayerAvantIR + famBData.netAPayerAvantIR) * 100) / 100,
+      totalVerseReel:   Math.round((famAData.totalVerseReel   + famBData.totalVerseReel)   * 100) / 100,
     };
 
     return { famA: famAData, famB: famBData, nounou };
   }, [
-    planningHours, preview, repartA, repartIndemA, navigo, entretien, indemKm,
+    planningHours, apercuA, apercuB, repartIndemA, navigo, entretien, indemKm,
     racOption, modeExpert, racOptimal, aA, aB, liveRac, nomA, nomB, nbEnfantsA, nbEnfantsB,
   ]);
 
@@ -301,12 +319,12 @@ export function PaieForm({
           <div className="grid grid-cols-2 gap-3">
             <FamPreview
               label={nomA} percent={repartA} color="sage"
-              salNet={preview.salNetA} rac={liveRac.racA} totalRac={liveRac.totalRac}
+              salNet={apercuA.salNet} rac={liveRac.racA} totalRac={liveRac.totalRac}
               racOption={racOption} magicMode={isMagicMode} racPct={racPctA}
             />
             <FamPreview
               label={nomB} percent={1 - repartA} color="blue"
-              salNet={preview.salNetB} rac={liveRac.racB} totalRac={liveRac.totalRac}
+              salNet={apercuB.salNet} rac={liveRac.racB} totalRac={liveRac.totalRac}
               racOption={racOption} magicMode={isMagicMode} racPct={racPctB}
             />
           </div>
@@ -484,7 +502,7 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, m
           <span className={`text-sm font-semibold ${text}`}>{label}</span>
           <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
         </div>
-        <div className="text-[11px] text-[var(--dust)] mb-0.5">Salaire net à verser</div>
+        <div className="text-[11px] text-[var(--dust)] mb-0.5">Net à déclarer sur Pajemploi</div>
         <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
         <div className="pt-3 border-t border-white/70">
           <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
@@ -506,7 +524,7 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, m
         <span className={`text-sm font-semibold ${text}`}>{label}</span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
       </div>
-      <div className="text-[11px] text-[var(--dust)]">Salaire net à verser</div>
+      <div className="text-[11px] text-[var(--dust)]">Net à déclarer sur Pajemploi</div>
       <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
 
       {racOption && (

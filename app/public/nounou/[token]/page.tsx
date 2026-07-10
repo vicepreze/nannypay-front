@@ -224,17 +224,26 @@ function StatutBadge({ statut }: { statut: string }) {
   return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${cls}`}>{label}</span>;
 }
 
-function FamCard({ label, color, res }: { label: string; color: 'blue' | 'sage'; res: { hNorm: number; hSup25: number; salNet: number; transport: number; entretien: number; km: number; total: number } }) {
+function FamCard({ label, color, res }: { label: string; color: 'blue' | 'sage'; res: { hNorm: number; hSup25: number; salNet: number; exonerationHS: number; transport: number; entretien: number; km: number; total: number } }) {
   const c = color === 'blue'
     ? { bg: 'var(--blue-light)', fg: 'var(--blue)' }
     : { bg: 'var(--sage-light)', fg: 'var(--sage)' };
+  const hasExoneration = res.exonerationHS > 0.01;
+  const netAVerserReel = res.salNet + res.exonerationHS;
   return (
     <div className="border border-[var(--line)] rounded-lg overflow-hidden">
       <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide" style={{ background: `var(--paper)`, color: c.fg }}>{label}</div>
       <div className="p-3 space-y-1 text-xs">
         <Row label="H. normales"   value={`${res.hNorm} h`} />
         <Row label="H. sup. +25%"  value={`${res.hSup25} h`} />
-        <Row label="Salaire net"   value={`${res.salNet.toFixed(2)} €`} />
+        {hasExoneration ? (
+          <>
+            <Row label="Net à déclarer sur Pajemploi" value={`${res.salNet.toFixed(2)} €`} />
+            <Row label="Net à verser réellement" value={`${netAVerserReel.toFixed(2)} €`} />
+          </>
+        ) : (
+          <Row label="Salaire net" value={`${res.salNet.toFixed(2)} €`} />
+        )}
         {res.transport > 0 && <Row label="Transport"   value={`${res.transport.toFixed(2)} €`} />}
         {res.entretien > 0 && <Row label="Entretien"   value={`${res.entretien.toFixed(2)} €`} />}
         {res.km        > 0 && <Row label="Frais km"    value={`${res.km.toFixed(2)} €`} />}
