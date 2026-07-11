@@ -3,12 +3,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   calcBModeRepartition,
-  calcEquitableRatioIteratif,
+  calcRatioBonnePratique,
   calculerSalaireEtCotisations,
-  estimerCMG2025,
+  memeHorairesTousEnfants,
   ciPlafondMensuel,
   K_TOTAL,
-  K_PAT,
   calcHeuresSemaineFromPlanning,
 } from '@/lib/calcul';
 import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
@@ -66,10 +65,6 @@ export function PaieForm({
 
   const [showDetail, setShowDetail] = useState(false);
 
-  // Revenus fiscaux internes — 80 000 € par défaut, non exposés en UI Mode Magique
-  const revFiscauxA = 80_000;
-  const revFiscauxB = 80_000;
-
   const pProportionnel = useMemo(
     () => calcBModeRepartition(joursJson, enfants),
     [joursJson, enfants]
@@ -79,45 +74,32 @@ export function PaieForm({
   const nbEnfantsA = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'A').length), [enfants]);
   const nbEnfantsB = useMemo(() => Math.max(1, enfants.filter(e => e.fam === 'B').length), [enfants]);
 
-  // Base non arrondie (heures mensualisées exactes) — sert uniquement de repère continu à la
-  // recherche itérative du ratio équitable (racOptimal, ci-dessous) ; les montants réellement
-  // affichés (aperçuA/aperçuB) utilisent les heures arrondies à l'entier le plus proche comme Pajemploi.
-  const salNetTotalMens = useMemo(() => {
-    const base  = planningHours.hNormalesSemaine * 52/12 * taux;
-    const sup25 = planningHours.hSup25Semaine    * 52/12 * taux * 1.25;
-    const sup50 = planningHours.hSup50Semaine    * 52/12 * taux * 1.50;
-    return Math.round((base + sup25 + sup50) * 100) / 100;
-  }, [planningHours, taux]);
+  // Le ratio "bonne pratique" (60/40 selon le nombre d'enfants) n'est proposé que pour une garde
+  // à 3 enfants au total, avec des horaires identiques pour tous les enfants : dans les autres cas
+  // la répartition aux heures réelles est plus pertinente et l'utilisateur ajuste le curseur lui-même.
+  const bonnePratiqueEligible = useMemo(() => {
+    const rawNbA = enfants.filter(e => e.fam === 'A').length;
+    const rawNbB = enfants.filter(e => e.fam === 'B').length;
+    if (rawNbA === 0 || rawNbB === 0 || rawNbA + rawNbB !== 3) return false;
+    return memeHorairesTousEnfants(joursJson, enfants);
+  }, [enfants, joursJson]);
 
-  const totalHeuresMensPhys = useMemo(() => {
-    return (planningHours.hNormalesSemaine + planningHours.hSup25Semaine + planningHours.hSup50Semaine) * 52/12;
-  }, [planningHours]);
+  const bonnePratiqueRatio = useMemo(
+    () => calcRatioBonnePratique(nbEnfantsA, nbEnfantsB),
+    [nbEnfantsA, nbEnfantsB]
+  );
 
-  const racOptimal = useMemo(() => {
-    if (!racOption || salNetTotalMens <= 0) return null;
-    return calcEquitableRatioIteratif(
-      salNetTotalMens,
-      { nbEnfants: nbEnfantsA, revenusFiscaux: revFiscauxA, autresAidesMens: 0 },
-      { nbEnfants: nbEnfantsB, revenusFiscaux: revFiscauxB, autresAidesMens: 0 },
-      pProportionnel,
-      taux,
-      totalHeuresMensPhys,
-    );
-  }, [racOption, salNetTotalMens, nbEnfantsA, nbEnfantsB, pProportionnel, taux, totalHeuresMensPhys]);
-
-  // Applique le ratio optimal au slider uniquement en Mode Magique
+  // Applique le ratio bonne pratique au slider uniquement en mode bonne pratique (pas en Mode Expert)
   useEffect(() => {
-    if (racOptimal && !modeExpert && repartA !== racOptimal.meilleurRatio) {
-      set({ repartA: racOptimal.meilleurRatio });
+    if (racOption && !modeExpert && bonnePratiqueEligible && repartA !== bonnePratiqueRatio) {
+      set({ repartA: bonnePratiqueRatio });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [racOptimal, modeExpert]);
+  }, [racOption, modeExpert, bonnePratiqueEligible, bonnePratiqueRatio]);
 
-  // Aperçu réel par famille : heures arrondies à l'entier le plus proche (seul incrément accepté par Pajemploi),
-  // salaire net + exonération HS + cotisations détaillées Urssaf — ce sont ces montants qui
-  // s'afficheront partout (carte principale, calcul détaillé). Le Reste à Charge (Mode Magique)
-  // continue de chercher son ratio optimal sur la base continue salNetTotalMens ci-dessus, pour
-  // ne pas casser la recherche itérative — seul le résultat final (liveRac) reprend ces montants réels.
+  // Aperçu réel par famille : heures arrondies à l'entier le plus proche (seul incrément accepté par
+  // Pajemploi), salaire net + exonération HS + cotisations détaillées Urssaf — ce sont ces montants
+  // qui s'afficheront partout (carte principale, calcul détaillé).
   const apercuA = useMemo(
     () => calculerSalaireEtCotisations(
       planningHours.hNormalesSemaine * 52/12 * repartA,
@@ -137,33 +119,42 @@ export function PaieForm({
     [planningHours, repartA, taux]
   );
 
+  // Le Reste à Charge n'est calculé qu'en Mode Expert, à partir des aides réellement saisies par
+  // l'utilisateur — le mode bonne pratique ne génère aucune estimation de RAC (pas de revenu collecté).
   const liveRac = useMemo(() => {
-    if (!racOption) return { racA: 0, racB: 0, totalRac: 0 };
-    const salA = apercuA.salNet;
-    const salB = apercuB.salNet;
-    if (modeExpert) {
-      const aidesA = totalAidesMens(aA);
-      const aidesB = totalAidesMens(aB);
-      const racA = Math.round((salA * K_TOTAL - aidesA) * 100) / 100;
-      const racB = Math.round((salB * K_TOTAL - aidesB) * 100) / 100;
-      return { racA, racB, totalRac: racA + racB };
-    }
-    const coutA   = salA * K_TOTAL;
-    const coutB   = salB * K_TOTAL;
-    const cmgA    = estimerCMG2025(revFiscauxA, nbEnfantsA, taux, totalHeuresMensPhys * repartA, salA * K_PAT);
-    const cmgB    = estimerCMG2025(revFiscauxB, nbEnfantsB, taux, totalHeuresMensPhys * (1 - repartA), salB * K_PAT);
-    const eligA   = Math.max(0, coutA - cmgA);
-    const eligB   = Math.max(0, coutB - cmgB);
-    const ciA     = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
-    const ciB     = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
-    const racA    = Math.round((coutA - cmgA - ciA) * 100) / 100;
-    const racB    = Math.round((coutB - cmgB - ciB) * 100) / 100;
+    if (!racOption || !modeExpert) return { racA: 0, racB: 0, totalRac: 0 };
+    const aidesA = totalAidesMens(aA);
+    const aidesB = totalAidesMens(aB);
+    const racA = Math.round((apercuA.salNet * K_TOTAL - aidesA) * 100) / 100;
+    const racB = Math.round((apercuB.salNet * K_TOTAL - aidesB) * 100) / 100;
     return { racA, racB, totalRac: racA + racB };
-  }, [racOption, modeExpert, apercuA.salNet, apercuB.salNet, repartA, nbEnfantsA, nbEnfantsB, taux, totalHeuresMensPhys, aA, aB]);
+  }, [racOption, modeExpert, apercuA.salNet, apercuB.salNet, aA, aB]);
 
-  const racPctA = liveRac.totalRac > 0 ? Math.round((liveRac.racA / liveRac.totalRac) * 100) : 0;
-  const racPctB = liveRac.totalRac > 0 ? Math.round((liveRac.racB / liveRac.totalRac) * 100) : 0;
-  const isMagicMode = racOption && !modeExpert;
+  // Crédit d'impôt (Mode Expert) : formule connue (plafond par enfant + 50 % du coût restant) qui ne
+  // dépend pas du revenu — calculée automatiquement, contrairement aux autres aides (CMG, abattement)
+  // qui nécessiteraient un revenu que l'app ne collecte pas pour des raisons de confidentialité.
+  const ciAutoAnnuelA = useMemo(() => {
+    const coutA = apercuA.salNet * K_TOTAL;
+    const eligA = Math.max(0, coutA - aA.cmgCotisations - aA.cmgRemuneration - aA.abattementCharges - aA.aideVille);
+    const ciMens = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
+    return Math.round(ciMens * 12 * 100) / 100;
+  }, [apercuA.salNet, aA.cmgCotisations, aA.cmgRemuneration, aA.abattementCharges, aA.aideVille, nbEnfantsA]);
+
+  const ciAutoAnnuelB = useMemo(() => {
+    const coutB = apercuB.salNet * K_TOTAL;
+    const eligB = Math.max(0, coutB - aB.cmgCotisations - aB.cmgRemuneration - aB.abattementCharges - aB.aideVille);
+    const ciMens = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
+    return Math.round(ciMens * 12 * 100) / 100;
+  }, [apercuB.salNet, aB.cmgCotisations, aB.cmgRemuneration, aB.abattementCharges, aB.aideVille, nbEnfantsB]);
+
+  useEffect(() => {
+    if (!modeExpert) return;
+    if (aA.creditImpot === ciAutoAnnuelA && aB.creditImpot === ciAutoAnnuelB) return;
+    set({ aA: { ...aA, creditImpot: ciAutoAnnuelA }, aB: { ...aB, creditImpot: ciAutoAnnuelB } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeExpert, ciAutoAnnuelA, ciAutoAnnuelB]);
+
+  const isBonnePratiqueMode = racOption && !modeExpert;
 
   const detailData = useMemo(() => {
     const joursActifsMens = (planningHours.joursActifsParSemaine || 5) * 52 / 12;
@@ -174,17 +165,11 @@ export function PaieForm({
       const kmFam         = Math.round(indemKm  * indemRatio * 100) / 100;
 
       let cmgCot = 0, cmgRemu = 0, creditImpotMens = 0;
-      if (racOption) {
-        if (modeExpert) {
-          const aides = isA ? aA : aB;
-          cmgCot = aides.cmgCotisations;
-          cmgRemu = aides.cmgRemuneration;
-          creditImpotMens = aides.creditImpot / 12;
-        } else if (racOptimal) {
-          cmgCot = isA ? racOptimal.cmgCotA : racOptimal.cmgCotB;
-          cmgRemu = isA ? racOptimal.cmgRemuA : racOptimal.cmgRemuB;
-          creditImpotMens = isA ? racOptimal.ciAMens : racOptimal.ciBMens;
-        }
+      if (racOption && modeExpert) {
+        const aides = isA ? aA : aB;
+        cmgCot = aides.cmgCotisations;
+        cmgRemu = aides.cmgRemuneration;
+        creditImpotMens = aides.creditImpot / 12;
       }
 
       // Formule exacte du bulletin Pajemploi (hors entretien, versé hors volet social)
@@ -223,41 +208,23 @@ export function PaieForm({
     return { famA: famAData, famB: famBData, nounou };
   }, [
     planningHours, apercuA, apercuB, repartIndemA, navigo, entretien, indemKm,
-    racOption, modeExpert, racOptimal, aA, aB, liveRac, nomA, nomB, nbEnfantsA, nbEnfantsB,
+    racOption, modeExpert, aA, aB, liveRac, nomA, nomB, nbEnfantsA, nbEnfantsB,
   ]);
 
   function handleRacToggle(on: boolean) {
-    set({ racOption: on, modeExpert: false });
-    if (on && salNetTotalMens > 0) {
-      const res = calcEquitableRatioIteratif(
-        salNetTotalMens,
-        { nbEnfants: nbEnfantsA, revenusFiscaux: 80_000, autresAidesMens: 0 },
-        { nbEnfants: nbEnfantsB, revenusFiscaux: 80_000, autresAidesMens: 0 },
-        pProportionnel, taux, totalHeuresMensPhys,
-      );
-      set({ racOption: on, modeExpert: false, repartA: res.meilleurRatio });
+    if (on && bonnePratiqueEligible) {
+      set({ racOption: on, modeExpert: false, repartA: bonnePratiqueRatio });
+    } else {
+      set({ racOption: on, modeExpert: false });
     }
   }
 
   function handleOpenExpert() {
-    if (racOptimal) {
-      set({
-        modeExpert: true,
-        aA: { cmgCotisations: racOptimal.cmgCotA, cmgRemuneration: racOptimal.cmgRemuA, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) },
-        aB: { cmgCotisations: racOptimal.cmgCotB, cmgRemuneration: racOptimal.cmgRemuB, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) },
-      });
-    } else {
-      set({ modeExpert: true });
-    }
+    set({ modeExpert: true });
   }
 
-  function handleResetToMagic() {
-    if (racOptimal) {
-      set({
-        aA: { cmgCotisations: racOptimal.cmgCotA, cmgRemuneration: racOptimal.cmgRemuA, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciAMens * 12) },
-        aB: { cmgCotisations: racOptimal.cmgCotB, cmgRemuneration: racOptimal.cmgRemuB, abattementCharges: 0, aideVille: 0, creditImpot: Math.round(racOptimal.ciBMens * 12) },
-      });
-    }
+  function handleResetAides() {
+    set({ aA: aidesZero(), aB: aidesZero() });
   }
 
   return (
@@ -285,7 +252,7 @@ export function PaieForm({
           <span className="text-sm font-semibold text-[var(--ink)]">3 — Répartition entre familles</span>
           {racOption && (
             <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">
-              Reste à charge
+              {modeExpert ? 'Reste à charge' : 'Bonne pratique'}
             </span>
           )}
         </div>
@@ -305,7 +272,7 @@ export function PaieForm({
               min={SLIDER_MIN} max={SLIDER_MAX}
               markers={[
                 { value: 0.5, label: '50/50' },
-                ...(racOption && racOptimal ? [{ value: racOptimal.meilleurRatio, label: 'Équitable RAC', highlight: true }] : []),
+                ...(racOption && bonnePratiqueEligible ? [{ value: bonnePratiqueRatio, label: 'Bonne pratique', highlight: true }] : []),
               ]}
             />
             <button
@@ -320,19 +287,24 @@ export function PaieForm({
             <FamPreview
               label={nomA} percent={repartA} color="sage"
               salNet={apercuA.salNet} rac={liveRac.racA} totalRac={liveRac.totalRac}
-              racOption={racOption} magicMode={isMagicMode} racPct={racPctA}
+              racOption={racOption} bonnePratique={isBonnePratiqueMode}
             />
             <FamPreview
               label={nomB} percent={1 - repartA} color="blue"
               salNet={apercuB.salNet} rac={liveRac.racB} totalRac={liveRac.totalRac}
-              racOption={racOption} magicMode={isMagicMode} racPct={racPctB}
+              racOption={racOption} bonnePratique={isBonnePratiqueMode}
             />
           </div>
 
-          {isMagicMode && (
+          {isBonnePratiqueMode && bonnePratiqueEligible && (
             <div className="flex items-start gap-2 text-xs text-[var(--dust)] bg-[var(--paper)] rounded-lg px-3 py-2.5 border border-[var(--line)]">
               <span className="mt-0.5">✨</span>
-              <span>Mode magique actif — le curseur est positionné au point d&apos;équilibre équitable selon le barème CAF 2025.</span>
+              <span>
+                Mode bonne pratique actif — le curseur est positionné à {(bonnePratiqueRatio * 100).toFixed(0)}/{(100 - bonnePratiqueRatio * 100).toFixed(0)}.
+                Le crédit d&apos;impôt (comme le CMG) est plafonné par enfant sans doubler : la famille avec le plus d&apos;enfants
+                reçoit proportionnellement moins d&apos;aide par enfant. C&apos;est ce qu&apos;on observe dans la majorité des
+                familles pour équilibrer le reste à charge réel — aucun montant n&apos;est estimé automatiquement.
+              </span>
             </div>
           )}
 
@@ -342,43 +314,49 @@ export function PaieForm({
                 <AidesColumn label={nomA} a={aA} setA={v => set({ aA: v })} total={totalAidesMens(aA)} />
                 <AidesColumn label={nomB} a={aB} setA={v => set({ aB: v })} total={totalAidesMens(aB)} />
               </div>
+              <p className="px-5 py-2 text-[11px] text-[var(--dust)] bg-[var(--paper)] border-t border-[var(--line)]">
+                Abattement, CMG cotisations, CMG rémunération et aide locale sont laissés à 0 par défaut — leur estimation
+                automatique sera améliorée dans une prochaine version. Le crédit d&apos;impôt est déjà calculé pour vous.
+              </p>
               <div className="px-5 py-3 border-t border-[var(--line)] flex items-center gap-5 bg-[var(--paper)]">
                 <button
-                  onClick={handleResetToMagic}
-                  disabled={!racOptimal}
-                  className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                  onClick={handleResetAides}
+                  className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
                 >
-                  ↺ Rétablir l&apos;estimation magique
+                  ↺ Réinitialiser les aides saisies
                 </button>
                 <button
                   onClick={() => set({ modeExpert: false })}
                   className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
                 >
-                  ← Mode Magique
+                  ← Mode bonne pratique
                 </button>
               </div>
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-4 pt-1 border-t border-[var(--line)]">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-[var(--ink)]">Calculer selon le Reste à Charge</span>
-                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">Recommandé</span>
+          {(bonnePratiqueEligible || racOption) && (
+            <div className="flex items-center justify-between gap-4 pt-1 border-t border-[var(--line)]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-[var(--ink)]">Mode bonne pratique</span>
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">Recommandé</span>
+                </div>
+                <p className="text-xs text-[var(--dust)] mt-0.5">
+                  Ce qu&apos;on observe dans la majorité des familles pour équilibrer le reste à charge (60/40 quand le nombre d&apos;enfants diffère)
+                </p>
+                {racOption && !modeExpert && (
+                  <button
+                    onClick={handleOpenExpert}
+                    className="mt-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
+                  >
+                    ⚙️ Ajuster mes aides manuellement (Mode Expert)
+                  </button>
+                )}
               </div>
-              <p className="text-xs text-[var(--dust)] mt-0.5">Point d&apos;équilibre calculé selon le barème CAF 2025</p>
-              {racOption && !modeExpert && (
-                <button
-                  onClick={handleOpenExpert}
-                  disabled={!racOptimal}
-                  className="mt-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
-                >
-                  ⚙️ Ajuster mes aides manuellement (Mode Expert)
-                </button>
-              )}
+              <Toggle checked={racOption} onChange={handleRacToggle} />
             </div>
-            <Toggle checked={racOption} onChange={handleRacToggle} />
-          </div>
+          )}
 
           {showDetailedCalc && (
             <div>
@@ -395,7 +373,7 @@ export function PaieForm({
                     famA={detailData.famA}
                     famB={detailData.famB}
                     nounou={detailData.nounou}
-                    racOptionActive={racOption}
+                    racOptionActive={racOption && modeExpert}
                   />
                 </div>
               )}
@@ -487,15 +465,15 @@ function SliderRow({ value, onChange, min, max, markers }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, magicMode, racPct }: {
+function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, bonnePratique }: {
   label: string; percent: number; color: 'sage' | 'blue';
   salNet: number; rac: number; totalRac: number;
-  racOption: boolean; magicMode?: boolean; racPct?: number;
+  racOption: boolean; bonnePratique?: boolean;
 }) {
   const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
   const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
 
-  if (magicMode && racOption) {
+  if (bonnePratique && racOption) {
     return (
       <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
         <div className="flex items-center justify-between mb-3">
@@ -503,16 +481,7 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, m
           <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
         </div>
         <div className="text-[11px] text-[var(--dust)] mb-0.5">Net à déclarer sur Pajemploi</div>
-        <div className={`text-xl font-bold ${text} mb-3`}>{salNet.toFixed(2)} €</div>
-        <div className="pt-3 border-t border-white/70">
-          <div className="text-[11px] text-[var(--dust)] mb-0.5">Reste à charge estimé</div>
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <span className={`text-xl font-bold ${text}`}>{rac.toFixed(0)} €</span>
-            {racPct !== undefined && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/80 ${text}`}>{racPct} % du RAC total</span>
-            )}
-          </div>
-        </div>
+        <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
       </div>
     );
   }
@@ -551,7 +520,12 @@ function AidesColumn({ label, a, setA, total }: {
       <FN label="CMG cotisations sociales (CAF)"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
       <FN label="CMG rémunération (CAF)"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
       <FN label="Aide locale (ex : Ville de St Ouen)" value={a.aideVille}         onChange={upd('aideVille')} />
-      <FN label="Crédit d'impôt (annuel)"             value={a.creditImpot}       onChange={upd('creditImpot')} />
+      <div>
+        <label className="block text-xs font-medium mb-1 text-[var(--dust)]">Crédit d&apos;impôt (annuel, calculé)</label>
+        <div className="w-full px-3 py-2 rounded-lg text-sm bg-[var(--paper)] border border-[var(--line)] text-[var(--ink)]">
+          {a.creditImpot.toFixed(2)} €
+        </div>
+      </div>
       <div className="flex justify-between pt-3 border-t border-[var(--line)] text-xs font-semibold">
         <span>Total aides / mois</span>
         <span className="font-mono text-[var(--sage)]">− {total.toFixed(2)} €</span>
