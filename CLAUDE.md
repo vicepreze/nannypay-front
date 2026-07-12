@@ -72,3 +72,4 @@ Consulter [Progress.md](./Progress.md) pour l'état exact des branches en cours.
 5. **Commits** : `feat:` / `fix:` + `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
 6. **Branches** : une branch par feature, PR squash vers `main`
 7. **Questions d'abord** : avant tout coding, poser les questions jusqu'à 100% de confiance
+8. **Demander avant de pousser** : toujours demander confirmation explicite avant tout `git push` déclenchant un déploiement preview Vercel, et avant toute création/merge de PR vers `main` (production) — jamais de merge automatique sans validation humaine
