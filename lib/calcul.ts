@@ -370,6 +370,18 @@ export function ciPlafondMensuel(nbEnfants: number): number {
   // 1 enfant → 562,50 €/mois   2+ enfants → 625,00 €/mois
 }
 
+/**
+ * Abattement de charges patronales — Pajemploi (particulier employeur, L241-10 CSS).
+ * Vérifié sur 3 bulletins Pajemploi réels 2026 : (arrondi sup. des heures normales × 0,9 +
+ * heures sup, sans arrondi) × 2 €. Pas de plafonnement observé sur les cas testés.
+ */
+export function calculerAbattementChargesPatronales(
+  heuresNormalesMensuelles: number, // quote-part famille, déjà mensualisées et arrondies (déclarées)
+  heuresSupMensuelles:      number, // hSup25 + hSup50, quote-part famille, mensualisées et arrondies
+): number {
+  return (Math.ceil(heuresNormalesMensuelles * 0.9) + heuresSupMensuelles) * 2;
+}
+
 // ── CMG Emploi direct 2025 ────────────────────────────────────────
 // Formule linéaire 2025 (CNAF) — 2 composantes :
 //   rémunération : nbH × tarifActif × (1 − ressources × te / tarifRef)
