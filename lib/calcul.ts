@@ -295,6 +295,52 @@ export function calcBModeRepartition(
 }
 
 /**
+ * Ratio "bonne pratique" — ce qui est observé dans la majorité des familles pour
+ * équilibrer le reste à charge réel, sans estimer aucun revenu ni aucune aide CAF.
+ * Le crédit d'impôt (comme le CMG) est plafonné par enfant sans doubler
+ * (6 750 €/an pour 1 enfant, 7 500 €/an pour 2 enfants ou plus) : la famille
+ * avec le plus d'enfants reçoit donc proportionnellement moins d'aide par enfant,
+ * d'où l'usage d'une part légèrement majorée (60 %) pour compenser.
+ */
+export function calcRatioBonnePratique(nbEnfantsA: number, nbEnfantsB: number): number {
+  if (nbEnfantsA === nbEnfantsB) return 0.5;
+  return nbEnfantsA > nbEnfantsB ? 0.6 : 0.4;
+}
+
+/**
+ * Vrai si tous les enfants ont exactement les mêmes horaires (mêmes jours actifs,
+ * mêmes heures de début/fin). Un planning non "per-child" est par construction un
+ * planning unique partagé par tous les enfants → toujours vrai dans ce cas.
+ */
+export function memeHorairesTousEnfants(
+  joursJson: string,
+  enfants: { prenom: string; fam: string }[],
+): boolean {
+  let planning: unknown;
+  try { planning = JSON.parse(joursJson || '{}'); } catch { planning = {}; }
+
+  const keys = Object.keys(planning as object);
+  const firstVal = keys.length > 0 ? (planning as Record<string, unknown>)[keys[0]] : null;
+  const isPerChild = firstVal !== null && typeof firstVal === 'object' && !('actif' in (firstVal as object));
+  if (!isPerChild) return true;
+
+  const perChild = planning as PerChild;
+  const noms = enfants.map(e => e.prenom).filter(p => perChild[p]);
+  if (noms.length < 2) return true;
+
+  const signature = (nom: string) =>
+    ['1', '2', '3', '4', '5']
+      .map(jour => {
+        const slot = perChild[nom]?.[jour];
+        return slot?.actif ? `${slot.debut}-${slot.fin}` : '';
+      })
+      .join('|');
+
+  const ref = signature(noms[0]);
+  return noms.every(nom => signature(nom) === ref);
+}
+
+/**
  * Calcule le ratio A cible (0–1) pour que le RAC de chaque famille soit
  * proportionnel à ratioA / ratioB, compte tenu de leurs aides CAF.
  *

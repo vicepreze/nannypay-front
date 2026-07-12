@@ -7,6 +7,7 @@ import {
   calcEquitableRatioA,
   calcEquitableRatioIteratif,
   calcHeuresSemaineFromPlanning,
+  calcRatioBonnePratique,
   calcSalNetMensuel,
   calculerCotisationsDetaillees,
   calculerExonerationHS,
@@ -18,6 +19,7 @@ import {
   estimerCMG2025,
   joursOffertsMois,
   joursOuvrablesEntreDates,
+  memeHorairesTousEnfants,
 } from './calcul';
 import type { CalcInput, CompteCP, CompteRepos } from './calcul';
 
@@ -285,6 +287,79 @@ describe('calcBModeRepartition', () => {
     });
     // Seule Léa est comptée (A=10h, B=0h) → 1.0
     expect(calcBModeRepartition(joursJson, enfants)).toBe(1);
+  });
+});
+
+// ── calcRatioBonnePratique ───────────────────────────────────────────────────
+
+describe('calcRatioBonnePratique', () => {
+  it('même nombre d\'enfants → 0.5', () => {
+    expect(calcRatioBonnePratique(1, 1)).toBe(0.5);
+    expect(calcRatioBonnePratique(2, 2)).toBe(0.5);
+  });
+
+  it('A a plus d\'enfants que B → 0.6', () => {
+    expect(calcRatioBonnePratique(2, 1)).toBe(0.6);
+  });
+
+  it('B a plus d\'enfants que A → 0.4', () => {
+    expect(calcRatioBonnePratique(1, 2)).toBe(0.4);
+  });
+});
+
+// ── memeHorairesTousEnfants ──────────────────────────────────────────────────
+
+describe('memeHorairesTousEnfants', () => {
+  it('planning non per-child (partagé) → toujours vrai', () => {
+    const enfants = [{ prenom: 'Léa', fam: 'A' }, { prenom: 'Tom', fam: 'B' }];
+    expect(memeHorairesTousEnfants('{}', enfants)).toBe(true);
+    expect(memeHorairesTousEnfants(
+      JSON.stringify({ '1': { actif: true, hDebut: '08:00', hFin: '18:00' } }),
+      enfants,
+    )).toBe(true);
+  });
+
+  it('moins de 2 enfants reconnus dans le planning per-child → vrai', () => {
+    const enfants = [{ prenom: 'Léa', fam: 'A' }];
+    const joursJson = perChildPlanning({ Léa: { '1': { debut: '08:00', fin: '18:00' } } });
+    expect(memeHorairesTousEnfants(joursJson, enfants)).toBe(true);
+  });
+
+  it('horaires identiques pour tous les enfants → vrai', () => {
+    const enfants = [
+      { prenom: 'Léa', fam: 'A' },
+      { prenom: 'Tom', fam: 'B' },
+      { prenom: 'Zoé', fam: 'B' },
+    ];
+    const joursJson = perChildPlanning({
+      Léa: { '1': { debut: '08:00', fin: '18:00' } },
+      Tom: { '1': { debut: '08:00', fin: '18:00' } },
+      Zoé: { '1': { debut: '08:00', fin: '18:00' } },
+    });
+    expect(memeHorairesTousEnfants(joursJson, enfants)).toBe(true);
+  });
+
+  it('un enfant a des horaires différents → faux', () => {
+    const enfants = [
+      { prenom: 'Léa', fam: 'A' },
+      { prenom: 'Tom', fam: 'B' },
+      { prenom: 'Zoé', fam: 'B' },
+    ];
+    const joursJson = perChildPlanning({
+      Léa: { '1': { debut: '08:00', fin: '18:00' } },
+      Tom: { '1': { debut: '08:00', fin: '18:00' } },
+      Zoé: { '1': { debut: '09:00', fin: '17:00' } },
+    });
+    expect(memeHorairesTousEnfants(joursJson, enfants)).toBe(false);
+  });
+
+  it('un enfant a un jour actif en plus → faux', () => {
+    const enfants = [{ prenom: 'Léa', fam: 'A' }, { prenom: 'Tom', fam: 'B' }];
+    const joursJson = perChildPlanning({
+      Léa: { '1': { debut: '08:00', fin: '18:00' }, '2': { debut: '08:00', fin: '18:00' } },
+      Tom: { '1': { debut: '08:00', fin: '18:00' } },
+    });
+    expect(memeHorairesTousEnfants(joursJson, enfants)).toBe(false);
   });
 });
 
