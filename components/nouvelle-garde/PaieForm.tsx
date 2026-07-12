@@ -48,6 +48,7 @@ export function totalAidesMens(a: Aides): number {
 const SLIDER_MIN = 20;
 const SLIDER_MAX = 80;
 const pct = (p: number) => ((p * 100 - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
+const frPct = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 
 export function PaieForm({
   value, onChange, nomA, nomB, joursJson, enfants, showDetailedCalc = true,
@@ -211,16 +212,12 @@ export function PaieForm({
     racOption, modeExpert, aA, aB, liveRac, nomA, nomB, nbEnfantsA, nbEnfantsB,
   ]);
 
-  function handleRacToggle(on: boolean) {
-    if (on && bonnePratiqueEligible) {
-      set({ racOption: on, modeExpert: false, repartA: bonnePratiqueRatio });
-    } else {
-      set({ racOption: on, modeExpert: false });
-    }
+  function handleOpenExpert() {
+    set({ racOption: true, modeExpert: true });
   }
 
-  function handleOpenExpert() {
-    set({ modeExpert: true });
+  function handleCloseExpert() {
+    set({ modeExpert: false, racOption: bonnePratiqueEligible });
   }
 
   function handleResetAides() {
@@ -272,15 +269,23 @@ export function PaieForm({
               min={SLIDER_MIN} max={SLIDER_MAX}
               markers={[
                 { value: 0.5, label: '50/50' },
-                ...(racOption && bonnePratiqueEligible ? [{ value: bonnePratiqueRatio, label: 'Bonne pratique', highlight: true }] : []),
+                { value: pProportionnel, label: '' },
               ]}
             />
-            <button
-              onClick={() => set({ repartA: pProportionnel })}
-              className="text-[11px] text-[var(--dust)] hover:text-[var(--ink)] mt-3 underline decoration-dotted transition-colors"
-            >
-              ↩ Revenir au calcul automatique ({(pProportionnel * 100).toFixed(1)} %)
-            </button>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <RatioPill
+                active={!racOption}
+                label={`Calcul automatique · ${frPct(pProportionnel * 100)} %`}
+                onClick={() => set({ racOption: false, modeExpert: false, repartA: pProportionnel })}
+              />
+              {bonnePratiqueEligible && (
+                <RatioPill
+                  active={racOption && !modeExpert}
+                  label={`Bonne pratique · ${(bonnePratiqueRatio * 100).toFixed(0)}/${(100 - bonnePratiqueRatio * 100).toFixed(0)}`}
+                  onClick={() => set({ racOption: true, modeExpert: false, repartA: bonnePratiqueRatio })}
+                />
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -326,58 +331,39 @@ export function PaieForm({
                   ↺ Réinitialiser les aides saisies
                 </button>
                 <button
-                  onClick={() => set({ modeExpert: false })}
+                  onClick={handleCloseExpert}
                   className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
                 >
-                  ← Mode bonne pratique
+                  ← Retour
                 </button>
               </div>
             </div>
           )}
 
-          {(bonnePratiqueEligible || racOption) && (
-            <div className="flex items-center justify-between gap-4 pt-1 border-t border-[var(--line)]">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-[var(--ink)]">Mode bonne pratique</span>
-                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">Recommandé</span>
-                </div>
-                <p className="text-xs text-[var(--dust)] mt-0.5">
-                  Ce qu&apos;on observe dans la majorité des familles pour équilibrer le reste à charge (60/40 quand le nombre d&apos;enfants diffère)
-                </p>
-                {racOption && !modeExpert && (
-                  <button
-                    onClick={handleOpenExpert}
-                    className="mt-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
-                  >
-                    ⚙️ Ajuster mes aides manuellement (Mode Expert)
-                  </button>
-                )}
-              </div>
-              <Toggle checked={racOption} onChange={handleRacToggle} />
-            </div>
-          )}
-
-          {showDetailedCalc && (
-            <div>
-              <button
+          <div className={`grid gap-3 ${showDetailedCalc ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {showDetailedCalc && (
+              <AdvancedCard
+                icon="📊" color="sage" active={showDetail}
+                title="Voir la simulation Pajemploi"
+                description="Compare le salaire net à déclarer et le salaire net à verser, selon le calcul Pajemploi."
                 onClick={() => setShowDetail(v => !v)}
-                className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
-              >
-                <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
-                Voir le calcul détaillé
-              </button>
-              {showDetail && (
-                <div className="mt-3">
-                  <DetailedCalcTable
-                    famA={detailData.famA}
-                    famB={detailData.famB}
-                    nounou={detailData.nounou}
-                    racOptionActive={racOption && modeExpert}
-                  />
-                </div>
-              )}
-            </div>
+              />
+            )}
+            <AdvancedCard
+              icon="⚙️" color="blue" active={modeExpert}
+              title="Calculer mon reste à charge manuellement"
+              description="Saisissez vous-même le montant du CMG par famille — pour les situations non couvertes par le mode bonne pratique."
+              onClick={handleOpenExpert}
+            />
+          </div>
+
+          {showDetailedCalc && showDetail && (
+            <DetailedCalcTable
+              famA={detailData.famA}
+              famB={detailData.famB}
+              nounou={detailData.nounou}
+              racOptionActive={racOption && modeExpert}
+            />
           )}
         </div>
       </div>
@@ -534,15 +520,44 @@ function AidesColumn({ label, a, setA, total }: {
   );
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function RatioPill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
       type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${checked ? 'bg-[var(--sage)]' : 'bg-[var(--line)]'}`}
-      aria-pressed={checked}
+      onClick={onClick}
+      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? 'border-[var(--sage)] bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]'
+          : 'border-[var(--line)] text-[var(--dust)] hover:text-[var(--ink)]'
+      }`}
     >
-      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${checked ? 'left-[22px]' : 'left-0.5'}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-[var(--sage)]' : 'bg-[var(--line)]'}`} />
+      {label}
+    </button>
+  );
+}
+
+function AdvancedCard({ icon, title, description, color, active, onClick }: {
+  icon: string; title: string; description: string;
+  color: 'sage' | 'blue'; active?: boolean; onClick: () => void;
+}) {
+  const border = color === 'sage' ? 'border-[var(--sage)]' : 'border-blue-700';
+  const text   = color === 'sage' ? 'text-[var(--sage)]'   : 'text-blue-700';
+  const bg     = active ? (color === 'sage' ? 'bg-[var(--sage-light,#eef4ec)]' : 'bg-blue-50') : 'bg-white';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-[var(--radius)] border ${border} ${bg} p-4 transition-colors`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-lg">{icon}</span>
+        <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${border} ${text}`}>
+          Avancé
+        </span>
+      </div>
+      <div className="text-sm font-semibold text-[var(--ink)] mb-1">{title}</div>
+      <p className="text-xs text-[var(--dust)]">{description}</p>
     </button>
   );
 }
