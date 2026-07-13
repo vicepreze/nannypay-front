@@ -485,9 +485,9 @@ describe('calculerMois', () => {
     expect(r.famA.salNet).toBeCloseTo(r.famB.salNet / 2, 1);
   });
 
-  it('totalNounou = famA.total + famB.total', () => {
+  it('totalNounou = famA.totalVerseReel + famB.totalVerseReel', () => {
     const r = calculerMois(baseInput());
-    expect(r.totalNounou).toBeCloseTo(r.famA.total + r.famB.total, 2);
+    expect(r.totalNounou).toBeCloseTo(r.famA.totalVerseReel + r.famB.totalVerseReel, 2);
   });
 
   // ── Navigo partagé 50/50 ──
@@ -545,6 +545,16 @@ describe('calculerMois', () => {
       expect(r.famB.exonerationHS).toBeGreaterThan(0);
       // netADeclarer = salNet, jamais modifié par l'exonération
       expect(r.famA.salNet).toBe(calculerMois(inputHS).famA.salNet);
+    });
+
+    it('avec heures sup : totalVerseReel inclut l\'exonération HS, total (interne) ne l\'inclut pas', () => {
+      // Régression : totalNounou/l'affichage "Total à verser" doivent utiliser totalVerseReel, pas
+      // total — sinon l'exonération HS (réellement perçue par la nounou) disparaît du total affiché.
+      const inputHS: CalcInput = { ...baseInput(), hSup25Semaine: 8, hSup50Semaine: 1 };
+      const r = calculerMois(inputHS);
+      expect(r.famA.totalVerseReel).toBeCloseTo(r.famA.total + r.famA.exonerationHS, 2);
+      expect(r.totalNounou).toBeCloseTo(r.famA.totalVerseReel + r.famB.totalVerseReel, 2);
+      expect(r.totalNounou).not.toBeCloseTo(r.famA.total + r.famB.total, 2);
     });
 
     it('semaine de maladie : ratioPresence réduit les heures déclarées AVANT l\'arrondi (pas de double proratisation)', () => {
@@ -825,8 +835,8 @@ describe('Scénario 1 — Garde partagée 50/50 avec majorations (avr. 2029, 21 
     expect(result.famA.chargesPatronales).toBe(result.famB.chargesPatronales);
   });
 
-  it('totalNounou = famA.total + famB.total', () => {
-    expect(result.totalNounou).toBeCloseTo(result.famA.total + result.famB.total, 2);
+  it('totalNounou = famA.totalVerseReel + famB.totalVerseReel', () => {
+    expect(result.totalNounou).toBeCloseTo(result.famA.totalVerseReel + result.famB.totalVerseReel, 2);
   });
 
   it('mode RAC inactif', () => {
@@ -965,8 +975,8 @@ describe('Scénario 2 — Garde 60 %/40 % avec majorations (jan. 2025, 23 j.)', 
     expect(result.famA.chargesPatronales / result.famB.chargesPatronales).toBeCloseTo(1.5, 1);
   });
 
-  it('totalNounou = famA.total + famB.total', () => {
-    expect(result.totalNounou).toBeCloseTo(result.famA.total + result.famB.total, 2);
+  it('totalNounou = famA.totalVerseReel + famB.totalVerseReel', () => {
+    expect(result.totalNounou).toBeCloseTo(result.famA.totalVerseReel + result.famB.totalVerseReel, 2);
   });
 });
 

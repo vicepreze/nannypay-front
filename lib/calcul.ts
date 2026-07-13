@@ -774,9 +774,12 @@ export function calculerMois(input: CalcInput): CalcResult {
   // racOptionActive prend le dessus sur le champ legacy modeCalcul
   const racOptionActive = racOpt ?? modeCalcul.endsWith('.2');
 
-  const H_NORM_MENS  = Math.round(hNormalesSemaine * 52 / 12 * 10) / 10;
-  const H_SUP25_MENS = Math.round(hSup25Semaine    * 52 / 12 * 10) / 10;
-  const H_SUP50_MENS = Math.round(hSup50Semaine    * 52 / 12 * 10) / 10;
+  // Non arrondi ici : un arrondi intermédiaire avant application du prorata (qp × ratio) introduisait
+  // un écart de quelques centimes avec le simulateur (PaieForm), qui mensualise sans arrondi
+  // intermédiaire. Seul `calculerSalaireEtCotisations` arrondit, au bon endroit (heures déclarées).
+  const H_NORM_MENS  = hNormalesSemaine * 52 / 12;
+  const H_SUP25_MENS = hSup25Semaine    * 52 / 12;
+  const H_SUP50_MENS = hSup50Semaine    * 52 / 12;
 
   const joursOuv = joursOuvrablesMois(annee, mois);
 
@@ -834,7 +837,9 @@ export function calculerMois(input: CalcInput): CalcResult {
   const famA = calcFam(repartitionA,     repartitionIndemA,       racOptionActive ? aidesA : undefined);
   const famB = calcFam(1 - repartitionA, 1 - repartitionIndemA,   racOptionActive ? aidesB : undefined);
 
-  const totalNounou   = Math.round((famA.total + famB.total) * 100) / 100;
+  // totalVerseReel (pas total) : inclut l'exonération heures sup, réellement perçue par la nounou —
+  // `total` sert uniquement de base interne au calcul du reste à charge.
+  const totalNounou   = Math.round((famA.totalVerseReel + famB.totalVerseReel) * 100) / 100;
   const hTotalSemaine = Math.round((hNormalesSemaine + hSup25Semaine + hSup50Semaine) * 10) / 10;
 
   return { annee, mois, joursOuv, joursAbsMaladie, joursAbsCP, joursAbsRepos, joursAbs, joursOffert, joursFeries, joursTrav, ratio, hTotalSemaine, famA, famB, totalNounou, racOptionActive };
