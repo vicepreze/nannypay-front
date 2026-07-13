@@ -173,15 +173,11 @@ export function LandingPage() {
             Calculez en 30 secondes, simulez les absences, et alignez-vous avec l&apos;autre famille — sans tableur, sans WhatsApp.
           </p>
           <div className="flex flex-col items-center gap-3">
-            <button
-              onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
-              className={btnPri + ' px-8 py-3 text-base w-full sm:w-auto'}
-            >
-              Essayer la démo
-            </button>
-            <button onClick={() => router.push('/sign-up')} className="text-sm text-[var(--dust)] underline underline-offset-2 hover:text-[var(--ink)] transition-colors bg-transparent border-none cursor-pointer">
+            <button onClick={() => router.push('/sign-up')} className={btnPri + ' px-8 py-3 text-base w-full sm:w-auto'}>
               Créer un compte
             </button>
+            <p className="text-xs text-[var(--dust)]">2 minutes pour configurer votre planning réel</p>
+            <p className="text-sm text-[var(--dust)]">ou essayer la démo ci-dessous ↓</p>
           </div>
         </section>
 
@@ -286,6 +282,7 @@ export function LandingPage() {
           <div className="hidden md:grid grid-cols-2 gap-4">
 
             {/* Résultats desktop */}
+            <div className="flex flex-col gap-4">
             <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden shadow-sm">
               <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] text-[10px] font-bold text-[var(--dust)] uppercase tracking-widest">
                 Résultat du mois
@@ -353,6 +350,18 @@ export function LandingPage() {
               </div>
             </div>
 
+            {/* Bandeau contextuel — inciter à la création de compte */}
+            <div className="bg-white border border-[var(--line)] rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
+              <p className="text-sm text-[var(--dust)] leading-relaxed">
+                Ce calcul est une estimation simple. Créez un compte pour le refaire avec{' '}
+                <span className="text-[var(--sage)] font-semibold">vos horaires exacts</span>, vos congés, et pour que l&apos;autre famille voie les mêmes chiffres que vous.
+              </p>
+              <button onClick={() => router.push('/sign-up')} className={btnPri + ' shrink-0 whitespace-nowrap'}>
+                Créer mon compte
+              </button>
+            </div>
+            </div>
+
             {/* Calendrier desktop */}
             <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden shadow-sm">
               <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center justify-between">
@@ -382,16 +391,6 @@ export function LandingPage() {
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* Nudge desktop */}
-          <div className="hidden md:block text-center py-2">
-            <p className="text-sm text-[var(--dust)]">
-              Ça correspond à votre situation ?{' '}
-              <button onClick={() => router.push('/sign-up')} className="text-[var(--sage)] font-medium hover:underline underline-offset-2 cursor-pointer bg-transparent border-none">
-                Créer un compte pour configurer votre contrat exact →
-              </button>
-            </p>
           </div>
         </section>
 
