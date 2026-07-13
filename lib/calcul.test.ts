@@ -8,6 +8,7 @@ import {
   calcEquitableRatioIteratif,
   calcHeuresSemaineFromPlanning,
   calcRatioBonnePratique,
+  calculerAbattementChargesPatronales,
   calcSalNetMensuel,
   calculerCotisationsDetaillees,
   calculerExonerationHS,
@@ -1101,6 +1102,23 @@ describe('ciPlafondMensuel', () => {
 
   it('3 enfants → même plafond que 2+ = 625 €/mois', () => {
     expect(ciPlafondMensuel(3)).toBe(625);
+  });
+});
+
+// ── calculerAbattementChargesPatronales ──────────────────────────────────────
+// Vérifié sur 3 bulletins Pajemploi réels 2026
+
+describe('calculerAbattementChargesPatronales', () => {
+  it('janvier 2026 — 90h normales + 14h sup', () => {
+    expect(calculerAbattementChargesPatronales(90, 14)).toBe(190);
+  });
+
+  it('février 2026 — 90h normales + 17h sup', () => {
+    expect(calculerAbattementChargesPatronales(90, 17)).toBe(196);
+  });
+
+  it('juin 2026 — 69h normales + 16h sup', () => {
+    expect(calculerAbattementChargesPatronales(69, 16)).toBe(158);
   });
 });
 

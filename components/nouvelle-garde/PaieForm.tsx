@@ -4,13 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   calcBModeRepartition,
   calcRatioBonnePratique,
+  calculerAbattementChargesPatronales,
   calculerSalaireEtCotisations,
   memeHorairesTousEnfants,
   ciPlafondMensuel,
-  K_TOTAL,
   calcHeuresSemaineFromPlanning,
 } from '@/lib/calcul';
-import { DetailedCalcTable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
+import { DetailedCalcTable, type AidesEditable, type FamCalcData, type NounouCalcData } from '@/components/DetailedCalcTable';
 
 export type Aides = {
   cmgCotisations:    number;
@@ -48,6 +48,7 @@ export function totalAidesMens(a: Aides): number {
 const SLIDER_MIN = 20;
 const SLIDER_MAX = 80;
 const pct = (p: number) => ((p * 100 - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
+const frPct = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 
 export function PaieForm({
   value, onChange, nomA, nomB, joursJson, enfants, showDetailedCalc = true,
@@ -119,78 +120,100 @@ export function PaieForm({
     [planningHours, repartA, taux]
   );
 
-  // Le Reste à Charge n'est calculé qu'en Mode Expert, à partir des aides réellement saisies par
-  // l'utilisateur — le mode bonne pratique ne génère aucune estimation de RAC (pas de revenu collecté).
-  const liveRac = useMemo(() => {
-    if (!racOption || !modeExpert) return { racA: 0, racB: 0, totalRac: 0 };
-    const aidesA = totalAidesMens(aA);
-    const aidesB = totalAidesMens(aB);
-    const racA = Math.round((apercuA.salNet * K_TOTAL - aidesA) * 100) / 100;
-    const racB = Math.round((apercuB.salNet * K_TOTAL - aidesB) * 100) / 100;
-    return { racA, racB, totalRac: racA + racB };
-  }, [racOption, modeExpert, apercuA.salNet, apercuB.salNet, aA, aB]);
+  const joursActifsMens = useMemo(
+    () => (planningHours.joursActifsParSemaine || 5) * 52 / 12,
+    [planningHours.joursActifsParSemaine]
+  );
 
-  // Crédit d'impôt (Mode Expert) : formule connue (plafond par enfant + 50 % du coût restant) qui ne
-  // dépend pas du revenu — calculée automatiquement, contrairement aux autres aides (CMG, abattement)
-  // qui nécessiteraient un revenu que l'app ne collecte pas pour des raisons de confidentialité.
+  // Valeurs dérivées par famille (indemnités, total réellement versé, charges sociales réelles,
+  // abattement patronal) — servent à l'aperçu principal, au reste à charge et au tableau détaillé.
+  // L'abattement (formule Pajemploi L241-10 CSS) ne dépend pas du revenu : calculable automatiquement,
+  // contrairement au CMG qui nécessiterait un revenu que l'app ne collecte pas.
+  const derivedA = useMemo(() => {
+    const transport = Math.round(navigo * repartIndemA * 100) / 100;
+    const entretienFam = Math.round(entretien * joursActifsMens * repartIndemA * 100) / 100;
+    const km = Math.round(indemKm * repartIndemA * 100) / 100;
+    const netAPayerAvantIR = Math.round((apercuA.salNet + transport + km + apercuA.exonerationHS) * 100) / 100;
+    const totalVerseReel = Math.round((netAPayerAvantIR + entretienFam) * 100) / 100;
+    return {
+      transport, entretien: entretienFam, km, netAPayerAvantIR, totalVerseReel,
+      chargesSalariales: apercuA.cotisations.totalSalarie,
+      chargesPatronales: apercuA.cotisations.totalEmployeur,
+      abattementCharges: calculerAbattementChargesPatronales(apercuA.hNorm, apercuA.hSup25 + apercuA.hSup50),
+    };
+  }, [apercuA, repartIndemA, navigo, entretien, indemKm, joursActifsMens]);
+
+  const derivedB = useMemo(() => {
+    const transport = Math.round(navigo * (1 - repartIndemA) * 100) / 100;
+    const entretienFam = Math.round(entretien * joursActifsMens * (1 - repartIndemA) * 100) / 100;
+    const km = Math.round(indemKm * (1 - repartIndemA) * 100) / 100;
+    const netAPayerAvantIR = Math.round((apercuB.salNet + transport + km + apercuB.exonerationHS) * 100) / 100;
+    const totalVerseReel = Math.round((netAPayerAvantIR + entretienFam) * 100) / 100;
+    return {
+      transport, entretien: entretienFam, km, netAPayerAvantIR, totalVerseReel,
+      chargesSalariales: apercuB.cotisations.totalSalarie,
+      chargesPatronales: apercuB.cotisations.totalEmployeur,
+      abattementCharges: calculerAbattementChargesPatronales(apercuB.hNorm, apercuB.hSup25 + apercuB.hSup50),
+    };
+  }, [apercuB, repartIndemA, navigo, entretien, indemKm, joursActifsMens]);
+
+  const totalAidesA = useMemo(() => totalAidesMens(aA), [aA]);
+  const totalAidesB = useMemo(() => totalAidesMens(aB), [aB]);
+
+  // Reste à charge = coût total réel (net + transport + entretien + charges) − aides. Toujours
+  // calculé (indépendant du mode de répartition) : seuls le CMG et l'aide locale restent à saisir,
+  // l'abattement et le crédit d'impôt sont automatiques.
+  const racA = Math.round((derivedA.totalVerseReel + derivedA.chargesSalariales + derivedA.chargesPatronales - totalAidesA) * 100) / 100;
+  const racB = Math.round((derivedB.totalVerseReel + derivedB.chargesSalariales + derivedB.chargesPatronales - totalAidesB) * 100) / 100;
+
+  // Crédit d'impôt : formule connue (plafond par enfant + 50 % du coût restant) qui ne dépend pas
+  // du revenu — calculée automatiquement, contrairement aux autres aides (CMG, aide locale) qui
+  // nécessiteraient un revenu que l'app ne collecte pas pour des raisons de confidentialité.
   const ciAutoAnnuelA = useMemo(() => {
-    const coutA = apercuA.salNet * K_TOTAL;
-    const eligA = Math.max(0, coutA - aA.cmgCotisations - aA.cmgRemuneration - aA.abattementCharges - aA.aideVille);
+    const coutA = derivedA.totalVerseReel + derivedA.chargesSalariales + derivedA.chargesPatronales;
+    const eligA = Math.max(0, coutA - aA.cmgCotisations - aA.cmgRemuneration - derivedA.abattementCharges - aA.aideVille);
     const ciMens = Math.min(Math.round(eligA * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsA));
     return Math.round(ciMens * 12 * 100) / 100;
-  }, [apercuA.salNet, aA.cmgCotisations, aA.cmgRemuneration, aA.abattementCharges, aA.aideVille, nbEnfantsA]);
+  }, [derivedA, aA.cmgCotisations, aA.cmgRemuneration, aA.aideVille, nbEnfantsA]);
 
   const ciAutoAnnuelB = useMemo(() => {
-    const coutB = apercuB.salNet * K_TOTAL;
-    const eligB = Math.max(0, coutB - aB.cmgCotisations - aB.cmgRemuneration - aB.abattementCharges - aB.aideVille);
+    const coutB = derivedB.totalVerseReel + derivedB.chargesSalariales + derivedB.chargesPatronales;
+    const eligB = Math.max(0, coutB - aB.cmgCotisations - aB.cmgRemuneration - derivedB.abattementCharges - aB.aideVille);
     const ciMens = Math.min(Math.round(eligB * 0.5 * 100) / 100, ciPlafondMensuel(nbEnfantsB));
     return Math.round(ciMens * 12 * 100) / 100;
-  }, [apercuB.salNet, aB.cmgCotisations, aB.cmgRemuneration, aB.abattementCharges, aB.aideVille, nbEnfantsB]);
+  }, [derivedB, aB.cmgCotisations, aB.cmgRemuneration, aB.aideVille, nbEnfantsB]);
 
   useEffect(() => {
-    if (!modeExpert) return;
-    if (aA.creditImpot === ciAutoAnnuelA && aB.creditImpot === ciAutoAnnuelB) return;
-    set({ aA: { ...aA, creditImpot: ciAutoAnnuelA }, aB: { ...aB, creditImpot: ciAutoAnnuelB } });
+    if (
+      aA.abattementCharges === derivedA.abattementCharges && aA.creditImpot === ciAutoAnnuelA &&
+      aB.abattementCharges === derivedB.abattementCharges && aB.creditImpot === ciAutoAnnuelB
+    ) return;
+    set({
+      aA: { ...aA, abattementCharges: derivedA.abattementCharges, creditImpot: ciAutoAnnuelA },
+      aB: { ...aB, abattementCharges: derivedB.abattementCharges, creditImpot: ciAutoAnnuelB },
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modeExpert, ciAutoAnnuelA, ciAutoAnnuelB]);
-
-  const isBonnePratiqueMode = racOption && !modeExpert;
+  }, [
+    aA.abattementCharges, aA.creditImpot, aB.abattementCharges, aB.creditImpot,
+    derivedA.abattementCharges, derivedB.abattementCharges, ciAutoAnnuelA, ciAutoAnnuelB,
+  ]);
 
   const detailData = useMemo(() => {
-    const joursActifsMens = (planningHours.joursActifsParSemaine || 5) * 52 / 12;
+    const buildFam = (apercu: typeof apercuA, derived: typeof derivedA, rac: number, isA: boolean): FamCalcData => ({
+      nom: isA ? nomA : nomB,
+      nbEnfants: isA ? nbEnfantsA : nbEnfantsB,
+      hNorm: apercu.hNorm, hSup25: apercu.hSup25, hSup50: apercu.hSup50,
+      salNet: apercu.salNet, exonerationHS: apercu.exonerationHS,
+      transport: derived.transport, entretien: derived.entretien, km: derived.km,
+      netAPayerAvantIR: derived.netAPayerAvantIR, totalVerseReel: derived.totalVerseReel,
+      chargesSalariales: derived.chargesSalariales, chargesPatronales: derived.chargesPatronales,
+      abattementCharges: derived.abattementCharges,
+      creditImpotMens: (isA ? aA.creditImpot : aB.creditImpot) / 12,
+      resteCharge: rac,
+    });
 
-    const buildFam = (indemRatio: number, apercu: typeof apercuA, rac: number, isA: boolean): FamCalcData => {
-      const transportFam = Math.round(navigo    * indemRatio * 100) / 100;
-      const entretienFam = Math.round(entretien * joursActifsMens * indemRatio * 100) / 100;
-      const kmFam         = Math.round(indemKm  * indemRatio * 100) / 100;
-
-      let cmgCot = 0, cmgRemu = 0, creditImpotMens = 0;
-      if (racOption && modeExpert) {
-        const aides = isA ? aA : aB;
-        cmgCot = aides.cmgCotisations;
-        cmgRemu = aides.cmgRemuneration;
-        creditImpotMens = aides.creditImpot / 12;
-      }
-
-      // Formule exacte du bulletin Pajemploi (hors entretien, versé hors volet social)
-      const netAPayerAvantIR = Math.round((apercu.salNet + transportFam + kmFam + apercu.exonerationHS) * 100) / 100;
-      const totalVerseReel   = Math.round((netAPayerAvantIR + entretienFam) * 100) / 100;
-
-      return {
-        nom: isA ? nomA : nomB,
-        nbEnfants: isA ? nbEnfantsA : nbEnfantsB,
-        hNorm: apercu.hNorm, hSup25: apercu.hSup25, hSup50: apercu.hSup50,
-        salNet: apercu.salNet, exonerationHS: apercu.exonerationHS,
-        transport: transportFam, entretien: entretienFam, km: kmFam,
-        netAPayerAvantIR, totalVerseReel,
-        cmgCotisations: cmgCot, cmgRemuneration: cmgRemu,
-        abattementCharges: 0, aideVille: 0, creditImpotMens,
-        resteCharge: rac,
-      };
-    };
-
-    const famAData = buildFam(repartIndemA, apercuA, liveRac.racA, true);
-    const famBData = buildFam(1 - repartIndemA, apercuB, liveRac.racB, false);
+    const famAData = buildFam(apercuA, derivedA, racA, true);
+    const famBData = buildFam(apercuB, derivedB, racB, false);
 
     const nounou: NounouCalcData = {
       hNorm:  Math.round((apercuA.hNorm  + apercuB.hNorm)  * 10) / 10,
@@ -207,23 +230,19 @@ export function PaieForm({
 
     return { famA: famAData, famB: famBData, nounou };
   }, [
-    planningHours, apercuA, apercuB, repartIndemA, navigo, entretien, indemKm,
-    racOption, modeExpert, aA, aB, liveRac, nomA, nomB, nbEnfantsA, nbEnfantsB,
+    apercuA, apercuB, derivedA, derivedB, racA, racB, aA.creditImpot, aB.creditImpot,
+    navigo, entretien, indemKm, joursActifsMens, nomA, nomB, nbEnfantsA, nbEnfantsB,
   ]);
 
-  function handleRacToggle(on: boolean) {
-    if (on && bonnePratiqueEligible) {
-      set({ racOption: on, modeExpert: false, repartA: bonnePratiqueRatio });
-    } else {
-      set({ racOption: on, modeExpert: false });
-    }
-  }
+  const [resetKey, setResetKey] = useState(0);
 
-  function handleOpenExpert() {
-    set({ modeExpert: true });
+  function handleToggleDetail() {
+    if (!modeExpert) set({ modeExpert: true });
+    setShowDetail(v => !v);
   }
 
   function handleResetAides() {
+    setResetKey(k => k + 1);
     set({ aA: aidesZero(), aB: aidesZero() });
   }
 
@@ -252,7 +271,7 @@ export function PaieForm({
           <span className="text-sm font-semibold text-[var(--ink)]">3 — Répartition entre familles</span>
           {racOption && (
             <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">
-              {modeExpert ? 'Reste à charge' : 'Bonne pratique'}
+              Bonne pratique
             </span>
           )}
         </div>
@@ -272,31 +291,31 @@ export function PaieForm({
               min={SLIDER_MIN} max={SLIDER_MAX}
               markers={[
                 { value: 0.5, label: '50/50' },
-                ...(racOption && bonnePratiqueEligible ? [{ value: bonnePratiqueRatio, label: 'Bonne pratique', highlight: true }] : []),
+                { value: pProportionnel, label: '' },
               ]}
             />
-            <button
-              onClick={() => set({ repartA: pProportionnel })}
-              className="text-[11px] text-[var(--dust)] hover:text-[var(--ink)] mt-3 underline decoration-dotted transition-colors"
-            >
-              ↩ Revenir au calcul automatique ({(pProportionnel * 100).toFixed(1)} %)
-            </button>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <RatioPill
+                active={!racOption}
+                label={`Calcul automatique · ${frPct(pProportionnel * 100)} %`}
+                onClick={() => set({ racOption: false, modeExpert: false, repartA: pProportionnel })}
+              />
+              {bonnePratiqueEligible && (
+                <RatioPill
+                  active={racOption && !modeExpert}
+                  label={`Bonne pratique · ${(bonnePratiqueRatio * 100).toFixed(0)}/${(100 - bonnePratiqueRatio * 100).toFixed(0)}`}
+                  onClick={() => set({ racOption: true, modeExpert: false, repartA: bonnePratiqueRatio })}
+                />
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <FamPreview
-              label={nomA} percent={repartA} color="sage"
-              salNet={apercuA.salNet} rac={liveRac.racA} totalRac={liveRac.totalRac}
-              racOption={racOption} bonnePratique={isBonnePratiqueMode}
-            />
-            <FamPreview
-              label={nomB} percent={1 - repartA} color="blue"
-              salNet={apercuB.salNet} rac={liveRac.racB} totalRac={liveRac.totalRac}
-              racOption={racOption} bonnePratique={isBonnePratiqueMode}
-            />
+            <FamPreview label={nomA} percent={repartA}     color="sage" salNet={apercuA.salNet} />
+            <FamPreview label={nomB} percent={1 - repartA} color="blue" salNet={apercuB.salNet} />
           </div>
 
-          {isBonnePratiqueMode && bonnePratiqueEligible && (
+          {racOption && bonnePratiqueEligible && (
             <div className="flex items-start gap-2 text-xs text-[var(--dust)] bg-[var(--paper)] rounded-lg px-3 py-2.5 border border-[var(--line)]">
               <span className="mt-0.5">✨</span>
               <span>
@@ -308,76 +327,38 @@ export function PaieForm({
             </div>
           )}
 
-          {racOption && modeExpert && (
-            <div className="rounded-[var(--radius)] border border-[var(--line)] overflow-hidden -mx-5">
-              <div className="grid grid-cols-2 divide-x divide-[var(--line)]">
-                <AidesColumn label={nomA} a={aA} setA={v => set({ aA: v })} total={totalAidesMens(aA)} />
-                <AidesColumn label={nomB} a={aB} setA={v => set({ aB: v })} total={totalAidesMens(aB)} />
-              </div>
-              <p className="px-5 py-2 text-[11px] text-[var(--dust)] bg-[var(--paper)] border-t border-[var(--line)]">
-                Abattement, CMG cotisations, CMG rémunération et aide locale sont laissés à 0 par défaut — leur estimation
-                automatique sera améliorée dans une prochaine version. Le crédit d&apos;impôt est déjà calculé pour vous.
-              </p>
-              <div className="px-5 py-3 border-t border-[var(--line)] flex items-center gap-5 bg-[var(--paper)]">
-                <button
-                  onClick={handleResetAides}
-                  className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
-                >
-                  ↺ Réinitialiser les aides saisies
-                </button>
-                <button
-                  onClick={() => set({ modeExpert: false })}
-                  className="text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
-                >
-                  ← Mode bonne pratique
-                </button>
-              </div>
-            </div>
-          )}
-
-          {(bonnePratiqueEligible || racOption) && (
-            <div className="flex items-center justify-between gap-4 pt-1 border-t border-[var(--line)]">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-[var(--ink)]">Mode bonne pratique</span>
-                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]">Recommandé</span>
-                </div>
-                <p className="text-xs text-[var(--dust)] mt-0.5">
-                  Ce qu&apos;on observe dans la majorité des familles pour équilibrer le reste à charge (60/40 quand le nombre d&apos;enfants diffère)
-                </p>
-                {racOption && !modeExpert && (
-                  <button
-                    onClick={handleOpenExpert}
-                    className="mt-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
-                  >
-                    ⚙️ Ajuster mes aides manuellement (Mode Expert)
-                  </button>
-                )}
-              </div>
-              <Toggle checked={racOption} onChange={handleRacToggle} />
-            </div>
-          )}
-
           {showDetailedCalc && (
-            <div>
-              <button
-                onClick={() => setShowDetail(v => !v)}
-                className="flex items-center gap-1.5 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
-              >
-                <span className="text-[10px]">{showDetail ? '▾' : '▸'}</span>
-                Voir le calcul détaillé
-              </button>
+            <>
+              <AdvancedCard
+                icon="🧾" color="sage" active={showDetail}
+                title="Simuler mon relevé Pajemploi"
+                description="Heures, charges, aides CAF et reste à charge estimé — avec vos propres montants de CMG."
+                onClick={handleToggleDetail}
+              />
+
               {showDetail && (
-                <div className="mt-3">
+                <div className="space-y-2">
                   <DetailedCalcTable
+                    key={resetKey}
                     famA={detailData.famA}
                     famB={detailData.famB}
                     nounou={detailData.nounou}
-                    racOptionActive={racOption && modeExpert}
+                    aidesA={{ cmgCotisations: aA.cmgCotisations, cmgRemuneration: aA.cmgRemuneration, aideVille: aA.aideVille }}
+                    aidesB={{ cmgCotisations: aB.cmgCotisations, cmgRemuneration: aB.cmgRemuneration, aideVille: aB.aideVille }}
+                    onChangeAidesA={(patch: AidesEditable) => set({ aA: { ...aA, ...patch } })}
+                    onChangeAidesB={(patch: AidesEditable) => set({ aB: { ...aB, ...patch } })}
+                    totalAidesA={totalAidesA}
+                    totalAidesB={totalAidesB}
                   />
+                  <button
+                    onClick={handleResetAides}
+                    className="text-[11px] text-[var(--dust)] hover:text-[var(--ink)] underline decoration-dotted transition-colors"
+                  >
+                    ↺ Réinitialiser les aides saisies
+                  </button>
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>
@@ -465,28 +446,12 @@ function SliderRow({ value, onChange, min, max, markers }: {
   );
 }
 
-function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, bonnePratique }: {
-  label: string; percent: number; color: 'sage' | 'blue';
-  salNet: number; rac: number; totalRac: number;
-  racOption: boolean; bonnePratique?: boolean;
+function FamPreview({ label, percent, color, salNet }: {
+  label: string; percent: number; color: 'sage' | 'blue'; salNet: number;
 }) {
   const bg   = color === 'sage' ? 'bg-[var(--sage-light)]' : 'bg-blue-50';
   const text = color === 'sage' ? 'text-[var(--sage)]'     : 'text-blue-700';
 
-  if (bonnePratique && racOption) {
-    return (
-      <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
-        <div className="flex items-center justify-between mb-3">
-          <span className={`text-sm font-semibold ${text}`}>{label}</span>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(percent * 100).toFixed(1)} %</span>
-        </div>
-        <div className="text-[11px] text-[var(--dust)] mb-0.5">Net à déclarer sur Pajemploi</div>
-        <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
-      </div>
-    );
-  }
-
-  const pctRac = totalRac > 0 ? rac / totalRac : percent;
   return (
     <div className={`rounded-[var(--radius)] p-4 ${bg}`}>
       <div className="flex items-center justify-between mb-2">
@@ -495,54 +460,48 @@ function FamPreview({ label, percent, color, salNet, rac, totalRac, racOption, b
       </div>
       <div className="text-[11px] text-[var(--dust)]">Net à déclarer sur Pajemploi</div>
       <div className={`text-xl font-bold ${text}`}>{salNet.toFixed(2)} €</div>
-
-      {racOption && (
-        <div className="mt-3 pt-3 border-t border-white/70">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[11px] text-[var(--dust)]">Reste à charge</span>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded bg-white ${text}`}>{(pctRac * 100).toFixed(1)} %</span>
-          </div>
-          <div className={`text-lg font-bold ${text}`}>{rac.toFixed(2)} €</div>
-        </div>
-      )}
     </div>
   );
 }
 
-function AidesColumn({ label, a, setA, total }: {
-  label: string; a: Aides; setA: (v: Aides) => void; total: number;
-}) {
-  const upd = (k: keyof Aides) => (v: number) => setA({ ...a, [k]: v });
-  return (
-    <div className="p-5 space-y-3">
-      <div className="text-xs font-semibold text-[var(--ink)] uppercase tracking-wide">{label}</div>
-      <FN label="Abattement charges patronales"       value={a.abattementCharges} onChange={upd('abattementCharges')} />
-      <FN label="CMG cotisations sociales (CAF)"      value={a.cmgCotisations}    onChange={upd('cmgCotisations')} />
-      <FN label="CMG rémunération (CAF)"              value={a.cmgRemuneration}   onChange={upd('cmgRemuneration')} />
-      <FN label="Aide locale (ex : Ville de St Ouen)" value={a.aideVille}         onChange={upd('aideVille')} />
-      <div>
-        <label className="block text-xs font-medium mb-1 text-[var(--dust)]">Crédit d&apos;impôt (annuel, calculé)</label>
-        <div className="w-full px-3 py-2 rounded-lg text-sm bg-[var(--paper)] border border-[var(--line)] text-[var(--ink)]">
-          {a.creditImpot.toFixed(2)} €
-        </div>
-      </div>
-      <div className="flex justify-between pt-3 border-t border-[var(--line)] text-xs font-semibold">
-        <span>Total aides / mois</span>
-        <span className="font-mono text-[var(--sage)]">− {total.toFixed(2)} €</span>
-      </div>
-    </div>
-  );
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function RatioPill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
       type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${checked ? 'bg-[var(--sage)]' : 'bg-[var(--line)]'}`}
-      aria-pressed={checked}
+      onClick={onClick}
+      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? 'border-[var(--sage)] bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]'
+          : 'border-[var(--line)] text-[var(--dust)] hover:text-[var(--ink)]'
+      }`}
     >
-      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${checked ? 'left-[22px]' : 'left-0.5'}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-[var(--sage)]' : 'bg-[var(--line)]'}`} />
+      {label}
+    </button>
+  );
+}
+
+function AdvancedCard({ icon, title, description, color, active, onClick }: {
+  icon: string; title: string; description: string;
+  color: 'sage' | 'blue'; active?: boolean; onClick: () => void;
+}) {
+  const border = color === 'sage' ? 'border-[var(--sage)]' : 'border-blue-700';
+  const text   = color === 'sage' ? 'text-[var(--sage)]'   : 'text-blue-700';
+  const bg     = active ? (color === 'sage' ? 'bg-[var(--sage-light,#eef4ec)]' : 'bg-blue-50') : 'bg-white';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-[var(--radius)] border ${border} ${bg} p-4 transition-colors`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-lg">{icon}</span>
+        <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${border} ${text}`}>
+          Avancé
+        </span>
+      </div>
+      <div className="text-sm font-semibold text-[var(--ink)] mb-1">{title}</div>
+      <p className="text-xs text-[var(--dust)]">{description}</p>
     </button>
   );
 }
