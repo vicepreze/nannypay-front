@@ -455,7 +455,7 @@ function ResultCard({ label, nom, r }: {
       ))}
       <div className="flex justify-between px-4 py-2.5 border-b border-[var(--line)] bg-[var(--paper)] font-semibold text-sm">
         <span>Total à verser</span>
-        <span>{r.total.toFixed(2)} €</span>
+        <span>{r.totalVerseReel.toFixed(2)} €</span>
       </div>
     </div>
   );

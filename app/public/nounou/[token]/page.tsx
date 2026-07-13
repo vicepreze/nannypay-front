@@ -224,7 +224,7 @@ function StatutBadge({ statut }: { statut: string }) {
   return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${cls}`}>{label}</span>;
 }
 
-function FamCard({ label, color, res }: { label: string; color: 'blue' | 'sage'; res: { hNorm: number; hSup25: number; salNet: number; exonerationHS: number; transport: number; entretien: number; km: number; total: number } }) {
+function FamCard({ label, color, res }: { label: string; color: 'blue' | 'sage'; res: { hNorm: number; hSup25: number; salNet: number; exonerationHS: number; transport: number; entretien: number; km: number; totalVerseReel: number } }) {
   const c = color === 'blue'
     ? { bg: 'var(--blue-light)', fg: 'var(--blue)' }
     : { bg: 'var(--sage-light)', fg: 'var(--sage)' };
@@ -249,7 +249,7 @@ function FamCard({ label, color, res }: { label: string; color: 'blue' | 'sage';
         {res.km        > 0 && <Row label="Frais km"    value={`${res.km.toFixed(2)} €`} />}
         <div className="pt-1 border-t border-[var(--line)] flex justify-between font-medium" style={{ color: c.fg }}>
           <span>Total</span>
-          <span>{res.total.toFixed(2)} €</span>
+          <span>{res.totalVerseReel.toFixed(2)} €</span>
         </div>
       </div>
     </div>
