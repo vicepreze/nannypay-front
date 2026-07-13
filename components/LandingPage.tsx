@@ -82,7 +82,6 @@ export function LandingPage() {
     : Math.abs(repartA - P_AIDES) <= SNAP3 ? 'aides'
     : 'custom';
   const posA3 = ((pProportionnel - S_MIN / 100) / ((S_MAX - S_MIN) / 100)) * 100;
-  const posB3 = ((P_AIDES - S_MIN / 100) / ((S_MAX - S_MIN) / 100)) * 100;
   const nbA = nbEnfants === 2 ? 1 : 2;
   const nbB = 1;
 
@@ -328,22 +327,34 @@ export function LandingPage() {
                     </div>
                   )}
                   {nbEnfants === 3 && (
-                    <div className="relative h-14">
-                      <div className="absolute inset-x-0 top-3 h-0.5 rounded-full bg-[var(--line)]" />
-                      <input type="range" min={S_MIN} max={S_MAX} step={0.5}
-                        value={repartA * 100}
-                        onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
-                        className={`absolute inset-x-0 top-0 h-7 w-full appearance-none bg-transparent cursor-pointer z-10 demo-slider3${activeOpt !== 'custom' ? ' snap-thumb' : ''}`} />
-                      <button onClick={() => setRepartA(pProportionnel)} style={{ left: `${posA3}%` }}
-                        className="absolute -top-4 -translate-x-1/2 z-20 group flex flex-col items-center">
-                        <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mb-1">Selon les heures</span>
-                        <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${activeOpt === 'heures' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--dust)]/50 text-[var(--dust)]'}`}>A</span>
-                      </button>
-                      <button onClick={() => setRepartA(P_AIDES)} style={{ left: `${posB3}%` }}
-                        className="absolute top-0 -translate-x-1/2 z-20 group flex flex-col items-center">
-                        <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${activeOpt === 'aides' ? 'bg-[var(--sage)] border-[var(--sage)] text-white' : 'bg-white border-[var(--dust)]/50 text-[var(--dust)]'}`}>B</span>
-                        <span className="text-[8px] text-[var(--dust)] whitespace-nowrap mt-1">Selon le reste à charge</span>
-                      </button>
+                    <div>
+                      <div className="relative h-5 mb-1">
+                        <span className="absolute text-[10px] text-[var(--dust)] -translate-x-1/2 whitespace-nowrap" style={{ left: '50%' }}>50/50</span>
+                      </div>
+                      <div className="relative h-6">
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[var(--line)]" />
+                        <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[var(--dust)]" style={{ left: '50%' }} />
+                        <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[var(--dust)]" style={{ left: `${posA3}%` }} />
+                        <input type="range" min={S_MIN} max={S_MAX} step={0.1}
+                          value={repartA * 100}
+                          onChange={e => setRepartA(parseFloat(e.target.value) / 100)}
+                          className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer demo-slider3"
+                          style={{ WebkitAppearance: 'none' }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-[var(--dust)] mt-1">
+                        <span>{S_MIN} %</span>
+                        <span>{S_MAX} %</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <RatioPill
+                          active={activeOpt === 'heures'}
+                          label={`Calcul automatique · ${(pProportionnel * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`}
+                          onClick={() => setRepartA(pProportionnel)} />
+                        <RatioPill
+                          active={activeOpt === 'aides'}
+                          label={`Bonne pratique · ${(P_AIDES * 100).toFixed(0)}/${(100 - P_AIDES * 100).toFixed(0)}`}
+                          onClick={() => setRepartA(P_AIDES)} />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -537,20 +548,35 @@ export function LandingPage() {
         }
         .demo-slider3::-webkit-slider-thumb {
           -webkit-appearance: none; appearance: none;
-          width: 14px; height: 14px; border-radius: 50%;
+          width: 20px; height: 20px; border-radius: 50%;
           background: white; border: 2px solid var(--sage);
           cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-          transition: opacity 0.1s;
         }
-        .demo-slider3.snap-thumb::-webkit-slider-thumb { opacity: 0; }
         .demo-slider3::-moz-range-thumb {
-          width: 14px; height: 14px; border-radius: 50%;
+          width: 20px; height: 20px; border-radius: 50%;
           background: white; border: 2px solid var(--sage);
-          cursor: pointer;
+          cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
         }
       `}</style>
 
     </div>
+  );
+}
+
+function RatioPill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? 'border-[var(--sage)] bg-[var(--sage-light,#eef4ec)] text-[var(--sage)]'
+          : 'border-[var(--line)] text-[var(--dust)] hover:text-[var(--ink)]'
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-[var(--sage)]' : 'bg-[var(--line)]'}`} />
+      {label}
+    </button>
   );
 }
 
