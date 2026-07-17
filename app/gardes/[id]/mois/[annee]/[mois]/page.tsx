@@ -313,7 +313,7 @@ export default function MoisPage() {
             {modalError && <p className="text-xs text-red-600 mt-2 mb-1">{modalError}</p>}
             <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-sm bg-white hover:border-[var(--ink)] transition-colors">Annuler</button>
-              <button onClick={addEvt} className="px-4 py-2 bg-[var(--sage)] text-white rounded-lg text-sm font-medium hover:bg-[#3a5431] transition-colors">Ajouter</button>
+              <button onClick={addEvt} className="px-4 py-2 bg-[var(--sage)] text-white rounded-lg text-sm font-medium hover:bg-[var(--sage-dark)] transition-colors">Ajouter</button>
             </div>
           </div>
         </div>

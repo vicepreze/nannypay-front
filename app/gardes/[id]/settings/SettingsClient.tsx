@@ -418,7 +418,7 @@ export function SettingsClient({
               <button
                 onClick={() => doDupliquer(forkModal.modelePatch, forkModal.aidesA, forkModal.aidesB)}
                 disabled={forking}
-                className="px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-[var(--sage)] hover:bg-[#3a5431] transition-colors disabled:opacity-50"
+                className="px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-[var(--sage)] hover:bg-[var(--sage-dark)] transition-colors disabled:opacity-50"
               >
                 {forking ? 'Création…' : 'Dupliquer en nouvelle garde (recommandé)'}
               </button>

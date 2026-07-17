@@ -41,7 +41,7 @@ export default function BlogIndex() {
           <Link href="/blog" className="text-[var(--sage)] font-medium no-underline">Blog</Link>
           <Link
             href="/"
-            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline"
+            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--sage-dark)] transition-colors no-underline"
           >
             Essayer l&apos;app
           </Link>

@@ -6,9 +6,11 @@
   :root {
     --ink:        #1a1a1a;
     --paper:      #fafaf8;
-    --sage:       #4a6741;
-    --sage-light: #eef3ed;
-    --sage-mid:   #c8d9c6;
+    --sage:       #6f74c4;
+    --sage-light: #eef0fb;
+    --sage-mid:   #c7cbef;
+    --sage-dark:  #565bad;
+    --night:      #fdf2c9;
     --dust:       #8a8680;
     --line:       #e4e2de;
     --blue:       #3b6fd4;

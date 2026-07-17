@@ -40,12 +40,12 @@ function Note({ type, children }: { type: 'info' | 'warn'; children: React.React
 
 function FormulaBox({ label, formula }: { label: string; formula: React.ReactNode }) {
   return (
-    <div className="bg-[#0f1923] rounded-[var(--radius)] px-6 py-5 my-5">
-      <div className="text-[10px] font-semibold tracking-widest uppercase text-[var(--sage-mid)] mb-2.5 flex items-center gap-2">
+    <div className="bg-[var(--night)] rounded-[var(--radius)] px-6 py-5 my-5">
+      <div className="text-[10px] font-semibold tracking-widest uppercase text-[var(--sage-dark)] mb-2.5 flex items-center gap-2">
         <span className="inline-block w-3.5 h-px bg-[var(--sage)]" />
         {label}
       </div>
-      <code className="block font-sans text-sm font-medium text-white leading-loose not-italic">
+      <code className="block font-sans text-sm font-medium text-[var(--ink)] leading-loose not-italic">
         {formula}
       </code>
     </div>
@@ -86,9 +86,9 @@ function CalcSubtotalRow({ label, value }: { label: string; value: string }) {
 
 function CalcTotalRow({ label, value }: { label: string; value: string }) {
   return (
-    <tr className="bg-[#0f1923]">
-      <td className="px-5 py-3 text-sm font-bold text-white">{label}</td>
-      <td className="px-5 py-3 text-sm text-right font-bold text-white whitespace-nowrap">{value}</td>
+    <tr className="bg-[var(--night)]">
+      <td className="px-5 py-3 text-sm font-bold text-[var(--ink)]">{label}</td>
+      <td className="px-5 py-3 text-sm text-right font-bold text-[var(--ink)] whitespace-nowrap">{value}</td>
     </tr>
   );
 }
@@ -140,12 +140,12 @@ function CtaMid({ title, desc, ctaText, ctaHref }: {
   title: string; desc: string; ctaText: string; ctaHref: string;
 }) {
   return (
-    <div className="bg-[#0f1923] rounded-2xl px-8 py-9 my-10 text-center relative overflow-hidden">
-      <h3 className="font-serif text-xl font-bold text-white mb-2">{title}</h3>
-      <p className="text-sm text-white/55 mb-6 max-w-sm mx-auto leading-relaxed">{desc}</p>
+    <div className="bg-[var(--night)] rounded-2xl px-8 py-9 my-10 text-center relative overflow-hidden">
+      <h3 className="font-serif text-xl font-bold text-[var(--ink)] mb-2">{title}</h3>
+      <p className="text-sm text-[var(--ink)]/70 mb-6 max-w-sm mx-auto leading-relaxed">{desc}</p>
       <Link
         href={ctaHref}
-        className="inline-block bg-[var(--sage)] text-white font-semibold text-sm px-8 py-3 rounded-lg hover:bg-[#3a5431] transition-colors no-underline"
+        className="inline-block bg-[var(--sage)] text-white font-semibold text-sm px-8 py-3 rounded-lg hover:bg-[var(--sage-dark)] transition-colors no-underline"
       >
         {ctaText}
       </Link>
@@ -170,7 +170,7 @@ export default function ArticleCalculerSalaire() {
           </Link>
           <Link
             href="/"
-            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline"
+            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--sage-dark)] transition-colors no-underline"
           >
             Essayer la démo →
           </Link>
@@ -180,37 +180,37 @@ export default function ArticleCalculerSalaire() {
       <main className="pt-14">
 
         {/* Hero */}
-        <div className="bg-[#0f1923] px-5 md:px-8 pt-16 pb-12 relative overflow-hidden">
+        <div className="bg-[var(--night)] px-5 md:px-8 pt-16 pb-12 relative overflow-hidden">
           <div
             className="absolute inset-0 pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse 60% 80% at 10% 50%, rgba(74,103,65,0.18) 0%, transparent 60%)' }}
+            style={{ background: 'radial-gradient(ellipse 60% 80% at 10% 50%, rgba(111,116,196,0.18) 0%, transparent 60%)' }}
           />
           <div className="relative max-w-[780px] mx-auto">
 
             {/* Breadcrumb */}
-            <nav className="text-xs text-white/35 mb-6 flex items-center flex-wrap gap-1.5">
-              <Link href="/" className="text-white/40 hover:text-[var(--sage-mid)] no-underline transition-colors">nounoulink.</Link>
-              <span className="text-white/20">/</span>
-              <Link href="/blog" className="text-white/40 hover:text-[var(--sage-mid)] no-underline transition-colors">Blog</Link>
-              <span className="text-white/20">/</span>
+            <nav className="text-xs text-[var(--ink)]/60 mb-6 flex items-center flex-wrap gap-1.5">
+              <Link href="/" className="text-[var(--ink)]/70 hover:text-[var(--sage-dark)] no-underline transition-colors">nounoulink.</Link>
+              <span className="text-[var(--ink)]/40">/</span>
+              <Link href="/blog" className="text-[var(--ink)]/70 hover:text-[var(--sage-dark)] no-underline transition-colors">Blog</Link>
+              <span className="text-[var(--ink)]/40">/</span>
               <span>Guide salaire</span>
             </nav>
 
             {/* Tag */}
-            <div className="inline-flex items-center gap-2 bg-[var(--sage)]/25 border border-[var(--sage)]/40 text-[var(--sage-mid)] text-[11px] font-medium tracking-widest uppercase px-3.5 py-1.5 rounded-full mb-5">
+            <div className="inline-flex items-center gap-2 bg-[var(--sage)]/25 border border-[var(--sage)]/40 text-[var(--sage-dark)] text-[11px] font-medium tracking-widest uppercase px-3.5 py-1.5 rounded-full mb-5">
               <span className="text-[8px]">●</span>
               Guide complet · Mis à jour mai 2026
             </div>
 
             {/* H1 */}
-            <h1 className="font-serif font-bold leading-tight text-white tracking-tight" style={{ fontSize: 'clamp(1.9rem, 4.5vw, 3rem)' }}>
+            <h1 className="font-serif font-bold leading-tight text-[var(--ink)] tracking-tight" style={{ fontSize: 'clamp(1.9rem, 4.5vw, 3rem)' }}>
               Comment calculer le salaire d&apos;une nounou{' '}
-              <em className="italic text-[var(--sage-mid)]">en garde partagée</em>{' '}
+              <em className="italic text-[var(--sage-dark)]">en garde partagée</em>{' '}
               : le guide complet
             </h1>
 
             {/* Meta */}
-            <div className="flex flex-wrap gap-5 mt-5 text-xs text-white/40">
+            <div className="flex flex-wrap gap-5 mt-5 text-xs text-[var(--ink)]/70">
               {['Lecture 9 min', 'Sources Pajemploi, Urssaf, Légifrance', 'Chiffres 2026'].map((m) => (
                 <span key={m} className="flex items-center gap-1.5">
                   <span className="w-1 h-1 rounded-full bg-[var(--sage)] inline-block flex-shrink-0" />
@@ -229,24 +229,24 @@ export default function ArticleCalculerSalaire() {
           <article>
 
             {/* Résumé */}
-            <div className="bg-[#0f1923] rounded-2xl px-6 py-7 mb-10">
-              <div className="text-[10px] font-semibold tracking-widest uppercase text-[var(--sage-mid)] mb-3 flex items-center gap-2">
+            <div className="bg-[var(--night)] rounded-2xl px-6 py-7 mb-10">
+              <div className="text-[10px] font-semibold tracking-widest uppercase text-[var(--sage-dark)] mb-3 flex items-center gap-2">
                 <span className="inline-block w-[18px] h-px bg-[var(--sage)]" />
                 Résumé · 1 minute
               </div>
-              <h2 className="font-serif text-[18px] font-bold text-white mb-4">
+              <h2 className="font-serif text-[18px] font-bold text-[var(--ink)] mb-4">
                 Ce que vous devez retenir avant de continuer
               </h2>
               <ul className="space-y-2.5">
                 {[
-                  <>Le salaire est <strong className="text-white">mensualisé</strong> : même montant chaque mois, même pendant les congés payés.</>,
-                  <>Formule de base : <strong className="text-white">salaire horaire × (heures hebdo × 52 ÷ 12)</strong>.</>,
-                  <>Au-delà de <strong className="text-white">40h/semaine</strong> : majoration <strong className="text-white">+25 %</strong> jusqu&apos;à la 48e heure, puis <strong className="text-white">+50 %</strong> au-delà.</>,
-                  <>En garde partagée : chaque famille fait <strong className="text-white">sa propre déclaration Pajemploi</strong> chaque mois.</>,
-                  <>nounoulink. calcule tout ça et vous donne <strong className="text-white">exactement quoi saisir sur Pajemploi</strong>.</>,
+                  <>Le salaire est <strong className="text-[var(--ink)]">mensualisé</strong> : même montant chaque mois, même pendant les congés payés.</>,
+                  <>Formule de base : <strong className="text-[var(--ink)]">salaire horaire × (heures hebdo × 52 ÷ 12)</strong>.</>,
+                  <>Au-delà de <strong className="text-[var(--ink)]">40h/semaine</strong> : majoration <strong className="text-[var(--ink)]">+25 %</strong> jusqu&apos;à la 48e heure, puis <strong className="text-[var(--ink)]">+50 %</strong> au-delà.</>,
+                  <>En garde partagée : chaque famille fait <strong className="text-[var(--ink)]">sa propre déclaration Pajemploi</strong> chaque mois.</>,
+                  <>nounoulink. calcule tout ça et vous donne <strong className="text-[var(--ink)]">exactement quoi saisir sur Pajemploi</strong>.</>,
                 ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-white/75 leading-snug list-none">
-                    <span className="text-[var(--sage-mid)] flex-shrink-0 mt-0.5">→</span>
+                  <li key={i} className="flex items-start gap-3 text-sm text-[var(--ink)]/80 leading-snug list-none">
+                    <span className="text-[var(--sage-dark)] flex-shrink-0 mt-0.5">→</span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -300,9 +300,9 @@ export default function ArticleCalculerSalaire() {
               formula={
                 <>
                   Salaire mensuel brut ={' '}
-                  <em className="not-italic text-[var(--sage-mid)]">Salaire horaire brut</em>
+                  <em className="not-italic text-[var(--sage-dark)]">Salaire horaire brut</em>
                   {' × ('}
-                  <em className="not-italic text-[var(--sage-mid)]">Heures hebdomadaires</em>
+                  <em className="not-italic text-[var(--sage-dark)]">Heures hebdomadaires</em>
                   {' × 52 ÷ 12)'}
                 </>
               }
@@ -424,9 +424,9 @@ export default function ArticleCalculerSalaire() {
               formula={
                 <>
                   Part famille A (%) ={' '}
-                  <em className="not-italic text-[var(--sage-mid)]">Heures gardées par l&apos;enfant A</em>
+                  <em className="not-italic text-[var(--sage-dark)]">Heures gardées par l&apos;enfant A</em>
                   {' ÷ '}
-                  <em className="not-italic text-[var(--sage-mid)]">Total heures cumulées de tous les enfants</em>
+                  <em className="not-italic text-[var(--sage-dark)]">Total heures cumulées de tous les enfants</em>
                 </>
               }
             />
@@ -636,16 +636,16 @@ export default function ArticleCalculerSalaire() {
           <aside className="md:sticky md:top-[74px] space-y-4">
 
             {/* CTA sidebar */}
-            <div className="bg-[#0f1923] rounded-2xl px-5 py-6 text-center">
-              <p className="font-serif text-[17px] font-bold text-white mb-1 leading-snug">
+            <div className="bg-[var(--night)] rounded-2xl px-5 py-6 text-center">
+              <p className="font-serif text-[17px] font-bold text-[var(--ink)] mb-1 leading-snug">
                 Calculez en 30 secondes
               </p>
-              <span className="block text-sm text-white/50 mb-5">
+              <span className="block text-sm text-[var(--ink)]/70 mb-5">
                 Votre montant exact Pajemploi, sans calcul manuel
               </span>
               <Link
                 href="/"
-                className="block w-full bg-[var(--sage)] text-white font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-[#3a5431] transition-colors no-underline text-center"
+                className="block w-full bg-[var(--sage)] text-white font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-[var(--sage-dark)] transition-colors no-underline text-center"
               >
                 Essayer nounoulink. →
               </Link>
@@ -687,12 +687,12 @@ export default function ArticleCalculerSalaire() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#0f1923] py-6 px-5 md:px-6 text-center text-xs text-white/30">
+      <footer className="bg-[var(--night)] py-6 px-5 md:px-6 text-center text-xs text-[var(--ink)]/60">
         <p>
           © {new Date().getFullYear()} nounoulink. ·{' '}
-          <Link href="/blog" className="text-white/45 hover:text-[var(--sage-mid)] no-underline transition-colors">Blog</Link>
+          <Link href="/blog" className="text-[var(--ink)]/70 hover:text-[var(--sage-dark)] no-underline transition-colors">Blog</Link>
           {' · '}
-          <Link href="/" className="text-white/45 hover:text-[var(--sage-mid)] no-underline transition-colors">Accueil</Link>
+          <Link href="/" className="text-[var(--ink)]/70 hover:text-[var(--sage-dark)] no-underline transition-colors">Accueil</Link>
           {' · '}
           Sources : Pajemploi, Urssaf, CAF, Légifrance, Service-Public.fr
         </p>

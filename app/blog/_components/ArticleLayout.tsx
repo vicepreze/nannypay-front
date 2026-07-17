@@ -69,7 +69,7 @@ export function ArticleLayout({
           <Link href="/blog" className="hover:text-[var(--ink)] transition-colors no-underline">Blog</Link>
           <Link
             href="/"
-            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline"
+            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--sage-dark)] transition-colors no-underline"
           >
             Essayer l&apos;app
           </Link>
@@ -128,7 +128,7 @@ export function ArticleLayout({
             </p>
             <Link
               href="/"
-              className="inline-block px-8 py-3 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-semibold hover:bg-[#3a5431] transition-colors no-underline"
+              className="inline-block px-8 py-3 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-semibold hover:bg-[var(--sage-dark)] transition-colors no-underline"
             >
               Essayer gratuitement →
             </Link>
