@@ -61,7 +61,7 @@ export default async function DashboardPage() {
             </p>
           </div>
           <Link href="/nouvelle-garde/acteurs"
-            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
+            className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--sage-dark)] transition-colors no-underline">
             + Nouvelle garde
           </Link>
         </div>
@@ -72,7 +72,7 @@ export default async function DashboardPage() {
             <p className="font-medium text-[var(--ink)] mb-2">Aucune garde pour l&apos;instant</p>
             <p className="text-sm text-[var(--dust)] mb-6">Configurez votre première garde partagée en quelques minutes.</p>
             <Link href="/nouvelle-garde/acteurs"
-              className="px-5 py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
+              className="px-5 py-2.5 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--sage-dark)] transition-colors no-underline">
               Créer ma première garde
             </Link>
           </div>
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2 pt-3 border-t border-[var(--line)]">
                     <Link href={`/gardes/${g.id}/mois/${annee}/${mois}`}
-                      className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors no-underline">
+                      className="px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--sage-dark)] transition-colors no-underline">
                       Voir →
                     </Link>
                     <Link href={`/gardes/${g.id}/settings`}

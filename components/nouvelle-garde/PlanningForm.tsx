@@ -123,7 +123,7 @@ export function PlanningForm({ enfants, planning, onChange }: {
                         ))}
                         <button
                           onClick={() => copierVers(enfant.prenom, String(j.num), JOURS.filter(x => x.num !== j.num).map(x => String(x.num)))}
-                          className="text-xs px-2.5 py-1 bg-[var(--sage)] text-white rounded-lg hover:bg-[#3a5431] transition-colors font-medium"
+                          className="text-xs px-2.5 py-1 bg-[var(--sage)] text-white rounded-lg hover:bg-[var(--sage-dark)] transition-colors font-medium"
                         >
                           Tous
                         </button>

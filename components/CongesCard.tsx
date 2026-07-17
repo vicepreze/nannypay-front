@@ -206,7 +206,7 @@ export function CongesCard({ gardeId, annee, mois, refreshKey }: {
 
           <div className="flex gap-2">
             <button onClick={sauvegarder} disabled={saving}
-              className="flex-1 py-2 bg-[var(--sage)] text-white rounded-lg text-xs font-medium hover:bg-[#3a5431] transition-colors disabled:opacity-50">
+              className="flex-1 py-2 bg-[var(--sage)] text-white rounded-lg text-xs font-medium hover:bg-[var(--sage-dark)] transition-colors disabled:opacity-50">
               {saving ? 'Enregistrement…' : 'Enregistrer'}
             </button>
             {configured && (

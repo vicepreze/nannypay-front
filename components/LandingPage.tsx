@@ -223,12 +223,12 @@ export function LandingPage() {
           {/* ── Mobile : résultats simplifiés ── */}
           <div className="md:hidden space-y-3">
             {/* Total */}
-            <div className="bg-[#0f1923] rounded-2xl px-5 py-5 text-center">
-              <div className="text-xs text-white/50 mb-1 uppercase tracking-wide">Salaire total nounou</div>
-              <div className="text-4xl font-bold text-white mb-1">{salNetMens.toFixed(0)} €</div>
-              <div className="text-xs text-white/40">{MOIS_LONGS[mois - 1]} {annee}</div>
-              {joursMal > 0 && <div className="text-xs text-red-300 mt-2">− {joursMal} jour{joursMal > 1 ? 's' : ''} maladie déduit{joursMal > 1 ? 's' : ''}</div>}
-              {hasCP && <div className="text-xs text-blue-300 mt-1">Les CP ne réduisent pas le salaire mensuel.</div>}
+            <div className="bg-[var(--night)] rounded-2xl px-5 py-5 text-center">
+              <div className="text-xs text-[var(--ink)]/70 mb-1 uppercase tracking-wide">Salaire total nounou</div>
+              <div className="text-4xl font-bold text-[var(--ink)] mb-1">{salNetMens.toFixed(0)} €</div>
+              <div className="text-xs text-[var(--ink)]/70">{MOIS_LONGS[mois - 1]} {annee}</div>
+              {joursMal > 0 && <div className="text-xs text-[var(--red)] mt-2">− {joursMal} jour{joursMal > 1 ? 's' : ''} maladie déduit{joursMal > 1 ? 's' : ''}</div>}
+              {hasCP && <div className="text-xs text-[var(--blue)] mt-1">Les CP ne réduisent pas le salaire mensuel.</div>}
             </div>
             {/* Familles */}
             <div className="grid grid-cols-2 gap-3">
@@ -287,10 +287,10 @@ export function LandingPage() {
                 Résultat du mois
               </div>
               <div className="p-5 space-y-3">
-                <div className="bg-[#0f1923] rounded-xl px-5 py-4">
-                  <div className="text-xs text-white/50 mb-1">Salaire total nounou</div>
-                  <div className="text-3xl font-bold text-white">{salNetMens.toFixed(0)} €</div>
-                  {joursMal > 0 && <div className="text-xs text-red-300 mt-2">− {joursMal} jour{joursMal > 1 ? 's' : ''} maladie déduit{joursMal > 1 ? 's' : ''}</div>}
+                <div className="bg-[var(--night)] rounded-xl px-5 py-4">
+                  <div className="text-xs text-[var(--ink)]/70 mb-1">Salaire total nounou</div>
+                  <div className="text-3xl font-bold text-[var(--ink)]">{salNetMens.toFixed(0)} €</div>
+                  {joursMal > 0 && <div className="text-xs text-[var(--red)] mt-2">− {joursMal} jour{joursMal > 1 ? 's' : ''} maladie déduit{joursMal > 1 ? 's' : ''}</div>}
                 </div>
                 <div className="flex items-center gap-3 bg-[var(--sage-light)] rounded-xl px-4 py-3">
                   <span className="w-7 h-7 rounded-full bg-[var(--sage)] text-white text-xs font-bold flex items-center justify-center shrink-0">A</span>
@@ -406,15 +406,15 @@ export function LandingPage() {
         </section>
 
         {/* ── 3. CTA SOMBRE ────────────────────────────────────────── */}
-        <section className="bg-[#0f1923] text-white px-5 md:px-6 py-16 md:py-20">
+        <section className="bg-[var(--night)] text-[var(--ink)] px-5 md:px-6 py-16 md:py-20">
           <div className="max-w-2xl mx-auto text-center">
-            <p className="text-xs font-bold tracking-widest text-[var(--sage)] uppercase mb-4">
+            <p className="text-xs font-bold tracking-widest text-[var(--sage-dark)] uppercase mb-4">
               Ça correspond à votre situation ?
             </p>
             <h2 className="font-serif text-[26px] md:text-[32px] leading-tight font-bold mb-5">
               Retrouvez exactement vos chiffres,<br />adaptés à votre contrat.
             </h2>
-            <p className="text-[14px] md:text-[15px] text-white/60 leading-relaxed mb-10 md:mb-12 max-w-lg mx-auto">
+            <p className="text-[14px] md:text-[15px] text-[var(--ink)]/70 leading-relaxed mb-10 md:mb-12 max-w-lg mx-auto">
               La démo ci-dessus est volontairement simplifiée. Créez un compte pour
               configurer votre planning exact, inviter l&apos;autre famille, et ne plus jamais perdre le fil.
             </p>
@@ -444,10 +444,10 @@ export function LandingPage() {
                   desc: '✓ Congés, maladies, absences tracés\n✓ Impact calculé automatiquement\n✓ Remplace les fils WhatsApp'
                 },
               ].map(({ icon, title, desc }) => (
-                <div key={title} className="bg-white/5 rounded-xl p-5">
+                <div key={title} className="bg-white/50 rounded-xl p-5">
                   <div>{icon}</div>
                   <div className="text-sm font-semibold mb-1.5">{title}</div>
-                  <div className="text-xs text-white/50 leading-relaxed whitespace-pre-line">{desc}</div>
+                  <div className="text-xs text-[var(--ink)]/70 leading-relaxed whitespace-pre-line">{desc}</div>
                 </div>
               ))}
             </div>
@@ -459,19 +459,19 @@ export function LandingPage() {
                 { quote: 'À remplacer par un vrai témoignage.', author: 'Prénom, Ville' },
                 { quote: 'À remplacer par un vrai témoignage.', author: 'Prénom, Ville' },
               ].map((t, i) => (
-                <div key={i} className="bg-white/5 rounded-xl p-5">
-                  <div className="text-[var(--sage)] text-sm mb-2">★★★★★</div>
-                  <p className="text-xs text-white/60 italic leading-relaxed mb-3">&ldquo;{t.quote}&rdquo;</p>
-                  <p className="text-xs font-medium text-white/80">{t.author}</p>
+                <div key={i} className="bg-white/50 rounded-xl p-5">
+                  <div className="text-[var(--sage-dark)] text-sm mb-2">★★★★★</div>
+                  <p className="text-xs text-[var(--ink)]/80 italic leading-relaxed mb-3">&ldquo;{t.quote}&rdquo;</p>
+                  <p className="text-xs font-medium text-[var(--ink)]">{t.author}</p>
                 </div>
               ))}
             </div>
 
             <button onClick={() => router.push('/sign-up')}
-              className="w-full sm:w-auto px-8 py-4 bg-[var(--sage)] text-white rounded-xl text-[15px] font-semibold hover:bg-[#3a5431] transition-colors">
+              className="w-full sm:w-auto px-8 py-4 bg-[var(--sage)] text-white rounded-xl text-[15px] font-semibold hover:bg-[var(--sage-dark)] transition-colors">
               Créer mon compte →
             </button>
-            <p className="text-xs text-white/40 mt-3">Configuration en 2 min · La nounou n&apos;a pas besoin de compte</p>
+            <p className="text-xs text-[var(--ink)]/70 mt-3">Configuration en 2 min · La nounou n&apos;a pas besoin de compte</p>
           </div>
         </section>
 
@@ -590,7 +590,7 @@ function NumInput({ value, onChange, className }: { value: number; onChange: (v:
   );
 }
 
-const btnPri   = 'px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[#3a5431] transition-colors';
+const btnPri   = 'px-4 py-2 bg-[var(--sage)] text-white rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--sage-dark)] transition-colors';
 const btnSec   = 'px-4 py-2 border border-[var(--line)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] transition-colors bg-white text-[var(--ink)]';
 const btnGhost = 'px-4 py-2 border border-[var(--line)] rounded-[var(--radius)] text-sm font-medium hover:border-[var(--ink)] text-[var(--dust)] hover:text-[var(--ink)] transition-colors bg-white';
 const numInp   = 'px-3 py-2 border-[1.5px] border-[var(--line)] rounded-lg text-[14px] font-semibold text-center outline-none focus:border-[var(--sage)] bg-white';
