@@ -5,6 +5,7 @@ import {
   JOURS, defaultSlots, diffH, planningSummary,
   type Planning, type Enfant,
 } from './planningLogic';
+import { familleLabel } from '@/lib/familleLabel';
 
 export {
   JOURS, defaultSlots, buildPlanning, planningSummary, validatePlanning,
@@ -12,10 +13,11 @@ export {
 } from './planningLogic';
 
 // ── Composant éditeur (cartes par enfant) ───────────────────────────
-export function PlanningForm({ enfants, planning, onChange }: {
+export function PlanningForm({ enfants, planning, onChange, estMoiA = true }: {
   enfants: Enfant[];
   planning: Planning;
   onChange: (p: Planning) => void;
+  estMoiA?: boolean;
 }) {
   const [copier, setCopier] = useState<{ child: string; jour: string } | null>(null);
 
@@ -55,7 +57,9 @@ export function PlanningForm({ enfants, planning, onChange }: {
               }`}>
                 {enfant.prenom}
               </span>
-              <span className="text-xs text-[var(--dust)]">Famille {enfant.fam}</span>
+              <span className="text-xs text-[var(--dust)]">
+                {familleLabel(null, enfant.fam === 'A' ? estMoiA : !estMoiA)}
+              </span>
             </div>
 
             <div className="divide-y divide-[var(--line)]">
