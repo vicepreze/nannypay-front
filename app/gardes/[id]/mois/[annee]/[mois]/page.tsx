@@ -12,6 +12,7 @@ import {
   type SickInfo, SickNoteBlock,
 } from '@/components/CalendrierMoisView';
 import { familleLabel } from '@/lib/familleLabel';
+import { AppHeader } from '@/components/AppHeader';
 
 const MOIS_LONGS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
@@ -218,21 +219,24 @@ export default function MoisPage() {
 
   return (
     <div className="min-h-screen bg-[var(--paper)]">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-[var(--line)] flex items-center justify-between px-6 z-50">
-        <div className="flex items-center gap-2 text-sm">
-          <Link href="/" className="font-serif text-base text-[var(--ink)] no-underline">nounoulink<em className="text-[var(--sage)] not-italic">.</em></Link>
-          <span className="text-[var(--line)]">/</span>
-          <span className="text-[var(--dust)]">{garde?.nom ?? '…'}</span>
-          <span className="text-[var(--line)]">/</span>
-          <span className="font-medium text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Dashboard</Link>
-          <Link href="/demo" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Démo</Link>
-          {saving && <span className="text-xs text-[var(--dust)]">Sauvegarde…</span>}
-        </div>
-      </header>
+      <AppHeader
+        left={
+          <div className="flex items-center gap-2 text-sm">
+            <Link href="/" className="font-serif text-base text-[var(--ink)] no-underline">nounoulink<em className="text-[var(--sage)] not-italic">.</em></Link>
+            <span className="text-[var(--line)]">/</span>
+            <span className="text-[var(--dust)]">{garde?.nom ?? '…'}</span>
+            <span className="text-[var(--line)]">/</span>
+            <span className="font-medium text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</span>
+          </div>
+        }
+        rightExtra={
+          <>
+            <Link href="/dashboard" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Dashboard</Link>
+            <Link href="/demo" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Démo</Link>
+            {saving && <span className="text-xs text-[var(--dust)]">Sauvegarde…</span>}
+          </>
+        }
+      />
 
       <div className="pt-14 max-w-[1280px] mx-auto px-4 pb-16">
         <div className="pt-6">

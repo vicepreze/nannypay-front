@@ -211,6 +211,8 @@ export interface CalendrierMoisViewProps {
   locked?: boolean;
   onOpenModal?: (ds?: string) => void;
   onRemoveEvt?: (i: number) => void;
+  /** Contenu additionnel affiché sous le calendrier, dans la colonne de gauche (même largeur que le calendrier). */
+  belowCalendar?: React.ReactNode;
 }
 
 export function CalendrierMoisView({
@@ -222,6 +224,7 @@ export function CalendrierMoisView({
   gardeId, evtsSaveCount = 0,
   locked: lockedProp,
   onOpenModal, onRemoveEvt,
+  belowCalendar,
 }: CalendrierMoisViewProps) {
   const locked = lockedProp ?? (statut === 'valide_ab');
 
@@ -374,6 +377,8 @@ export function CalendrierMoisView({
             <CongesCard gardeId={gardeId} annee={annee} mois={mois} refreshKey={evtsSaveCount} />
           </div>
         )}
+
+        {belowCalendar}
       </div>
 
       {/* ── RÉSULTATS ──────────────────────────────────────── */}

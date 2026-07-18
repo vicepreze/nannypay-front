@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { SignOutButton } from '@/components/SignOutButton';
+import { AppHeader } from '@/components/AppHeader';
 import {
   PlanningForm, PlanningSummaryCard, buildPlanning, validatePlanning, planningSummary,
   type Planning, type Enfant,
@@ -281,20 +281,23 @@ export function SettingsClient({
 
   return (
     <div className="min-h-screen bg-[var(--paper)]">
-      <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-[var(--line)] flex items-center justify-between px-6 z-50">
-        <div className="flex items-center gap-2 text-sm">
-          <Link href="/" className="font-serif text-base text-[var(--ink)] no-underline">nounoulink<em className="text-[var(--sage)] not-italic">.</em></Link>
-          <span className="text-[var(--line)]">/</span>
-          <Link href={moisUrl} className="text-[var(--dust)] hover:text-[var(--ink)] no-underline">{gardeNom || 'Garde'}</Link>
-          <span className="text-[var(--line)]">/</span>
-          <span className="font-medium text-[var(--ink)]">Paramètres</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline transition-colors">Dashboard</Link>
-          <Link href="/demo"      className="text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline transition-colors">Démo</Link>
-          <SignOutButton />
-        </div>
-      </header>
+      <AppHeader
+        left={
+          <div className="flex items-center gap-2 text-sm">
+            <Link href="/" className="font-serif text-base text-[var(--ink)] no-underline">nounoulink<em className="text-[var(--sage)] not-italic">.</em></Link>
+            <span className="text-[var(--line)]">/</span>
+            <Link href={moisUrl} className="text-[var(--dust)] hover:text-[var(--ink)] no-underline">{gardeNom || 'Garde'}</Link>
+            <span className="text-[var(--line)]">/</span>
+            <span className="font-medium text-[var(--ink)]">Paramètres</span>
+          </div>
+        }
+        rightExtra={
+          <>
+            <Link href="/dashboard" className="text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline transition-colors">Dashboard</Link>
+            <Link href="/demo"      className="text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline transition-colors">Démo</Link>
+          </>
+        }
+      />
 
       <div className="pt-14 max-w-2xl mx-auto px-6 pb-16">
         <div className="pt-8 mb-6">

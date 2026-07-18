@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
-import { SignOutButton } from '@/components/SignOutButton';
+import { AppHeader } from '@/components/AppHeader';
 import { ArchiveButton } from '@/components/ArchiveButton';
 import { PartageGardeButton } from '@/components/PartageGardeButton';
 import { EditableEnfantsBadges } from '@/components/EditableEnfantsBadges';
@@ -42,16 +42,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--paper)]">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-[var(--line)] flex items-center justify-between px-6 z-50">
-        <a href="/" className="font-serif text-[19px] tracking-tight text-[var(--ink)] no-underline">
-          nounoulink<em className="text-[var(--sage)] not-italic">.</em>
-        </a>
-        <div className="flex items-center gap-4">
+      <AppHeader
+        rightExtra={
           <Link href="/demo" className="text-sm text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">Démo</Link>
-          <SignOutButton />
-        </div>
-      </header>
+        }
+      />
 
       <div className="pt-14 max-w-3xl mx-auto px-6 pb-16">
         <div className="flex items-center justify-between pt-10 mb-8">

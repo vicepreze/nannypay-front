@@ -10,7 +10,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
       {children}
     </ClerkProvider>
   );
