@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 
 type NbEnfants = 2 | 3;
@@ -470,19 +470,27 @@ export function LandingPage() {
                   </thead>
                   <tbody>
                     {[
-                      { feat: 'Calcul du salaire', demo: '✓', compte: '✓' },
-                      { feat: 'Vos horaires exacts', demo: 'Estimation', compte: '✓ Exact' },
+                      { group: 'Une fois, à la configuration', feat: 'Calcul du salaire théorique', demo: '✓', compte: '✓' },
+                      { feat: 'Répartition avancée selon vos horaires exacts (horaires décalés, asymétriques, 3 enfants, sorties d’école)', demo: 'Estimation', compte: '✓ Exact' },
+                      { feat: 'Estimation du reste à charge (abattement, crédit d’impôt, CMG)', demo: '–', compte: '✓' },
+                      { group: 'Chaque mois, automatiquement', feat: 'Calcul automatique du net à déclarer et à verser', demo: '–', compte: '✓' },
                       { feat: 'Lien public 🔗 (sans compte pour l’autre famille et la nounou)', demo: '–', compte: '✓' },
-                      { feat: 'Reste à charge estimé (abattement, crédit d’impôt, CMG)', demo: '–', compte: '✓' },
                       { feat: 'Suivi des congés', demo: '–', compte: '✓' },
-                      { feat: 'Répartition avancée (horaires asymétriques, 3 enfants, sorties d’école)', demo: '–', compte: '✓' },
-                      { feat: 'Net à déclarer et à verser sur Pajemploi', demo: '–', compte: '✓' },
                     ].map((row, i, arr) => (
-                      <tr key={row.feat} className={i < arr.length - 1 ? 'border-b border-[var(--line)]' : ''}>
-                        <td className="px-5 py-4 text-[var(--ink)]">{row.feat}</td>
-                        <td className="px-5 py-4 text-center text-[var(--dust)] whitespace-nowrap">{row.demo}</td>
-                        <td className="px-5 py-4 text-center font-semibold text-[var(--sage)] whitespace-nowrap">{row.compte}</td>
-                      </tr>
+                      <Fragment key={row.feat}>
+                        {row.group && (
+                          <tr>
+                            <td colSpan={3} className={`px-5 ${i === 0 ? 'pt-4' : 'pt-6'} pb-2 text-[11px] font-bold tracking-widest text-[var(--sage-dark)] uppercase`}>
+                              {row.group}
+                            </td>
+                          </tr>
+                        )}
+                        <tr className={i < arr.length - 1 && !arr[i + 1].group ? 'border-b border-[var(--line)]' : ''}>
+                          <td className="px-5 py-4 text-[var(--ink)]">{row.feat}</td>
+                          <td className="px-5 py-4 text-center text-[var(--dust)] whitespace-nowrap">{row.demo}</td>
+                          <td className="px-5 py-4 text-center font-semibold text-[var(--sage)] whitespace-nowrap">{row.compte}</td>
+                        </tr>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -563,61 +571,6 @@ export function LandingPage() {
                 <NouveauBadge />
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* ── 7. CTA SOMBRE ────────────────────────────────────────── */}
-        <section className="bg-[var(--night)] text-[var(--ink)] px-5 md:px-6 py-16 md:py-20">
-          <div className="max-w-2xl mx-auto text-center">
-            <p className="text-xs font-bold tracking-widest text-[var(--sage-dark)] uppercase mb-4">
-              Ça correspond à votre situation ?
-            </p>
-            <h2 className="font-serif text-[26px] md:text-[32px] leading-tight font-bold mb-5">
-              Retrouvez exactement vos chiffres,<br />adaptés à votre contrat.
-            </h2>
-            <p className="text-[14px] md:text-[15px] text-[var(--ink)]/70 leading-relaxed mb-10 md:mb-12 max-w-lg mx-auto">
-              La démo ci-dessus est volontairement simplifiée. Créez un compte pour
-              configurer votre planning exact, inviter l&apos;autre famille, et ne plus jamais perdre le fil.
-            </p>
-
-            {/* Features — 1 col mobile / 3 col desktop */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 md:mb-12 text-left">
-              {[
-                {
-                  icon: (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--sage)] mb-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z"/><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/></svg>
-                  ),
-                  title: 'Votre situation, exactement',
-                  desc: '✓ 2 ou 3 enfants, horaires différents\n✓ Répartition proportionnelle aux heures\n✓ Équilibrage au reste à charge CAF\n✓ Frais d\'entretien, repas, transport inclus'
-                },
-                {
-                  icon: (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--sage)] mb-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0 -3 -3.85"/></svg>
-                  ),
-                  title: 'Simple pour tous',
-                  desc: '✓ La nounou reçoit un lien sans compte\n✓ Elle voit ce que chaque famille lui verse\n✓ Fini les surprises sur le compte'
-                },
-                {
-                  icon: (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--sage)] mb-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M11 15h1"/><path d="M12 15v3"/></svg>
-                  ),
-                  title: 'Pas juste pour démarrer. Pour chaque mois.',
-                  desc: '✓ Congés, maladies, absences tracés\n✓ Impact calculé automatiquement\n✓ Remplace les fils WhatsApp'
-                },
-              ].map(({ icon, title, desc }) => (
-                <div key={title} className="bg-white/50 rounded-xl p-5">
-                  <div>{icon}</div>
-                  <div className="text-sm font-semibold mb-1.5">{title}</div>
-                  <div className="text-xs text-[var(--ink)]/70 leading-relaxed whitespace-pre-line">{desc}</div>
-                </div>
-              ))}
-            </div>
-
-            <button onClick={() => router.push('/sign-up')}
-              className="w-full sm:w-auto px-8 py-4 bg-[var(--sage)] text-white rounded-xl text-[15px] font-semibold hover:bg-[var(--sage-dark)] transition-colors">
-              Créer mon compte →
-            </button>
-            <p className="text-xs text-[var(--ink)]/70 mt-3">Configuration en 2 min · La nounou n&apos;a pas besoin de compte</p>
           </div>
         </section>
 
