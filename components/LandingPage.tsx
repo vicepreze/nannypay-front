@@ -180,7 +180,6 @@ export function LandingPage() {
             <button onClick={() => router.push('/sign-up')} className={btnPri + ' px-8 py-3 text-base w-full sm:w-auto'}>
               Créer un compte
             </button>
-            <p className="text-xs text-[var(--dust)]">2 minutes pour configurer votre planning réel</p>
             <p className="text-sm text-[var(--dust)]">ou essayer la démo ci-dessous ↓</p>
           </div>
         </section>
@@ -414,7 +413,6 @@ export function LandingPage() {
         <section className="max-w-3xl mx-auto px-5 md:px-6 pb-16 md:pb-20">
           <div className="flex items-center gap-3 mb-8">
             <h2 className="font-serif text-[26px] md:text-[32px] text-[var(--ink)]">Comment ça marche</h2>
-            <NouveauBadge />
           </div>
           <div className="space-y-8">
             {[
@@ -453,10 +451,9 @@ export function LandingPage() {
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-3 mb-3 flex-wrap">
               <h2 className="font-serif text-[26px] md:text-[32px] text-[var(--ink)]">Créez un compte. Gagnez la tranquillité de fin de mois.</h2>
-              <NouveauBadge />
             </div>
             <p className="text-[15px] text-[var(--dust)] mb-8">
-              Fini les recalculs à la main — nounoulink. s&apos;occupe du reste, chaque mois.
+              Fini les recalculs à la main - automatiser les calculs et le suivi, alignez-vous avec l&apos;autre famille et votre nounou — sans tableur, sans WhatsApp.
             </p>
             <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -509,7 +506,6 @@ export function LandingPage() {
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center justify-center gap-3 mb-8">
               <h2 className="font-serif text-[26px] md:text-[32px] text-[var(--ink)]">Pour qui ?</h2>
-              <NouveauBadge />
             </div>
             <div className="bg-white border border-[var(--line)] rounded-2xl p-6 md:p-8">
               <div className="flex justify-center mb-8">
@@ -520,7 +516,7 @@ export function LandingPage() {
                   </button>
                   <button onClick={() => setPourQui('nounou')}
                     className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-colors ${pourQui === 'nounou' ? 'bg-[var(--sage)] text-white' : 'text-[var(--ink)]'}`}>
-                    Je suis une assistante parentale
+                    Je suis une nounou
                   </button>
                 </div>
               </div>
@@ -568,7 +564,6 @@ export function LandingPage() {
               </p>
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-semibold text-[var(--ink)]">Arthur — fondateur de nounoulink.</span>
-                <NouveauBadge />
               </div>
             </div>
           </div>
@@ -659,14 +654,6 @@ export function LandingPage() {
       `}</style>
 
     </div>
-  );
-}
-
-function NouveauBadge() {
-  return (
-    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold tracking-wide uppercase shrink-0">
-      ✨ Nouveau
-    </span>
   );
 }
 
