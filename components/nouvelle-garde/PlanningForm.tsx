@@ -13,13 +13,35 @@ export {
 } from './planningLogic';
 
 // ── Composant éditeur (cartes par enfant) ───────────────────────────
-export function PlanningForm({ enfants, planning, onChange, estMoiA = true }: {
+export function PlanningForm({ enfants, planning, onChange, estMoiA = true, onRenamePrenom }: {
   enfants: Enfant[];
   planning: Planning;
   onChange: (p: Planning) => void;
   estMoiA?: boolean;
+  // Si fourni, le badge prénom devient éditable (clic → renommer). Absent = lecture seule.
+  onRenamePrenom?: (oldPrenom: string, newPrenom: string) => void;
 }) {
   const [copier, setCopier] = useState<{ child: string; jour: string } | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+
+  function startEdit(prenom: string) {
+    if (!onRenamePrenom) return;
+    setEditing(prenom);
+    setDraft(prenom);
+  }
+
+  function commitRename(oldPrenom: string) {
+    setEditing(null);
+    const next = draft.trim();
+    if (!next || next === oldPrenom) return;
+    const doublon = enfants.some(e => e.prenom !== oldPrenom && e.prenom.toLowerCase() === next.toLowerCase());
+    if (doublon) return;
+
+    const { [oldPrenom]: days, ...rest } = planning;
+    onChange({ ...rest, [next]: days ?? defaultSlots() });
+    onRenamePrenom?.(oldPrenom, next);
+  }
 
   function toggleSlot(child: string, jour: string) {
     onChange({
@@ -50,13 +72,36 @@ export function PlanningForm({ enfants, planning, onChange, estMoiA = true }: {
         return (
           <div key={enfant.prenom} className="bg-white border border-[var(--line)] rounded-[var(--radius)] overflow-hidden">
             <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--paper)] flex items-center gap-2.5">
-              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                enfant.fam === 'A'
-                  ? 'bg-[var(--blue-light)] text-[var(--blue)]'
-                  : 'bg-[var(--sage-light)] text-[var(--sage)]'
-              }`}>
-                {enfant.prenom}
-              </span>
+              {editing === enfant.prenom ? (
+                <input
+                  autoFocus
+                  value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  onBlur={() => commitRename(enfant.prenom)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full outline-none border bg-white ${
+                    enfant.fam === 'A' ? 'border-[var(--blue)] text-[var(--blue)]' : 'border-[var(--sage)] text-[var(--sage)]'
+                  }`}
+                  style={{ width: `${Math.max(draft.length + 1, 5)}ch` }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startEdit(enfant.prenom)}
+                  disabled={!onRenamePrenom}
+                  title={onRenamePrenom ? 'Cliquer pour renommer' : undefined}
+                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full transition-opacity ${
+                    enfant.fam === 'A'
+                      ? 'bg-[var(--blue-light)] text-[var(--blue)]'
+                      : 'bg-[var(--sage-light)] text-[var(--sage)]'
+                  } ${onRenamePrenom ? 'hover:opacity-70 cursor-pointer' : 'cursor-default'}`}
+                >
+                  {enfant.prenom}
+                </button>
+              )}
               <span className="text-xs text-[var(--dust)]">
                 {familleLabel(null, enfant.fam === 'A' ? estMoiA : !estMoiA)}
               </span>

@@ -8,11 +8,19 @@ const PRENOMS_DEFAUT = ['Simone', 'Giselle', 'Suzanne'];
 
 const STORAGE_KEY = 'ng_acteurs';
 
-function genEnfants(nbA: number, nbB: number) {
-  let idx = 0;
+// Conserve les prénoms déjà personnalisés (édités à l'étape 2) slot par slot dans chaque
+// famille ; ne pioche un prénom par défaut que pour les nouveaux enfants.
+function genEnfants(nbA: number, nbB: number, prev: { prenom: string; fam: string }[] = []) {
+  const prevA = prev.filter(e => e.fam === 'A').map(e => e.prenom);
+  const prevB = prev.filter(e => e.fam === 'B').map(e => e.prenom);
+  const used  = new Set([...prevA, ...prevB]);
+  const dispo = PRENOMS_DEFAUT.filter(p => !used.has(p));
+  let di = 0;
+  const nextDefaut = () => dispo[di++] ?? PRENOMS_DEFAUT[0];
+
   const result: { prenom: string; fam: 'A' | 'B' }[] = [];
-  for (let i = 0; i < nbA; i++) result.push({ prenom: PRENOMS_DEFAUT[idx++], fam: 'A' });
-  for (let i = 0; i < nbB; i++) result.push({ prenom: PRENOMS_DEFAUT[idx++], fam: 'B' });
+  for (let i = 0; i < nbA; i++) result.push({ prenom: prevA[i] ?? nextDefaut(), fam: 'A' });
+  for (let i = 0; i < nbB; i++) result.push({ prenom: prevB[i] ?? nextDefaut(), fam: 'B' });
   return result;
 }
 
@@ -36,10 +44,16 @@ export default function ActeursPage() {
   const canAddB = nbB < 2 && total < 3;
 
   function suivant() {
+    let prevEnfants: { prenom: string; fam: string }[] = [];
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) prevEnfants = JSON.parse(raw)?.enfants ?? [];
+    } catch { /* ignore */ }
+
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
       nbEnfantsA: nbA,
       nbEnfantsB: nbB,
-      enfants: genEnfants(nbA, nbB),
+      enfants: genEnfants(nbA, nbB, prevEnfants),
     }));
     router.push('/nouvelle-garde/planning');
   }
