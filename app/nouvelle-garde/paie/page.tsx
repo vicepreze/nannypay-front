@@ -6,13 +6,14 @@ import {
   PaieForm, aidesZero, type PaieFormValue, type Enfant,
 } from '@/components/nouvelle-garde/PaieForm';
 import { calcBModeRepartition } from '@/lib/calcul';
+import { familleLabel } from '@/lib/familleLabel';
 
 export default function PaiePage() {
   const router = useRouter();
 
   const [enfants,   setEnfants]   = useState<Enfant[]>([]);
-  const [nomA,      setNomA]      = useState('Famille A');
-  const [nomB,      setNomB]      = useState('Famille B');
+  const [nomA,      setNomA]      = useState(familleLabel(null, true));
+  const [nomB,      setNomB]      = useState(familleLabel(null, false));
   const [joursJson, setJoursJson] = useState('{}');
 
   const [value, setValue] = useState<PaieFormValue>({
@@ -36,8 +37,8 @@ export default function PaiePage() {
 
       const enf: Enfant[] = acteurs?.enfants ?? [];
       setEnfants(enf);
-      if (acteurs?.famANom) setNomA(acteurs.famANom);
-      if (acteurs?.famBNom) setNomB(acteurs.famBNom);
+      if (acteurs?.famANom) setNomA(familleLabel(acteurs.famANom, true));
+      if (acteurs?.famBNom) setNomB(familleLabel(acteurs.famBNom, false));
 
       const planningData = planning?.planning ?? planning ?? {};
       setJoursJson(JSON.stringify(planningData));

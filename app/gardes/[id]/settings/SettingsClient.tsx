@@ -9,6 +9,7 @@ import {
   type Planning, type Enfant,
 } from '@/components/nouvelle-garde/PlanningForm';
 import { PaieForm, type PaieFormValue, type Aides } from '@/components/nouvelle-garde/PaieForm';
+import { familleLabel } from '@/lib/familleLabel';
 
 type Tab = 'acteurs' | 'planning' | 'paie';
 
@@ -344,17 +345,17 @@ export function SettingsClient({
                   <F label="Nom"      value={nomN}    onChange={setNomN} />
                 </div>
               </Card>
-              <Card title="Famille A">
+              <Card title={familleLabel(nomA, isProprietaire)}>
                 <F label="Nom affiché *" value={nomA} onChange={setNomA} />
               </Card>
-              <Card title="Famille B">
+              <Card title={familleLabel(nomB, !isProprietaire)}>
                 <F label="Nom affiché" value={nomB} onChange={setNomB} />
               </Card>
               {enfantsEdit.length > 0 && (
                 <Card title="Enfants">
                   <div className="grid grid-cols-2 gap-3">
                     {enfantsEdit.map((e, i) => (
-                      <F key={e.id} label={`Fam. ${e.fam}`} value={e.prenom}
+                      <F key={e.id} label={familleLabel(null, e.fam === 'A' ? isProprietaire : !isProprietaire)} value={e.prenom}
                         onChange={v => setEnfantsEdit(cur => cur.map((c, j) => (j === i ? { ...c, prenom: v } : c)))} />
                     ))}
                   </div>
@@ -372,7 +373,7 @@ export function SettingsClient({
                 <EmptyNotice text="Aucun enfant rattaché à cette garde." />
               ) : (
                 <div className="space-y-4">
-                  <PlanningForm enfants={enfantsEdit} planning={planning} onChange={setPlanning} />
+                  <PlanningForm enfants={enfantsEdit} planning={planning} onChange={setPlanning} estMoiA={isProprietaire} />
                   <PlanningSummaryCard planning={planning} />
                   {planningError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{planningError}</p>}
                   <div className="flex justify-end">
@@ -391,8 +392,8 @@ export function SettingsClient({
                 <PaieForm
                   value={paieValue}
                   onChange={setPaieValue}
-                  nomA={nomA || 'Famille A'}
-                  nomB={nomB || 'Famille B'}
+                  nomA={familleLabel(nomA, isProprietaire)}
+                  nomB={familleLabel(nomB, !isProprietaire)}
                   joursJson={JSON.stringify(planning)}
                   enfants={enfantsEdit}
                 />

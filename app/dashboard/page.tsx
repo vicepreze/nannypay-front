@@ -8,6 +8,7 @@ import { SignOutButton } from '@/components/SignOutButton';
 import { ArchiveButton } from '@/components/ArchiveButton';
 import { PartageGardeButton } from '@/components/PartageGardeButton';
 import { EditableEnfantsBadges } from '@/components/EditableEnfantsBadges';
+import { familleLabel } from '@/lib/familleLabel';
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
       where: { ...monAcces, statut: { not: 'archivé' } },
       include: {
         nounou:   { select: { prenom: true, utilisateurId: true } },
-        familles: { select: { label: true, nomAffiche: true, statutAcces: true } },
+        familles: { select: { label: true, nomAffiche: true, statutAcces: true, utilisateurId: true } },
         enfants:  { select: { id: true, prenom: true, fam: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
     prisma.garde.findMany({
       where: { ...monAcces, statut: 'archivé' },
       include: {
-        familles: { select: { label: true, nomAffiche: true } },
+        familles: { select: { label: true, nomAffiche: true, utilisateurId: true } },
         archiveeVersGarde: { select: { id: true, nom: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -81,6 +82,7 @@ export default async function DashboardPage() {
             {actives.map(g => {
               const famA = g.familles.find(f => f.label === 'A');
               const famB = g.familles.find(f => f.label === 'B');
+              const estMoiA = famA?.utilisateurId === userId;
               const famBActif = famB?.statutAcces === 'invite_actif';
               const nounouEligible = !!g.nounou && !g.nounou.utilisateurId;
               const peutPartager = !famBActif || nounouEligible;
@@ -91,9 +93,9 @@ export default async function DashboardPage() {
                     <p className="text-base font-medium text-[var(--ink)] mb-1">{g.nom ?? 'Garde sans nom'}</p>
                     <div className="flex flex-wrap gap-2 text-xs text-[var(--dust)]">
                       {g.nounou && <span>👩 {g.nounou.prenom}</span>}
-                      <span className="text-[var(--blue)]">Fam. A : {famA?.nomAffiche ?? '—'}</span>
+                      <span className="text-[var(--blue)]">{familleLabel(famA?.nomAffiche, estMoiA)}</span>
                       <span className={famBActif ? 'text-[var(--sage)]' : 'text-[var(--dust)]'}>
-                        Fam. B : {famB?.nomAffiche ?? '—'}{!famBActif && ' · en attente'}
+                        {familleLabel(famB?.nomAffiche, !estMoiA)}{!famBActif && ' · en attente'}
                       </span>
                     </div>
                     {g.enfants.length > 0 && (
@@ -131,11 +133,12 @@ export default async function DashboardPage() {
               {archivees.map(g => {
                 const famA = g.familles.find(f => f.label === 'A');
                 const famB = g.familles.find(f => f.label === 'B');
+                const estMoiA = famA?.utilisateurId === userId;
                 return (
                   <div key={g.id} className="bg-white border border-[var(--line)] rounded-[var(--radius)] px-4 py-3 flex items-center justify-between opacity-60">
                     <div>
                       <p className="text-sm font-medium text-[var(--ink)]">{g.nom ?? 'Garde sans nom'}</p>
-                      <p className="text-xs text-[var(--dust)]">{famA?.nomAffiche ?? '—'} · {famB?.nomAffiche ?? '—'}</p>
+                      <p className="text-xs text-[var(--dust)]">{familleLabel(famA?.nomAffiche, estMoiA)} · {familleLabel(famB?.nomAffiche, !estMoiA)}</p>
                     </div>
                     {g.archiveeVersGarde ? (
                       <Link href={`/gardes/${g.archiveeVersGarde.id}/settings`} className="text-xs text-[var(--sage)] underline no-underline hover:underline">

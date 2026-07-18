@@ -32,6 +32,21 @@ export default function PlanningPage() {
     }
   }, []);
 
+  function renamePrenom(oldPrenom: string, newPrenom: string) {
+    setEnfants(prev => {
+      const updated = prev.map(e => (e.prenom === oldPrenom ? { ...e, prenom: newPrenom } : e));
+      try {
+        const raw = sessionStorage.getItem('ng_acteurs');
+        if (raw) {
+          const acteurs = JSON.parse(raw);
+          acteurs.enfants = updated;
+          sessionStorage.setItem('ng_acteurs', JSON.stringify(acteurs));
+        }
+      } catch { /* ignore */ }
+      return updated;
+    });
+  }
+
   function suivant() {
     setError('');
     const msg = validatePlanning(planning);
@@ -60,7 +75,7 @@ export default function PlanningPage() {
         Définissez les horaires habituels de la nounou pour chaque enfant. Les heures de la nounou sont calculées en prenant l&apos;union de toutes les plages.
       </p>
 
-      <PlanningForm enfants={enfants} planning={planning} onChange={setPlanning} />
+      <PlanningForm enfants={enfants} planning={planning} onChange={setPlanning} onRenamePrenom={renamePrenom} />
       <PlanningSummaryCard planning={planning} />
 
       {error && <p className="text-sm text-[var(--red)] bg-[var(--red-light)] rounded-lg px-4 py-2">{error}</p>}

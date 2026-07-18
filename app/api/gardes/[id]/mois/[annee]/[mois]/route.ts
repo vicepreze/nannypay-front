@@ -31,7 +31,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     create: { gardeId: params.id, annee, mois, statut: 'ouvert', evenementsJson: '[]' },
   });
 
-  return NextResponse.json({ mois: rec, garde });
+  // monLabel = 'A' | 'B' | undefined (nounou) — identifie qui consulte, pour l'ancrage "Votre famille"
+  const monLabel = garde.familles.find(f => f.utilisateurId === userId)?.label;
+
+  return NextResponse.json({ mois: rec, garde, monLabel });
 }
 
 // PUT → met à jour événements et/ou valide

@@ -11,6 +11,7 @@ import {
   CalendrierMoisView, buildPrevuReel,
   type SickInfo, SickNoteBlock,
 } from '@/components/CalendrierMoisView';
+import { familleLabel } from '@/lib/familleLabel';
 
 const MOIS_LONGS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
@@ -50,6 +51,7 @@ export default function MoisPage() {
   const mois    = parseInt(params.mois  as string);
 
   const [garde,        setGarde]        = useState<GardeInfo | null>(null);
+  const [monLabel,     setMonLabel]     = useState<'A' | 'B' | null>(null);
   const [moisRec,      setMoisRec]      = useState<MoisRec | null>(null);
   const [evts,         setEvts]         = useState<Evt[]>([]);
   const [result,       setResult]       = useState<CalcResult | null>(null);
@@ -74,6 +76,7 @@ export default function MoisPage() {
       .then(r => r.json())
       .then(d => {
         setGarde(d.garde);
+        setMonLabel(d.monLabel ?? null);
         setMoisRec(d.mois);
         setEvts(JSON.parse(d.mois.evenementsJson || '[]'));
         setLoading(false);
@@ -183,10 +186,11 @@ export default function MoisPage() {
   const locked  = statut === 'valide_ab';
   const famA      = garde?.familles.find(f => f.label === 'A');
   const famB      = garde?.familles.find(f => f.label === 'B');
+  const estMoiA   = monLabel === 'A';
   const statutLabel: Record<string, string> = {
     'ouvert':    'En cours',
-    'valide_a':  `Validé par ${famA?.nomAffiche ?? 'Fam. A'}`,
-    'valide_b':  `Validé par ${famB?.nomAffiche ?? 'Fam. B'}`,
+    'valide_a':  `Validé par ${familleLabel(famA?.nomAffiche, estMoiA)}`,
+    'valide_b':  `Validé par ${familleLabel(famB?.nomAffiche, !estMoiA)}`,
     'valide_ab': 'Validé par les deux familles ✓',
   };
 
@@ -268,7 +272,7 @@ export default function MoisPage() {
 
           <CalendrierMoisView
             annee={annee} mois={mois} evts={evts} result={result} statut={statut}
-            nomFamA={famA?.nomAffiche} nomFamB={famB?.nomAffiche}
+            nomFamA={familleLabel(famA?.nomAffiche, estMoiA)} nomFamB={familleLabel(famB?.nomAffiche, !estMoiA)}
             readonly={false}
             heuresParJour={heuresParJour} hasOvertime={hasOvertime}
             prevuReel={prevuReel}
@@ -291,8 +295,8 @@ export default function MoisPage() {
                 ['conge_paye',        '🏖 Congé payé'],
                 ['jour_repos',        '😌 Jour de repos'],
                 ['maladie_nounou',    '🤒 Maladie nounou'],
-                ['absence_famille_a', '👶 Absent Famille A'],
-                ['absence_famille_b', '👶 Absent Famille B'],
+                ['absence_famille_a', `👶 Absent — ${familleLabel(null, estMoiA)}`],
+                ['absence_famille_b', `👶 Absent — ${familleLabel(null, !estMoiA)}`],
               ] as [string, string][]).map(([t, label]) => (
                 <button key={t} onClick={() => setEvtType(t)}
                   className={'py-2.5 rounded-lg border-[1.5px] text-sm transition-all text-left px-3 ' + (evtType === t ? 'border-[var(--sage)] bg-[var(--sage-light)] text-[var(--sage)] font-medium' : 'border-[var(--line)]')}>
