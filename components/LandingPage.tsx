@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type NbEnfants = 2 | 3;
@@ -453,7 +453,7 @@ export function LandingPage() {
               <h2 className="font-serif text-[26px] md:text-[32px] text-[var(--ink)]">Créez un compte. Gagnez la tranquillité de fin de mois.</h2>
             </div>
             <p className="text-[15px] text-[var(--dust)] mb-8">
-              Fini les recalculs à la main - automatiser les calculs et le suivi, alignez-vous avec l&apos;autre famille et votre nounou — sans tableur, sans WhatsApp.
+              Fini les recalculs à la main - nounoulink automatise le suivi et synchronise familles et nounou chaque mois - sans tableur, sans WhatsApp.
             </p>
             <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -461,33 +461,26 @@ export function LandingPage() {
                   <thead>
                     <tr className="bg-[var(--night)]">
                       <th className="text-left px-5 py-4 font-semibold text-[var(--ink)]">Fonctionnalité</th>
-                      <th className="px-5 py-4 font-semibold text-[var(--ink)] whitespace-nowrap">Démo (sans compte)</th>
-                      <th className="px-5 py-4 font-semibold text-[var(--ink)] whitespace-nowrap">Avec un compte</th>
+                      <th className="px-5 py-4 font-semibold text-[var(--ink)] whitespace-nowrap">Démo</th>
+                      <th className="px-5 py-4 font-semibold text-[var(--ink)] whitespace-nowrap">Compte</th>
                     </tr>
                   </thead>
                   <tbody>
                     {[
-                      { group: 'Une fois, à la configuration', feat: 'Calcul du salaire théorique', demo: '✓', compte: '✓' },
-                      { feat: 'Répartition avancée selon vos horaires exacts (horaires décalés, asymétriques, 3 enfants, sorties d’école)', demo: 'Estimation', compte: '✓ Exact' },
-                      { feat: 'Estimation du reste à charge (abattement, crédit d’impôt, CMG)', demo: '–', compte: '✓' },
-                      { group: 'Chaque mois, automatiquement', feat: 'Calcul automatique du net à déclarer et à verser', demo: '–', compte: '✓' },
-                      { feat: 'Lien public 🔗 (sans compte pour l’autre famille et la nounou)', demo: '–', compte: '✓' },
-                      { feat: 'Suivi des congés', demo: '–', compte: '✓' },
+                      { lead: 'Calcul du salaire', rest: 'en fonction des heures & du taux horaire', demo: '✓', compte: '✓' },
+                      { lead: 'Aide à établir la répartition', rest: 'la plus juste — horaires asymétriques, 3 enfants, sorties d’école, mercredi…', demo: 'Estimation', compte: '✓ Exact' },
+                      { lead: 'Estimation du reste à charge', rest: '— abattement, crédit d’impôt, CMG', demo: '–', compte: '✓' },
+                      { lead: 'Net à déclarer et à verser', rest: 'recalculé chaque mois — congés, jours fériés, absences', demo: '–', compte: '✓' },
+                      { lead: 'Lien public 🔗', rest: 'pour partager le bilan du mois sans compte, avec l’autre famille et la nounou', demo: '–', compte: '✓' },
+                      { lead: 'Suivi du compteur de congés', rest: 'avec votre nounou', demo: '–', compte: '✓' },
                     ].map((row, i, arr) => (
-                      <Fragment key={row.feat}>
-                        {row.group && (
-                          <tr>
-                            <td colSpan={3} className={`px-5 ${i === 0 ? 'pt-4' : 'pt-6'} pb-2 text-[11px] font-bold tracking-widest text-[var(--sage-dark)] uppercase`}>
-                              {row.group}
-                            </td>
-                          </tr>
-                        )}
-                        <tr className={i < arr.length - 1 && !arr[i + 1].group ? 'border-b border-[var(--line)]' : ''}>
-                          <td className="px-5 py-4 text-[var(--ink)]">{row.feat}</td>
-                          <td className="px-5 py-4 text-center text-[var(--dust)] whitespace-nowrap">{row.demo}</td>
-                          <td className="px-5 py-4 text-center font-semibold text-[var(--sage)] whitespace-nowrap">{row.compte}</td>
-                        </tr>
-                      </Fragment>
+                      <tr key={row.lead} className={i < arr.length - 1 ? 'border-b border-[var(--line)]' : ''}>
+                        <td className="px-5 py-4 text-[var(--ink)]">
+                          <span className="font-semibold">{row.lead}</span> {row.rest}
+                        </td>
+                        <td className="px-5 py-4 text-center text-[var(--dust)] whitespace-nowrap">{row.demo}</td>
+                        <td className="px-5 py-4 text-center font-semibold text-[var(--sage)] whitespace-nowrap">{row.compte}</td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
