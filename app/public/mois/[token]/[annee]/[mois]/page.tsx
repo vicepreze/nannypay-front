@@ -127,9 +127,8 @@ export default function PublicMoisPage() {
           nomFamA={famA?.nomAffiche} nomFamB={famB?.nomAffiche}
           readonly={true}
           prevuReel={prevuReel}
+          belowCalendar={conges && (conges.cp || conges.repos) ? <CongesReadCard conges={conges} /> : undefined}
         />
-
-        {conges && (conges.cp || conges.repos) && <CongesReadCard conges={conges} />}
 
         {sickInfo && <SickNoteBlock {...sickInfo} variant="nounou" />}
       </div>
