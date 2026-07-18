@@ -25,12 +25,10 @@ const defaultLogo = (
   </Link>
 );
 
-const navLinkClass = 'text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline transition-colors';
-
 interface AppHeaderProps {
   /** Contenu de la zone gauche (logo, ou logo + fil d'Ariane). Par défaut : logo seul. */
   left?: ReactNode;
-  /** Éléments additionnels affichés entre la nav (Dashboard/Démo) et le UserButton (ex: indicateur de sauvegarde). */
+  /** Liens/éléments affichés avant le UserButton (ex: Dashboard, Démo). */
   rightExtra?: ReactNode;
 }
 
@@ -39,8 +37,6 @@ export function AppHeader({ left = defaultLogo, rightExtra }: AppHeaderProps) {
     <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-[var(--line)] flex items-center justify-between px-6 z-50">
       {left}
       <div className="flex items-center gap-4">
-        <Link href="/dashboard" className={navLinkClass}>Dashboard</Link>
-        <Link href="/demo" className={navLinkClass}>Démo</Link>
         {rightExtra}
         <UserButton appearance={userButtonAppearance} />
       </div>

@@ -229,7 +229,13 @@ export default function MoisPage() {
             <span className="font-medium text-[var(--ink)]">{MOIS_LONGS[mois - 1]} {annee}</span>
           </div>
         }
-        rightExtra={saving && <span className="text-xs text-[var(--dust)]">Sauvegarde…</span>}
+        rightExtra={
+          <>
+            <Link href="/dashboard" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Dashboard</Link>
+            <Link href="/demo" className="text-xs text-[var(--dust)] hover:text-[var(--ink)] no-underline">Démo</Link>
+            {saving && <span className="text-xs text-[var(--dust)]">Sauvegarde…</span>}
+          </>
+        }
       />
 
       <div className="pt-14 max-w-[1280px] mx-auto px-4 pb-16">
