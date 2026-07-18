@@ -291,12 +291,6 @@ export function SettingsClient({
             <span className="font-medium text-[var(--ink)]">Paramètres</span>
           </div>
         }
-        rightExtra={
-          <>
-            <Link href="/dashboard" className="text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline transition-colors">Dashboard</Link>
-            <Link href="/demo"      className="text-sm text-[var(--dust)] hover:text-[var(--ink)] no-underline transition-colors">Démo</Link>
-          </>
-        }
       />
 
       <div className="pt-14 max-w-2xl mx-auto px-6 pb-16">

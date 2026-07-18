@@ -42,11 +42,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--paper)]">
-      <AppHeader
-        rightExtra={
-          <Link href="/demo" className="text-sm text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">Démo</Link>
-        }
-      />
+      <AppHeader />
 
       <div className="pt-14 max-w-3xl mx-auto px-6 pb-16">
         <div className="flex items-center justify-between pt-10 mb-8">
