@@ -45,6 +45,8 @@ export function LandingPage() {
   const [repartA,   setRepartA]   = useState(0.5);
   const [evts,      setEvts]      = useState<Evt[]>([]);
 
+  const [pourQui, setPourQui] = useState<'famille' | 'nounou'>('famille');
+
   const [modalOpen,  setModalOpen]  = useState(false);
   const [evtType,    setEvtType]    = useState<Evt['type'] | null>(null);
   const [evtDebut,   setEvtDebut]   = useState('');
@@ -168,6 +170,9 @@ export function LandingPage() {
             Une nounou, deux familles,<br />
             <em className="not-italic text-[var(--sage)]">enfin sur la même page.</em>
           </h1>
+          <p className="text-[15px] md:text-[17px] text-[var(--ink)] leading-relaxed mb-3 max-w-lg mx-auto">
+            La plateforme qui gère la paie et la coordination de votre garde partagée — du calcul Pajemploi au suivi mensuel.
+          </p>
           <p className="text-[15px] md:text-[17px] text-[var(--dust)] leading-relaxed mb-8 md:mb-10 max-w-lg mx-auto">
             Calculez en 30 secondes, simulez les absences, et alignez-vous avec l&apos;autre famille — sans tableur, sans WhatsApp.
           </p>
@@ -405,7 +410,163 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* ── 3. CTA SOMBRE ────────────────────────────────────────── */}
+        {/* ── 3. COMMENT ÇA MARCHE ─────────────────────────────────── */}
+        <section className="max-w-3xl mx-auto px-5 md:px-6 pb-16 md:pb-20">
+          <div className="flex items-center gap-3 mb-8">
+            <h2 className="font-serif text-[26px] md:text-[32px] text-[var(--ink)]">Comment ça marche</h2>
+            <NouveauBadge />
+          </div>
+          <div className="space-y-8">
+            {[
+              {
+                title: 'Configurez votre garde',
+                desc: 'Horaires, enfants, taux horaire. 2 minutes.',
+              },
+              {
+                title: 'Partagez comme vous voulez',
+                desc: 'Invitez l’autre famille à créer son compte, ou envoyez le bilan du mois par WhatsApp grâce au lien public, sans qu’elle ait besoin de s’inscrire.',
+                pill: '🔗 Aucun compte requis pour l’autre famille et la nounou',
+              },
+              {
+                title: 'Suivez chaque mois',
+                desc: 'Congés, absences, jours fériés : tout est recalculé automatiquement.',
+              },
+            ].map((step, i) => (
+              <div key={step.title} className="flex gap-4">
+                <span className="w-8 h-8 rounded-full bg-[var(--sage)] text-white text-sm font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                <div>
+                  <div className="text-base font-semibold text-[var(--ink)] mb-1">{step.title}</div>
+                  <p className="text-sm text-[var(--dust)] leading-relaxed">{step.desc}</p>
+                  {step.pill && (
+                    <span className="inline-block mt-3 px-3 py-1.5 rounded-full bg-[var(--sage-light)] text-[var(--sage-dark)] text-xs font-medium">
+                      {step.pill}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── 4. CRÉEZ UN COMPTE ───────────────────────────────────── */}
+        <section className="bg-[var(--paper)] px-5 md:px-6 py-16 md:py-20">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <h2 className="font-serif text-[26px] md:text-[32px] text-[var(--ink)]">Créez un compte. Gagnez la tranquillité de fin de mois.</h2>
+              <NouveauBadge />
+            </div>
+            <p className="text-[15px] text-[var(--dust)] mb-8">
+              Fini les recalculs à la main — nounoulink. s&apos;occupe du reste, chaque mois.
+            </p>
+            <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[var(--night)]">
+                      <th className="text-left px-5 py-4 font-semibold text-[var(--ink)]">Fonctionnalité</th>
+                      <th className="px-5 py-4 font-semibold text-[var(--ink)] whitespace-nowrap">Démo (sans compte)</th>
+                      <th className="px-5 py-4 font-semibold text-[var(--ink)] whitespace-nowrap">Avec un compte</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { feat: 'Calcul du salaire', demo: '✓', compte: '✓' },
+                      { feat: 'Vos horaires exacts', demo: 'Estimation', compte: '✓ Exact' },
+                      { feat: 'Lien public 🔗 (sans compte pour l’autre famille et la nounou)', demo: '–', compte: '✓' },
+                      { feat: 'Reste à charge estimé (abattement, crédit d’impôt, CMG)', demo: '–', compte: '✓' },
+                      { feat: 'Suivi des congés', demo: '–', compte: '✓' },
+                      { feat: 'Répartition avancée (horaires asymétriques, 3 enfants, sorties d’école)', demo: '–', compte: '✓' },
+                      { feat: 'Net à déclarer et à verser sur Pajemploi', demo: '–', compte: '✓' },
+                    ].map((row, i, arr) => (
+                      <tr key={row.feat} className={i < arr.length - 1 ? 'border-b border-[var(--line)]' : ''}>
+                        <td className="px-5 py-4 text-[var(--ink)]">{row.feat}</td>
+                        <td className="px-5 py-4 text-center text-[var(--dust)] whitespace-nowrap">{row.demo}</td>
+                        <td className="px-5 py-4 text-center font-semibold text-[var(--sage)] whitespace-nowrap">{row.compte}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="text-center mt-8">
+              <button onClick={() => router.push('/sign-up')} className={btnPri + ' px-8 py-3 text-base'}>
+                Créer mon compte →
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 5. POUR QUI ──────────────────────────────────────────── */}
+        <section className="px-5 md:px-6 py-16 md:py-20">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center justify-center gap-3 mb-8">
+              <h2 className="font-serif text-[26px] md:text-[32px] text-[var(--ink)]">Pour qui ?</h2>
+              <NouveauBadge />
+            </div>
+            <div className="bg-white border border-[var(--line)] rounded-2xl p-6 md:p-8">
+              <div className="flex justify-center mb-8">
+                <div className="inline-flex rounded-full bg-[var(--sage-light)] p-1">
+                  <button onClick={() => setPourQui('famille')}
+                    className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-colors ${pourQui === 'famille' ? 'bg-[var(--sage)] text-white' : 'text-[var(--ink)]'}`}>
+                    Je suis une famille
+                  </button>
+                  <button onClick={() => setPourQui('nounou')}
+                    className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-colors ${pourQui === 'nounou' ? 'bg-[var(--sage)] text-white' : 'text-[var(--ink)]'}`}>
+                    Je suis une assistante parentale
+                  </button>
+                </div>
+              </div>
+
+              {pourQui === 'famille' ? (
+                <div>
+                  <p className="text-xs font-bold tracking-widest text-[var(--sage-dark)] uppercase mb-3">Une fois, à la configuration</p>
+                  <ul className="space-y-2 mb-6">
+                    <li className="flex gap-2 text-sm text-[var(--ink)]"><span className="text-[var(--sage)] font-bold shrink-0">✓</span>Horaires asymétriques, 3 enfants, sorties d&apos;école — notre calculateur applique les règles de la garde à domicile pour trouver la bonne répartition</li>
+                    <li className="flex gap-2 text-sm text-[var(--ink)]"><span className="text-[var(--sage)] font-bold shrink-0">✓</span>Estimez votre reste à charge (abattement, crédit d&apos;impôt, CMG)</li>
+                  </ul>
+                  <p className="text-xs font-bold tracking-widest text-[var(--sage-dark)] uppercase mb-3">Chaque mois, automatiquement</p>
+                  <ul className="space-y-2 mb-8">
+                    <li className="flex gap-2 text-sm text-[var(--ink)]"><span className="text-[var(--sage)] font-bold shrink-0">✓</span>Le net à déclarer et à verser, recalculé avec jours fériés, congés et absences</li>
+                    <li className="flex gap-2 text-sm text-[var(--ink)]"><span className="text-[var(--sage)] font-bold shrink-0">✓</span>Le compteur de congés à jour avec votre nounou</li>
+                    <li className="flex gap-2 text-sm text-[var(--ink)]"><span className="text-[var(--sage)] font-bold shrink-0">✓</span>Le bilan du mois partagé avec la nounou et l&apos;autre famille — même sans compte, grâce au lien public</li>
+                  </ul>
+                  <button onClick={() => router.push('/sign-up')} className={btnPri + ' px-6 py-3'}>
+                    Créer mon compte →
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <ul className="space-y-3 mb-8">
+                    <li className="flex gap-2 text-sm text-[var(--ink)]"><span className="text-[var(--sage)] font-bold shrink-0">✓</span>Moins de surprises sur votre paie chaque mois (congés, jours fériés, absences)</li>
+                    <li className="flex gap-2 text-sm text-[var(--ink)]"><span className="text-[var(--sage)] font-bold shrink-0">✓</span>Utilisez nounoulink dès l&apos;entretien d&apos;embauche pour aider les familles à estimer leur reste à charge selon le salaire demandé — et montrer votre professionnalisme</li>
+                    <li className="flex gap-2 text-sm text-[var(--ink)]"><span className="text-[var(--sage)] font-bold shrink-0">✓</span>Un lien sans compte à créer, vos chiffres toujours à jour</li>
+                  </ul>
+                  <button onClick={() => router.push('/demo')} className={btnSec + ' px-6 py-3'}>
+                    Voir un exemple de lien →
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ── 6. FONDATEUR ─────────────────────────────────────────── */}
+        <section className="px-5 md:px-6 pb-16 md:pb-20">
+          <div className="max-w-3xl mx-auto bg-[var(--sage-light)] rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-5">
+            <span className="w-14 h-14 rounded-full bg-[var(--sage)] text-white font-serif text-xl flex items-center justify-center shrink-0">A</span>
+            <div>
+              <p className="text-[15px] text-[var(--ink)] leading-relaxed mb-3">
+                &ldquo;Je suis Arthur, développeur et parent en garde partagée. J&apos;ai créé nounoulink. parce que je vivais moi-même la galère du tableur partagé et des calculs Pajemploi refaits à la main chaque mois.&rdquo;
+              </p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-semibold text-[var(--ink)]">Arthur — fondateur de nounoulink.</span>
+                <NouveauBadge />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 7. CTA SOMBRE ────────────────────────────────────────── */}
         <section className="bg-[var(--night)] text-[var(--ink)] px-5 md:px-6 py-16 md:py-20">
           <div className="max-w-2xl mx-auto text-center">
             <p className="text-xs font-bold tracking-widest text-[var(--sage-dark)] uppercase mb-4">
@@ -448,21 +609,6 @@ export function LandingPage() {
                   <div>{icon}</div>
                   <div className="text-sm font-semibold mb-1.5">{title}</div>
                   <div className="text-xs text-[var(--ink)]/70 leading-relaxed whitespace-pre-line">{desc}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Témoignages — 1 col mobile / 3 col desktop */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 md:mb-12 text-left">
-              {[
-                { quote: 'À remplacer par un vrai témoignage.', author: 'Prénom, Ville' },
-                { quote: 'À remplacer par un vrai témoignage.', author: 'Prénom, Ville' },
-                { quote: 'À remplacer par un vrai témoignage.', author: 'Prénom, Ville' },
-              ].map((t, i) => (
-                <div key={i} className="bg-white/50 rounded-xl p-5">
-                  <div className="text-[var(--sage-dark)] text-sm mb-2">★★★★★</div>
-                  <p className="text-xs text-[var(--ink)]/80 italic leading-relaxed mb-3">&ldquo;{t.quote}&rdquo;</p>
-                  <p className="text-xs font-medium text-[var(--ink)]">{t.author}</p>
                 </div>
               ))}
             </div>
@@ -560,6 +706,14 @@ export function LandingPage() {
       `}</style>
 
     </div>
+  );
+}
+
+function NouveauBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold tracking-wide uppercase shrink-0">
+      ✨ Nouveau
+    </span>
   );
 }
 
