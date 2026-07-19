@@ -572,7 +572,7 @@ export function LandingPage() {
               <a href="/mentions-legales"           className="hover:text-[var(--ink)] transition-colors no-underline">Mentions légales</a>
               <a href="/politique-confidentialite"  className="hover:text-[var(--ink)] transition-colors no-underline">Politique de confidentialité</a>
               <a href="/faq"                        className="hover:text-[var(--ink)] transition-colors no-underline">FAQ</a>
-              <a href="mailto:contact@nounoulink.fr" className="hover:text-[var(--ink)] transition-colors no-underline">Contact</a>
+              <a href="mailto:pajemploi.facile@gmail.com" className="hover:text-[var(--ink)] transition-colors no-underline">Contact</a>
             </div>
             <span className="text-xs text-[var(--dust)]">© {new Date().getFullYear()} nounoulink</span>
           </div>

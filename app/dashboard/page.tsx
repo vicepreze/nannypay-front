@@ -148,6 +148,13 @@ export default async function DashboardPage() {
             </div>
           </details>
         )}
+
+        <div className="mt-10 pt-4 border-t border-[var(--line)]">
+          <a href="/api/auth/me/export" download
+            className="text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors no-underline">
+            Exporter mes données (JSON)
+          </a>
+        </div>
       </div>
     </div>
   );

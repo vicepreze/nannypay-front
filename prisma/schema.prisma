@@ -34,7 +34,7 @@ model Garde {
   statut String  @default("brouillon") // 'brouillon' | 'actif' | 'archivé'
 
   proprietaireId String
-  proprietaire   User   @relation(fields: [proprietaireId], references: [id])
+  proprietaire   User   @relation(fields: [proprietaireId], references: [id], onDelete: Cascade)
 
   // Lien de partage générique : rejoint par Famille B et/ou la nounou
   // (chacun se déclare sur /rejoindre), donne accès en lecture/écriture.

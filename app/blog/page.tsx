@@ -125,7 +125,7 @@ export default function BlogIndex() {
             <Link href="/mentions-legales" className="hover:text-[var(--ink)] transition-colors no-underline">Mentions légales</Link>
             <Link href="/politique-confidentialite" className="hover:text-[var(--ink)] transition-colors no-underline">Politique de confidentialité</Link>
             <Link href="/faq" className="hover:text-[var(--ink)] transition-colors no-underline">FAQ</Link>
-            <Link href="mailto:contact@nounoulink.fr" className="hover:text-[var(--ink)] transition-colors no-underline">Contact</Link>
+            <Link href="mailto:pajemploi.facile@gmail.com" className="hover:text-[var(--ink)] transition-colors no-underline">Contact</Link>
           </div>
           <span className="text-xs text-[var(--dust)]">© {new Date().getFullYear()} nounoulink</span>
         </div>
