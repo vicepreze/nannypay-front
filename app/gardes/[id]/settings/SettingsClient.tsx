@@ -173,6 +173,8 @@ export function SettingsClient({
   }, [pendingModele]);
 
   const [forkModal, setForkModal] = useState<null | { modelePatch: ModelePatch; aidesA: Aides; aidesB: Aides }>(null);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   function flash() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
 
@@ -260,6 +262,13 @@ export function SettingsClient({
     flash();
     setSaving(false);
     setForkModal(null);
+  }
+
+  async function handleDeleteGarde() {
+    setDeleting(true); setError('');
+    const res = await fetch(`/api/gardes/${gardeId}`, { method: 'DELETE' });
+    if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Erreur'); setDeleting(false); setDeleteModal(false); return; }
+    router.push('/dashboard');
   }
 
   async function doDupliquer(modelePatch: ModelePatch, aidesA: Aides, aidesB: Aides) {
@@ -409,7 +418,53 @@ export function SettingsClient({
             )
           )}
         </div>
+
+        {isProprietaire && (
+          <div className="mt-10 rounded-[var(--radius)] overflow-hidden bg-white border border-red-200">
+            <div className="px-5 py-2.5 border-b border-red-200 bg-red-50">
+              <span className="text-sm font-semibold text-red-700">Zone dangereuse</span>
+            </div>
+            <div className="p-5 flex items-center justify-between gap-4">
+              <p className="text-sm text-[var(--dust)]">
+                Supprime définitivement cette garde et toutes les données associées (planning, mois, paie, accès partagés).
+              </p>
+              <button
+                onClick={() => setDeleteModal(true)}
+                className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-red-600 border border-red-300 hover:bg-red-50 transition-colors"
+              >
+                Supprimer la garde
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {deleteModal && (
+        <div className="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-base font-semibold mb-2 text-[var(--ink)]">⚠️ Supprimer définitivement cette garde ?</h3>
+            <p className="text-sm text-[var(--dust)] mb-4">
+              Cette action est irréversible. Le planning, les mois, la paie et l&apos;accès de l&apos;autre famille et de la nounou seront définitivement supprimés.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleDeleteGarde}
+                disabled={deleting}
+                className="px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+              </button>
+              <button
+                onClick={() => setDeleteModal(false)}
+                disabled={deleting}
+                className="px-4 py-2 text-xs text-[var(--dust)] hover:text-[var(--ink)] transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {forkModal && (
         <div className="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center p-4">

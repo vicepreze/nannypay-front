@@ -178,6 +178,13 @@ function RejoindreContent() {
             : <SignIn  routing="hash" forceRedirectUrl={`/rejoindre?token=${token}&role=${role}`} />
           }
         </div>
+
+        <p className="text-xs text-[var(--dust)] text-center mt-4">
+          Vos informations (nom, email) sont utilisées uniquement pour coordonner cette garde partagée avec les autres membres.{' '}
+          <a href="/politique-confidentialite" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--ink)]">
+            Politique de confidentialité
+          </a>
+        </p>
       </div>
     </div>
   );

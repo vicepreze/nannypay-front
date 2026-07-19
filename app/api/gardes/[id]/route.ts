@@ -119,3 +119,20 @@ export async function PUT(req: NextRequest, { params }: Params) {
   });
   return NextResponse.json({ garde: updated });
 }
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+
+  const garde = await prisma.garde.findFirst({
+    where: { id: params.id, proprietaireId: userId },
+  });
+  if (!garde) return NextResponse.json({ error: 'Introuvable ou non autorisé' }, { status: 404 });
+
+  // Supprime la garde et toutes les données rattachées (nounou, familles,
+  // enfants, modèle, mois) via les cascades Prisma — exercice du droit à
+  // l'effacement RGPD par le propriétaire de la garde.
+  await prisma.garde.delete({ where: { id: params.id } });
+
+  return NextResponse.json({ ok: true });
+}
