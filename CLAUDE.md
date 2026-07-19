@@ -36,7 +36,7 @@ vercel logs <deployment-url>
 
 ## Fichiers de Contexte — Lire en Priorité
 
-1. **[Context_20260614.md](./Context_20260614.md)** — Cerveau externe du projet  
+1. **[Context_20260720.md](./Context_20260720.md)** — Cerveau externe du projet  
    Stack, architecture, règles métier Pajemploi, principes UX, points de vigilance récurrents.
 
 2. **[Progress.md](./Progress.md)** — Suivi des travaux  
@@ -59,17 +59,19 @@ vercel logs <deployment-url>
 git branch        # vérifier la branch courante
 git log --oneline -5   # voir les derniers commits
 ```
+⚠️ Plusieurs sessions Claude Code tournent souvent en parallèle sur ce repo. Ne jamais coder directement sur `main` ni continuer sur une branche dont le sujet ne correspond pas à la demande — créer une branche dédiée dès le début de session (voir Règles de Travail, point 6).
+
 Consulter [Progress.md](./Progress.md) pour l'état exact des branches en cours.
 
 ---
 
 ## Règles de Travail
 
-1. **Lire Context_20260614.md + Progress.md avant de coder**
+1. **Lire Context_20260720.md + Progress.md avant de coder**
 2. **Gate CI** : `npx next lint` (pas `tsc --noEmit` — échoue en local, types Clerk absents)
 3. **Tests** : `npx vitest run` avant tout commit touchant `lib/calcul.ts`
 4. **Dead code** : quand on supprime du JSX, nettoyer en même temps les imports / états / fonctions / props — sinon ESLint bloque Vercel
 5. **Commits** : `feat:` / `fix:` + `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
-6. **Branches** : une branch par feature, PR squash vers `main`
+6. **Branche dédiée par session** : en tout début de session, avant le premier edit de fichier, vérifier `git branch`. Si on est sur `main` (ou sur une branche dont le sujet ne correspond visiblement pas à la demande en cours), créer et checkout immédiatement une nouvelle branche `type/sujet-court` (ex: `fix/export-donnees-rgpd`, `feat/mentions-legales`) — sans attendre confirmation, sauf si le sujet est encore ambigu (voir règle 7). Si la branche courante correspond déjà au sujet demandé (reprise d'une session précédente), la réutiliser telle quelle. But : plusieurs sessions Claude Code tournent en parallèle sur ce repo — une branche par sujet évite que leurs changements se mélangent au moment de pousser en preview/production. PR squash vers `main` en fin de feature.
 7. **Questions d'abord** : avant tout coding, poser les questions jusqu'à 100% de confiance
 8. **Demander avant de pousser** : toujours demander confirmation explicite avant tout `git push` déclenchant un déploiement preview Vercel, et avant toute création/merge de PR vers `main` (production) — jamais de merge automatique sans validation humaine
