@@ -48,7 +48,7 @@ Page acteurs réduite aux **compteurs d'enfants** uniquement (plus de saisie de 
 SessionStorage `ng_acteurs` : `{ nbEnfantsA, nbEnfantsB, enfants[{prenom, fam}] }`.
 
 ### ✅ #17 — Context.md
-Ajout du cerveau externe `Context_20260516.md` (renommé `Context_20260614.md` le 14 juin 2026).
+Ajout du cerveau externe `Context_20260516.md` (renommé `Context_20260614.md` le 14 juin 2026, puis `Context_20260720.md` le 20 juillet 2026).
 
 ### ✅ #18 — Fix validation garde (erreur 400)
 Suppression de la validation stricte `nounouPrenom`/`famANom` dans `POST /api/gardes`.  
