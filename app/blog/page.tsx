@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
 export const metadata: Metadata = {
   title: 'Blog nounoulink — Conseils garde à domicile partagée',
@@ -8,7 +10,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://nounoulink.fr/blog' },
 };
 
-const articles: {
+type Article = {
   slug: string;
   title: string;
   excerpt: string;
@@ -16,7 +18,9 @@ const articles: {
   category: string;
   readingTime: string;
   tag: string;
-}[] = [
+};
+
+const STATIC_ARTICLES: Article[] = [
   {
     slug: 'calculer-salaire-nounou-garde-partagee',
     title: "Comment calculer le salaire d'une nounou en garde partagée",
@@ -28,7 +32,33 @@ const articles: {
   },
 ];
 
+function getPublishedArticles(): Article[] {
+  const dir = path.join(process.cwd(), 'blog/published');
+  let files: string[] = [];
+  try {
+    files = readdirSync(dir).filter((f) => f.endsWith('.json'));
+  } catch {
+    return STATIC_ARTICLES;
+  }
+
+  const generated: Article[] = files.map((file) => {
+    const meta = JSON.parse(readFileSync(path.join(dir, file), 'utf-8'));
+    return {
+      slug: meta.slug,
+      title: meta.title,
+      excerpt: meta.excerpt,
+      publishedAt: meta.publishedAt,
+      category: meta.category,
+      readingTime: meta.readingTime,
+      tag: meta.tag,
+    };
+  });
+
+  return [...STATIC_ARTICLES, ...generated].sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+}
+
 export default function BlogIndex() {
+  const articles = getPublishedArticles();
   return (
     <div className="min-h-screen bg-white">
 
@@ -124,6 +154,7 @@ export default function BlogIndex() {
           <div className="flex flex-wrap justify-center md:justify-start gap-4 md:gap-6 text-xs text-[var(--dust)]">
             <Link href="/mentions-legales" className="hover:text-[var(--ink)] transition-colors no-underline">Mentions légales</Link>
             <Link href="/politique-confidentialite" className="hover:text-[var(--ink)] transition-colors no-underline">Politique de confidentialité</Link>
+            <Link href="/cgu" className="hover:text-[var(--ink)] transition-colors no-underline">CGU</Link>
             <Link href="/faq" className="hover:text-[var(--ink)] transition-colors no-underline">FAQ</Link>
             <Link href="mailto:pajemploi.facile@gmail.com" className="hover:text-[var(--ink)] transition-colors no-underline">Contact</Link>
           </div>

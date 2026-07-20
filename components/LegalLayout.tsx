@@ -31,6 +31,7 @@ export function LegalLayout({ title, updatedAt, children }: Props) {
         <div className="max-w-2xl mx-auto flex flex-wrap justify-center gap-4 text-xs text-[var(--dust)]">
           <Link href="/mentions-legales" className="hover:text-[var(--ink)] transition-colors no-underline">Mentions légales</Link>
           <Link href="/politique-confidentialite" className="hover:text-[var(--ink)] transition-colors no-underline">Politique de confidentialité</Link>
+          <Link href="/cgu" className="hover:text-[var(--ink)] transition-colors no-underline">CGU</Link>
           <span>© {new Date().getFullYear()} nounoulink</span>
         </div>
       </footer>

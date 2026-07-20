@@ -571,6 +571,7 @@ export function LandingPage() {
             <div className="flex flex-wrap justify-center md:justify-start gap-4 md:gap-6 text-xs text-[var(--dust)]">
               <a href="/mentions-legales"           className="hover:text-[var(--ink)] transition-colors no-underline">Mentions légales</a>
               <a href="/politique-confidentialite"  className="hover:text-[var(--ink)] transition-colors no-underline">Politique de confidentialité</a>
+              <a href="/cgu"                        className="hover:text-[var(--ink)] transition-colors no-underline">CGU</a>
               <a href="/faq"                        className="hover:text-[var(--ink)] transition-colors no-underline">FAQ</a>
               <a href="mailto:pajemploi.facile@gmail.com" className="hover:text-[var(--ink)] transition-colors no-underline">Contact</a>
             </div>

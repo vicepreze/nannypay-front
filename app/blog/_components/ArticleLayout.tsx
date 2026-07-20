@@ -149,6 +149,7 @@ export function ArticleLayout({
           <div className="flex flex-wrap justify-center md:justify-start gap-4 md:gap-6 text-xs text-[var(--dust)]">
             <Link href="/mentions-legales" className="hover:text-[var(--ink)] transition-colors no-underline">Mentions légales</Link>
             <Link href="/politique-confidentialite" className="hover:text-[var(--ink)] transition-colors no-underline">Politique de confidentialité</Link>
+            <Link href="/cgu" className="hover:text-[var(--ink)] transition-colors no-underline">CGU</Link>
             <Link href="/faq" className="hover:text-[var(--ink)] transition-colors no-underline">FAQ</Link>
             <Link href="mailto:pajemploi.facile@gmail.com" className="hover:text-[var(--ink)] transition-colors no-underline">Contact</Link>
           </div>
