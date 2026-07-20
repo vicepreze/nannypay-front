@@ -1,0 +1,72 @@
+[
+  {
+    "slug": "repartition-60-40-garde-partagee-pourquoi",
+    "title": "Garde partagée à 3 enfants : pourquoi la répartition équitable est souvent 60/40 (et pas 66/33)",
+    "meta_description": "Plafond CMG, crédit d'impôt, reste à charge réel : on vous explique le calcul qui justifie la répartition 60/40 entre deux familles en garde partagée.",
+    "angle": "Cas 3 enfants 2 familles (2+1). Expliquer pourquoi le prorata strict 66/33 pénalise la famille avec 2 enfants une fois les aides déduites. Chiffrer avec exemples Sophie/Lucas/Emma. Conclure sur le Mode Magique nounoulink.",
+    "status": "queued"
+  },
+  {
+    "slug": "arret-maladie-nounou-garde-partagee-qui-paie",
+    "title": "Arrêt maladie de la nounou en garde partagée : qui paie quoi et quelles démarches ?",
+    "meta_description": "Délai de carence, IJSS, maintien de salaire : tout ce que les deux familles doivent savoir quand leur assistant parental est en arrêt maladie.",
+    "angle": "Expliquer le délai de carence 3 jours calendaires, les IJSS versées par la Sécu, le maintien de salaire selon ancienneté CCN IDCC 3239. Préciser que les heures sup ne s'appliquent pas la semaine d'arrêt. Rôle de chaque famille.",
+    "status": "queued"
+  },
+  {
+    "slug": "conges-payes-nounou-repartition-deux-familles",
+    "title": "Congés payés d'une nounou partagée : qui doit quoi selon les semaines posées ?",
+    "meta_description": "Comment se répartir les congés payés de votre assistant parental entre deux familles en garde partagée ? Calcul, accord inter-familles et règles Pajemploi 2026.",
+    "angle": "Rappeler que les CP sont inclus dans la mensualisation. Expliquer que les CP se posent d'un commun accord entre les deux employeurs. Cas où les familles prennent des vacances décalées. Ne pas neutraliser les heures sup.",
+    "status": "queued"
+  },
+  {
+    "slug": "2-familles-2-enfants-repartition-salaire-nounou",
+    "title": "2 familles, 2 enfants : pourquoi votre nounou ne reçoit pas la même paie chaque mois",
+    "meta_description": "Absences, congés décalés, horaires asymétriques : on vous explique pourquoi la part de chaque famille varie et comment calculer la répartition juste.",
+    "angle": "Angle émotionnel : le WhatsApp gêné entre familles. Expliquer que le salaire global est fixe mais que la part varie selon les événements du mois. Scénario Hugo malade 5 jours avec tableau mois complet.",
+    "status": "queued"
+  },
+  {
+    "slug": "coordination-conges-maladie-garde-partagee",
+    "title": "Garde partagée : comment se coordonner avec l'autre famille sans WhatsApp ni tableur",
+    "meta_description": "Congés, absences, maladie : comment les deux familles en garde partagée peuvent se synchroniser facilement chaque mois sans friction.",
+    "angle": "Problème : la coordination manuelle génère des erreurs et de la friction. Solution : valider les heures ensemble avant de déclarer sur Pajemploi. Montrer le coût d'une erreur de coordination (bulletins contradictoires).",
+    "status": "queued"
+  },
+  {
+    "slug": "3-enfants-horaires-differents-calcul-salaire",
+    "title": "3 enfants avec des horaires différents : comment calculer la part de chaque famille",
+    "meta_description": "Un enfant arrive plus tôt, un autre part plus tard : comment calculer précisément la répartition du salaire quand les horaires de garde ne sont pas identiques.",
+    "angle": "Cas concret : Léna 8h-18h, Tom 9h-17h, Nina 8h30-17h30. Décomposer les heures en garde simple vs garde partagée simultanée. Montrer le calcul de répartition au centième.",
+    "status": "queued"
+  },
+  {
+    "slug": "heures-supplementaires-nounou-calcul-formule",
+    "title": "Heures supplémentaires nounou : la formule complète et les cas particuliers",
+    "meta_description": "Comment calculer les heures supplémentaires de votre assistant parental en garde partagée : barème légal, semaine civile, cas maladie et congés payés.",
+    "angle": "Article de référence sur les heures sup. Barème +25%/+50%, décompte par semaine civile lundi→dimanche, moyenne 8 semaines si irrégulier. Cas maladie = pas d'heures sup la semaine concernée. CP = heures sup toujours dues si effectuées.",
+    "status": "queued"
+  },
+  {
+    "slug": "contrat-nounou-garde-domicile-partagee",
+    "title": "Contrat d'assistant parental en garde partagée : ce qu'il doit obligatoirement contenir",
+    "meta_description": "Clauses obligatoires, mentions spécifiques à la garde partagée, période d'essai : tout ce que votre contrat de travail doit prévoir selon la CCN IDCC 3239.",
+    "angle": "Clauses obligatoires CCN IDCC 3239. Spécificités garde partagée : mention des deux employeurs, mode de répartition, clause de solidarité. Période d'essai. Ce qu'il faut prévoir pour les absences et congés.",
+    "status": "queued"
+  },
+  {
+    "slug": "3-familles-3-enfants-repartition-salaire-nounou",
+    "title": "3 enfants, 2 familles : comment répartir équitablement le salaire de la nounou",
+    "meta_description": "Deux familles dont une avec deux enfants : comment calculer la part de chacune en garde partagée, et pourquoi le résultat n'est pas celui qu'on croit.",
+    "angle": "Cas le plus complexe et le moins bien documenté. Prorata par heures, puis ajustement par le reste à charge réel. Référencer le Mode Magique nounoulink. Lier vers l'article 60/40.",
+    "status": "queued"
+  },
+  {
+    "slug": "erreurs-frequentes-declarations-pajemploi-garde-domicile",
+    "title": "Les 7 erreurs fréquentes sur Pajemploi en garde à domicile (et comment les éviter)",
+    "meta_description": "Brut vs net, heures totales vs part, frais dans le salaire : les erreurs les plus courantes des parents en garde partagée sur Pajemploi et comment les corriger.",
+    "angle": "Format listicle 7 erreurs. Cibler les erreurs validées dans les articles précédents : brut/net, total heures, frais dans salaire net, oubli heures sup, déclaration unique pour deux familles, date de paiement, oubli coordination.",
+    "status": "queued"
+  }
+]
