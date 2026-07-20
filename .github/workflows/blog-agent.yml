@@ -1,0 +1,103 @@
+name: Blog Agent
+
+on:
+  schedule:
+    - cron: '0 8 */2 * *'
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: "Slug de la branche draft/<slug> à publier (laisser vide pour générer un nouvel article)"
+        required: false
+        type: string
+
+jobs:
+  generate:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.slug == '')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Générer l'article
+        id: gen
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/generate-article.mjs
+
+      - name: Créer la branche draft et pousser
+        if: steps.gen.outputs.slug != ''
+        run: |
+          set -e
+          SLUG="${{ steps.gen.outputs.slug }}"
+          git config user.name "nounoulink-blog-bot"
+          git config user.email "blog-bot@nounoulink.fr"
+          git checkout -b "draft/$SLUG"
+          node -e "
+            const fs = require('fs');
+            const q = JSON.parse(fs.readFileSync('blog/queue.json','utf-8'));
+            const item = q.find((i) => i.slug === process.env.SLUG);
+            if (item) item.status = 'pending';
+            fs.writeFileSync('blog/queue.json', JSON.stringify(q, null, 2) + '\n');
+          "
+          git add "app/blog/$SLUG/page.tsx" "blog/meta/$SLUG.json" blog/queue.json
+          git commit -m "feat(blog): génère l'article $SLUG"
+          git push origin "draft/$SLUG"
+        env:
+          SLUG: ${{ steps.gen.outputs.slug }}
+
+      - name: Envoyer l'email d'aperçu
+        if: steps.gen.outputs.slug != ''
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: node scripts/send-preview-email.mjs "${{ steps.gen.outputs.slug }}"
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.slug != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Merger la branche draft dans main
+        env:
+          SLUG: ${{ github.event.inputs.slug }}
+        run: |
+          set -e
+          git config user.name "nounoulink-blog-bot"
+          git config user.email "blog-bot@nounoulink.fr"
+          git fetch origin "draft/$SLUG"
+          git checkout main
+          git merge --no-ff "origin/draft/$SLUG" -m "Merge draft/$SLUG into main"
+
+      - name: Mettre à jour sitemap, index blog et queue
+        env:
+          SLUG: ${{ github.event.inputs.slug }}
+        run: |
+          set -e
+          node scripts/publish-article.mjs "$SLUG"
+          git add public/sitemap.xml blog/queue.json blog/published blog/meta
+          git commit -m "chore(blog): publie $SLUG"
+
+      - name: Pousser sur main et supprimer la branche draft
+        env:
+          SLUG: ${{ github.event.inputs.slug }}
+        run: |
+          set -e
+          git push origin main
+          git push origin --delete "draft/$SLUG"
+
+      - name: Envoyer l'email de confirmation
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: node scripts/send-confirmation-email.mjs "${{ github.event.inputs.slug }}"
