@@ -6,10 +6,19 @@ Repo : `/Users/arthurboueilh/Documents/GitHub/nannypay-front`
 
 Il n'y a **aucun secret, aucune API externe, aucun email** dans ce pipeline. Tout se fait avec les outils normaux d'une session Claude Code (git, gh, lecture/écriture de fichiers, navigateur de preview) sur ce repo.
 
-## Étape 1 — Synchroniser
+## Étape 0 — Vérifier qu'aucun brouillon n'attend déjà
 
 ```bash
 cd /Users/arthurboueilh/Documents/GitHub/nannypay-front
+git fetch --prune origin   # important : sans --prune, une branche déjà mergée/supprimée peut sembler encore "en attente"
+git branch -r | grep 'origin/draft/'
+```
+
+Si une branche `origin/draft/<slug>` existe déjà : afficher son nom, le lien GitHub (`https://github.com/vicepreze/nannypay-front/tree/draft/<slug>`) et son état, puis **s'arrêter là**. Ne pas générer un nouvel article tant qu'un brouillon est en attente de relecture/validation — évite les brouillons dupliqués ou orphelins. (Si l'utilisateur demande explicitement de continuer malgré tout, c'est son choix — mais ce n'est jamais le comportement par défaut.)
+
+## Étape 1 — Synchroniser
+
+```bash
 git status --short   # si des changements non commités traînent (autre session en cours), s'arrêter et prévenir l'utilisateur plutôt que d'écraser quoi que ce soit
 git checkout main
 git pull origin main
@@ -26,8 +35,18 @@ Si aucun sujet en `queued` : dire clairement "Aucun article en queue — ajoutez
 Avant d'écrire, lire pour context :
 - `Context_20260720.md`, section "Règles Blog et Contenu" (terminologie, chiffres 2026, règles heures sup/absences/répartition/Pajemploi/CMG, longueur cible)
 - `app/blog/_components/ArticleLayout.tsx` (shell header/hero/footer, props `title`/`intro`/`category`/`publishedAt`)
-- `app/blog/_components/ArticleBlocks.tsx` (tous les blocs disponibles : `SummaryBox`, `Note`, `FormulaBox`, `CalcCard`+`CalcRow`/`CalcSubtotalRow`/`CalcTotalRow`/`CalcNoteRow`, `Tag`, `Step`/`Steps`, `CtaMid`, `HSupVisual`, `SourcesSection`, `FieldBlock`, `SectionNum`) — n'utiliser QUE ces composants, ne pas en inventer d'autres ni réécrire du JSX brut équivalent
+- `app/blog/_components/ArticleBlocks.tsx` (tous les blocs disponibles : `SummaryBox`, `Note`, `FormulaBox`, `CalcCard`+`CalcRow`/`CalcSubtotalRow`/`CalcTotalRow`/`CalcNoteRow`, `Tag`, `Step`/`Steps`, `CtaMid`, `HSupVisual`, `SourcesSection`, `FieldBlock`, `SectionNum`, `SourceCite`) — n'utiliser QUE ces composants, ne pas en inventer d'autres, ne pas réécrire du JSX brut équivalent, ne pas ajouter de nouveau CSS/classe arbitraire
 - `app/blog/calculer-salaire-nounou-garde-partagee/page.tsx` comme exemple de ton et de niveau de détail (article historique, structure légèrement différente mais même esprit)
+
+### Fluidité narrative
+À partir de la 2e section `h2`, chaque section doit s'ouvrir sur une phrase de transition qui rappelle le résultat de la section précédente et pose le problème que la section actuelle résout — jamais deux `h2` enchaînés sans ce pont. Exception : sur un sujet de queue au format listicle (ex. "les 7 erreurs fréquentes..."), les items de la liste n'ont pas besoin de transition individuelle entre eux ; la règle s'applique aux sections `h2` du corps de l'article, pas aux `Step` d'une même liste.
+
+### Citations inline
+Chaque affirmation chiffrée ou réglementaire importante doit être suivie d'une citation cliquable vers la source officielle, avec le composant `SourceCite` (pas `Tag`, qui garde son sens de badge de statut existant — ex. "Plafonné", "+11 %" — pour éviter toute ambiguïté visuelle entre statut et lien) :
+```tsx
+<SourceCite href="https://www.exemple.gouv.fr/...">source</SourceCite>
+```
+Un seul `SourceCite` par affirmation clé, jamais un par phrase. La `SourcesSection` finale reste obligatoire et complète en plus des citations inline.
 
 Structure obligatoire du contenu (`children` de `ArticleLayout`) :
 1. `SummaryBox` — résumé 1 minute, principes uniquement, jamais de chiffres précis
@@ -68,7 +87,13 @@ Les deux doivent passer avant de présenter quoi que ce soit à l'utilisateur. S
 
 ## Étape 6 — Aperçu visuel
 
-Démarrer le serveur de dev (config `.claude/launch.json`), ouvrir `http://localhost:3000/blog/<slug>` dans le navigateur de preview, prendre un screenshot, puis arrêter le serveur. Ne pas laisser tourner le serveur après cette étape.
+Avant de démarrer le serveur, vérifier que le port 3000 est libre :
+```bash
+lsof -ti:3000
+```
+Si un processus l'occupe déjà, **ne pas le tuer à l'aveugle** (`kill -9` sans discernement risquerait de couper un serveur de dev que l'utilisateur fait tourner pour un autre travail). À la place : noter dans la présentation finale que l'aperçu visuel n'a pas pu être capturé (port 3000 occupé), et continuer sans screenshot plutôt que de forcer.
+
+Si le port est libre : démarrer le serveur de dev (config `.claude/launch.json`), ouvrir `http://localhost:3000/blog/<slug>` dans le navigateur de preview, prendre un screenshot, puis arrêter le serveur. Ne pas laisser tourner le serveur après cette étape.
 
 ## Étape 7 — Présenter et attendre
 

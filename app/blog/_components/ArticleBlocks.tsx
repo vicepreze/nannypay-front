@@ -106,6 +106,20 @@ export function Tag({ color, children }: { color: 'green' | 'gold' | 'red'; chil
   );
 }
 
+export function SourceCite({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--sage-dark)] border border-[var(--sage)] rounded px-1.5 py-0.5 ml-1 no-underline hover:bg-[var(--sage-light)] transition-colors align-middle"
+    >
+      <span aria-hidden="true">↗</span>
+      {children}
+    </a>
+  );
+}
+
 export function Step({
   num, title, children, error = false,
 }: { num: string; title: string; children: React.ReactNode; error?: boolean }) {
