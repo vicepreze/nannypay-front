@@ -214,6 +214,170 @@ export function HSupVisual({
   );
 }
 
+type FlowSegment = { value: number; label: string };
+type CeilingBar = { amount: string; heightPx: number; label: string; ghost?: boolean };
+
+export function EquityFlow({
+  icon = '🔗',
+  headerLabel,
+  topNode,
+  familyA,
+  familyB,
+  prorata,
+  prorataNote,
+  ceilingLabel,
+  ceilingBars,
+  ceilingNote,
+  before,
+  beforeNote,
+  fixLabel,
+  after,
+  afterNote,
+}: {
+  icon?: string;
+  headerLabel: string;
+  topNode: string;
+  familyA: { title: string; sub: string };
+  familyB: { title: string; sub: string };
+  prorata: [FlowSegment, FlowSegment];
+  prorataNote: React.ReactNode;
+  ceilingLabel: string;
+  ceilingBars: CeilingBar[];
+  ceilingNote: React.ReactNode;
+  before: [FlowSegment, FlowSegment];
+  beforeNote: React.ReactNode;
+  fixLabel: string;
+  after: [FlowSegment, FlowSegment];
+  afterNote: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden my-8">
+      <div className="bg-[#1a2318] px-5 py-3.5 flex items-center gap-3">
+        <span className="w-8 h-8 bg-[var(--sage)]/20 rounded-lg flex items-center justify-center text-base flex-shrink-0">
+          {icon}
+        </span>
+        <span className="text-sm font-semibold text-white">{headerLabel}</span>
+      </div>
+
+      <div className="px-6 py-7">
+        <div className="text-center">
+          <span className="inline-block bg-[var(--sage-light)] text-[var(--sage-dark)] font-bold text-[13px] px-4 py-2 rounded-[10px]">
+            {topNode}
+          </span>
+        </div>
+
+        <svg width="100%" height="34" viewBox="0 0 400 34" className="block mx-auto">
+          <path d="M200,0 L200,10 M200,10 L90,10 L90,34 M200,10 L310,10 L310,34" fill="none" stroke="var(--sage-mid)" strokeWidth="2" />
+        </svg>
+
+        <div className="flex gap-4">
+          <div className="flex-1 bg-[var(--sage-light)] border border-[var(--sage-mid)] rounded-xl px-3.5 py-3 text-center">
+            <div className="text-xs font-bold text-[var(--sage-dark)]">{familyA.title}</div>
+            <div className="text-[11px] text-[var(--dust)] mt-0.5">{familyA.sub}</div>
+          </div>
+          <div className="flex-1 bg-[var(--sage-light)] border border-[var(--sage-mid)] rounded-xl px-3.5 py-3 text-center">
+            <div className="text-xs font-bold text-[var(--sage-dark)]">{familyB.title}</div>
+            <div className="text-[11px] text-[var(--dust)] mt-0.5">{familyB.sub}</div>
+          </div>
+        </div>
+
+        <svg width="100%" height="28" viewBox="0 0 400 28" className="block mx-auto">
+          <path d="M90,0 L90,14 L310,14 M310,0 L310,14 M200,14 L200,28" fill="none" stroke="var(--sage-mid)" strokeWidth="2" />
+        </svg>
+
+        <div className="text-center text-[10px] font-bold tracking-widest text-[var(--dust)] uppercase mb-2">
+          Répartition du salaire — prorata heures
+        </div>
+        <div className="flex h-[34px] rounded-lg overflow-hidden">
+          <div className="flex items-center justify-center text-white text-xs font-bold bg-[var(--sage)]" style={{ flex: prorata[0].value }}>
+            {prorata[0].label}
+          </div>
+          <div className="flex items-center justify-center text-[var(--sage-dark)] text-xs font-bold bg-[var(--sage-mid)]" style={{ flex: prorata[1].value }}>
+            {prorata[1].label}
+          </div>
+        </div>
+        <div className="text-center text-[11px] text-[var(--dust)] italic mt-2">{prorataNote}</div>
+
+        <div className="flex items-center gap-2.5 my-4">
+          <div className="flex-1 h-px bg-[var(--line)]" />
+          <span className="bg-[#fdf3e0] text-[#8a6020] text-[10px] font-extrabold tracking-widest px-2.5 py-1 rounded-full">MAIS</span>
+          <div className="flex-1 h-px bg-[var(--line)]" />
+        </div>
+
+        <div className="text-center text-[10px] font-bold tracking-widest text-[#8a6020] uppercase mb-2.5">
+          {ceilingLabel}
+        </div>
+        <div className="flex items-end gap-4 justify-center h-24 px-2">
+          {ceilingBars.map((bar, i) => (
+            <div key={i} className="flex flex-col items-center">
+              <div className={`text-[11px] font-bold mb-1 ${bar.ghost ? 'text-[#8a6020]' : 'text-[var(--ink)]'}`}>
+                {bar.amount}
+              </div>
+              <div
+                className={
+                  bar.ghost
+                    ? 'w-[46px] rounded-t-md border-[1.5px] border-dashed border-[#c8a96e]'
+                    : `w-[46px] rounded-t-md ${i === 0 ? 'bg-[var(--sage-mid)]' : 'bg-[var(--sage-dark)]'}`
+                }
+                style={{
+                  height: `${bar.heightPx}px`,
+                  backgroundImage: bar.ghost
+                    ? 'repeating-linear-gradient(45deg, #fdf3e0, #fdf3e0 4px, #fff 4px, #fff 8px)'
+                    : undefined,
+                }}
+              />
+              <div className="text-[10px] text-[var(--dust)] mt-1 text-center leading-snug">
+                {bar.label.split('\n').map((line, j) => (
+                  <span key={j}>
+                    {j > 0 && <br />}
+                    {line}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="text-center text-[11px] text-[var(--dust)] italic mt-2.5">{ceilingNote}</div>
+
+        <svg width="100%" height="24" viewBox="0 0 400 24" className="block mx-auto mt-1.5">
+          <path d="M200,0 L200,18 M192,18 L200,24 L208,18" fill="none" stroke="#dc2626" strokeWidth="2" />
+        </svg>
+
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3.5 mt-1.5">
+          <div className="text-[10px] font-extrabold tracking-widest text-red-600 uppercase mb-2">Résultat sans ajustement</div>
+          <div className="flex h-7 rounded-md overflow-hidden mb-2">
+            <div className="flex items-center justify-center text-white text-[11px] font-bold bg-red-600" style={{ flex: before[0].value }}>
+              {before[0].label}
+            </div>
+            <div className="flex items-center justify-center text-red-900 text-[11px] font-bold bg-red-200" style={{ flex: before[1].value }}>
+              {before[1].label}
+            </div>
+          </div>
+          <div className="text-[11px] text-red-900">{beforeNote}</div>
+        </div>
+
+        <div className="flex items-center justify-center gap-2 my-4">
+          <span className="text-base">⚖️</span>
+          <span className="text-xs font-bold text-[var(--sage-dark)]">{fixLabel}</span>
+        </div>
+
+        <div className="bg-[var(--sage-light)] border border-[var(--sage-mid)] rounded-xl px-4 py-3.5">
+          <div className="text-[10px] font-extrabold tracking-widest text-[var(--sage-dark)] uppercase mb-2">✓ Résultat après ajustement 60/40</div>
+          <div className="flex h-7 rounded-md overflow-hidden mb-2">
+            <div className="flex items-center justify-center text-white text-[11px] font-bold bg-[var(--sage)]" style={{ flex: after[0].value }}>
+              {after[0].label}
+            </div>
+            <div className="flex items-center justify-center text-[var(--sage-dark)] text-[11px] font-bold bg-[var(--sage-mid)]" style={{ flex: after[1].value }}>
+              {after[1].label}
+            </div>
+          </div>
+          <div className="text-[11px] text-[var(--sage-dark)]">{afterNote}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function FieldBlock({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="flex items-start gap-3 border border-[var(--line)] rounded-xl px-4 py-3 my-3 bg-white">

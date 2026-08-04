@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { ArticleLayout } from '../_components/ArticleLayout';
 import {
   SummaryBox, Note, FormulaBox, CalcCard, CalcRow, CalcSubtotalRow, CalcTotalRow, CalcNoteRow,
-  Tag, Step, Steps, CtaMid, SourcesSection, SectionNum,
+  Tag, Step, Steps, CtaMid, SourcesSection, SectionNum, EquityFlow,
 } from '../_components/ArticleBlocks';
 
 export const metadata: Metadata = {
@@ -35,33 +35,54 @@ export default function Article() {
         ]}
       />
 
+      <EquityFlow
+        headerLabel="Pourquoi 60 % / 40 % ? — la mécanique en un coup d'œil"
+        topNode="👨‍👩‍👧 3 enfants gardés par la même assistante parentale"
+        familyA={{ title: 'Famille A — 2 enfants', sub: 'Sophie + Lucas' }}
+        familyB={{ title: 'Famille B — 1 enfant', sub: 'Emma' }}
+        prorata={[
+          { value: 66.7, label: '66,7 %' },
+          { value: 33.3, label: '33,3 %' },
+        ]}
+        prorataNote="Ça paraît juste : 2 enfants sur 3 = 66,7 % du salaire."
+        ceilingLabel="Le crédit d'impôt, lui, est plafonné par famille"
+        ceilingBars={[
+          { amount: '562,50 €', heightPx: 44, label: 'Plafond\n1 enfant' },
+          { amount: '625 €', heightPx: 49, label: 'Plafond\n2 enfants' },
+          { amount: '1 125 €', heightPx: 88, label: 'Si c\'était\nx2 (attendu)', ghost: true },
+        ]}
+        ceilingNote="+ 11 % de plafond seulement entre 1 et 2 enfants gardés — pas le double attendu."
+        before={[
+          { value: 73, label: '73 %' },
+          { value: 27, label: '27 %' },
+        ]}
+        beforeNote={<>Famille A supporte <strong>73 %</strong> du reste à charge réel — plus que sa part de 66,7 %.</>}
+        fixLabel="On réajuste le salaire à 60 % / 40 %"
+        after={[
+          { value: 65, label: '65 %' },
+          { value: 35, label: '35 %' },
+        ]}
+        afterNote="65 % ≈ 66,7 % réel : l'écart est corrigé."
+      />
+
       <p>
-        Cet article prend l&apos;exemple de deux familles qui gardent trois enfants à elles deux — Sophie et Lucas chez
-        la famille A, Emma chez la famille B — pour chiffrer deux façons de répartir le salaire : le prorata strict par
-        heures (66%/33%) et l&apos;ajustement le plus souvent pratiqué (60%/40%). On regarde ensuite l&apos;effet réel de chaque
-        méthode sur le reste à charge pour comprendre pourquoi la majorité des familles dans cette situation finissent
-        par choisir 60%/40%.
-      </p>
-      <p>
-        Le calcul du salaire suit un prorata logique. Mais le crédit d&apos;impôt, lui, est plafonné par famille selon le
-        nombre d&apos;enfants gardés — pas au même rythme que les heures. C&apos;est cet écart qui explique le passage au 60%/40%.
+        Concrètement : Sophie et Lucas (famille A) et Emma (famille B) sont gardés par la même assistante parentale,
+        40h/semaine chacun, pour un coût total mensuel de <strong>2 925 €</strong> (salaire net + charges). Les
+        sections suivantes détaillent, poste par poste, le calcul qui mène aux chiffres du schéma ci-dessus.
       </p>
 
       <Note type="info">
         <span className="text-base flex-shrink-0">📌</span>
-        <span>Pour isoler l&apos;effet du crédit d&apos;impôt, les exemples ci-dessous supposent que les deux familles ont des
-        <strong> revenus fiscaux similaires</strong> : le CMG s&apos;applique alors de façon comparable des deux côtés et
-        n&apos;explique pas, à lui seul, l&apos;écart de reste à charge. Le crédit d&apos;impôt, en revanche, est plafonné par
-        famille selon son nombre d&apos;enfants gardés — c&apos;est ce plafond qui crée le déséquilibre.</span>
+        <span>Pour isoler l&apos;effet du crédit d&apos;impôt, cet exemple suppose des <strong>revenus fiscaux
+        similaires</strong> entre les deux familles — sinon le CMG, lui aussi plafonné par famille, brouillerait la
+        comparaison.</span>
       </Note>
 
       <h2 id="prorata-heures">
-        <SectionNum n="1" />Le prorata par heures : le cas Sophie, Lucas et Emma
+        <SectionNum n="1" />Le prorata par heures : le détail du calcul
       </h2>
       <p>
-        Sophie et Lucas (famille A) et Emma (famille B) sont gardés par la même assistante parentale, aux mêmes
-        horaires : 40h/semaine chacun. Le réflexe le plus courant est de répartir le salaire au prorata du nombre
-        d&apos;heures gardées par enfant.
+        Le réflexe le plus courant : répartir le salaire au prorata du nombre d&apos;heures gardées par enfant.
       </p>
 
       <FormulaBox
@@ -82,19 +103,17 @@ export default function Article() {
         <CalcSubtotalRow label="Part famille A — prorata strict" value="80 ÷ 120 = 66,7 %" />
         <CalcSubtotalRow label="Part famille B — prorata strict" value="40 ÷ 120 = 33,3 %" />
         <CalcNoteRow>
-          À ce stade, seul le salaire est réparti — le crédit d&apos;impôt de chaque famille n&apos;a pas encore été pris en
-          compte. Coût total mensuel de la garde (salaire net + charges) retenu pour la suite : 2 925 €.
+          Seul le salaire est réparti à ce stade — le crédit d&apos;impôt de chaque famille n&apos;a pas encore été
+          pris en compte.
         </CalcNoteRow>
       </CalcCard>
 
-      <h2 id="rac-prorata-strict">
-        <SectionNum n="2" />Le reste à charge au prorata strict : l&apos;effet du plafond
+      <h2 id="reste-a-charge">
+        <SectionNum n="2" />Le reste à charge, poste par poste
       </h2>
       <p>
-        Le crédit d&apos;impôt couvre 50 % des dépenses nettes, dans la limite d&apos;un plafond annuel : <strong>6 750 €
-        pour un enfant</strong> (562,50 €/mois), <strong>7 500 € pour deux enfants</strong> (625 €/mois) — une hausse
-        d&apos;à peine <Tag color="gold">+ 11 %</Tag> pour deux fois plus d&apos;enfants gardés. Appliqué au prorata 66,7/33,3
-        ci-dessus, ce plafond touche la famille A bien plus fort que la famille B.
+        Le crédit d&apos;impôt couvre 50 % des dépenses nettes, plafonné annuellement par famille (schéma ci-dessus).
+        Voici l&apos;effet chiffré sur les deux répartitions :
       </p>
 
       <CalcCard icon="📊" title="Reste à charge mensuel — prorata strict 66,7 % / 33,3 %">
@@ -105,18 +124,10 @@ export default function Article() {
         <CalcTotalRow label="Reste à charge famille A" value="1 326 €/mois" />
         <CalcTotalRow label="Reste à charge famille B" value="487 €/mois" />
         <CalcNoteRow>
-          Famille A supporte ≈ 73 % du reste à charge total — davantage que sa part de 66,7 % au prorata initial. Le
-          plafond du crédit d&apos;impôt, atteint uniquement côté famille A, accentue l&apos;écart au lieu de le compenser.
+          Famille A supporte ≈ 73 % du reste à charge total — plus que sa part de 66,7 % au prorata. Le plafond,
+          atteint côté famille A, accentue l&apos;écart au lieu de le compenser.
         </CalcNoteRow>
       </CalcCard>
-
-      <h2 id="rac-60-40">
-        <SectionNum n="3" />Le reste à charge à 60%/40% : un rééquilibrage net
-      </h2>
-      <p>
-        En ajustant la répartition du <strong>salaire</strong> à 60%/40% plutôt qu&apos;à 66,7/33,3, la dépense de la famille A
-        baisse suffisamment pour que le plafond du crédit d&apos;impôt pèse moins lourd dans la comparaison.
-      </p>
 
       <CalcCard icon="⚖️" title="Reste à charge mensuel — répartition ajustée 60 % / 40 %">
         <CalcRow label="Dépense famille A (60 % de 2 925 €)" value="1 755 €" />
@@ -126,8 +137,8 @@ export default function Article() {
         <CalcTotalRow label="Reste à charge famille A" value="1 130 €/mois" />
         <CalcTotalRow label="Reste à charge famille B" value="608 €/mois" />
         <CalcNoteRow>
-          Famille A supporte désormais ≈ 65 % du reste à charge total — beaucoup plus proche de sa part réelle de
-          2 enfants sur 3 (66,7 %) que les 73 % obtenus avec le prorata strict.
+          Famille A supporte désormais ≈ 65 % du reste à charge total — proche de sa part réelle de 2 enfants sur 3
+          (66,7 %), contre 73 % avec le prorata strict.
         </CalcNoteRow>
       </CalcCard>
 
@@ -138,37 +149,14 @@ export default function Article() {
         ctaHref="/"
       />
 
-      <h2 id="comparer">
-        <SectionNum n="4" />Comparer les deux répartitions
-      </h2>
-      <p>
-        Sur le salaire, le prorata strict et l&apos;ajustement à 60%/40% ne sont séparés que de quelques points. Mais sur le
-        reste à charge réellement payé chaque mois, l&apos;écart est net :
-      </p>
-
-      <CalcCard icon="🔍" title="Part du reste à charge total supportée par la famille A (2 enfants)">
-        <CalcRow label="Prorata strict du salaire (66,7 %)" value="≈ 73 % du RAC total" />
-        <CalcRow label="Répartition ajustée du salaire (60 %)" value="≈ 65 % du RAC total" />
-        <CalcNoteRow>
-          65 % est beaucoup plus proche des 66,7 % qui correspondent au poids réel de la famille A (2 enfants sur 3) —
-          c&apos;est cette proximité qui explique pourquoi la majorité des familles dans cette configuration ajustent leur
-          répartition vers 60%/40%.
-        </CalcNoteRow>
-      </CalcCard>
-
       <h2 id="calculateur">
-        <SectionNum n="5" />Le calculateur nounoulink. simule tous les scénarios
+        <SectionNum n="3" />Le calculateur nounoulink. simule tous les scénarios
       </h2>
       <p>
-        Refaire ce calcul à la main chaque mois, en tenant compte du plafond du crédit d&apos;impôt et de l&apos;évolution des
-        revenus de chaque famille, est fastidieux. Le calculateur nounoulink. simule en quelques secondes le prorata
-        strict, le 60%/40%, ou toute autre répartition choisie par les deux familles, et affiche directement le reste à
+        Refaire ce calcul à la main chaque mois, en tenant compte du plafond du crédit d&apos;impôt et des revenus de
+        chaque famille, est fastidieux. Le calculateur nounoulink. simule en quelques secondes le prorata strict, le
+        60 % / 40 %, ou toute autre répartition choisie par les deux familles, et affiche directement le reste à
         charge réel de chacune.
-      </p>
-      <p>
-        Rien n&apos;impose de suivre 60%/40% : la convention collective ne fixe aucune méthode de répartition entre familles
-        en garde partagée. C&apos;est un accord librement négocié — le calculateur ne fait que rendre visible, chiffres à
-        l&apos;appui, l&apos;effet de chaque choix.
       </p>
 
       <h2 id="erreurs">
