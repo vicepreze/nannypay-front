@@ -304,10 +304,10 @@ export function EquityFlow({
           <div className="flex-1 h-px bg-[var(--line)]" />
         </div>
 
-        <div className="text-center text-[10px] font-bold tracking-widest text-[#8a6020] uppercase mb-2.5">
+        <div className="text-center text-[10px] font-bold tracking-widest text-[#8a6020] uppercase mb-4">
           {ceilingLabel}
         </div>
-        <div className="flex items-end gap-4 justify-center h-24 px-2">
+        <div className="flex items-end gap-4 justify-center px-2">
           {ceilingBars.map((bar, i) => (
             <div key={i} className="flex flex-col items-center">
               <div className={`text-[11px] font-bold mb-1 ${bar.ghost ? 'text-[#8a6020]' : 'text-[var(--ink)]'}`}>
