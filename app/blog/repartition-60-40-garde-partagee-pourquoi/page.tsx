@@ -6,9 +6,9 @@ import {
 } from '../_components/ArticleBlocks';
 
 export const metadata: Metadata = {
-  title: "Garde partagée à 3 enfants : pourquoi la répartition est souvent 60/40 (et pas 66/33) | nounoulink.",
+  title: "Garde partagée à 3 enfants : pourquoi la répartition est souvent 60%/40% (et pas 66%/33%) | nounoulink.",
   description:
-    "Plafond CMG, crédit d'impôt, reste à charge réel : on vous explique le calcul qui justifie la répartition 60/40 entre deux familles en garde partagée.",
+    "Plafond CMG, crédit d'impôt, reste à charge réel : on vous explique le calcul qui justifie la répartition 60%/40% entre deux familles en garde partagée.",
   alternates: {
     canonical: 'https://nounoulink.fr/blog/repartition-60-40-garde-partagee-pourquoi',
   },
@@ -17,19 +17,19 @@ export const metadata: Metadata = {
 export default function Article() {
   return (
     <ArticleLayout
-      title="Garde partagée à 3 enfants : pourquoi la répartition est souvent 60/40 (et pas 66/33)"
+      title="Garde partagée à 3 enfants : pourquoi la répartition est souvent 60%/40% (et pas 66%/33%)"
       intro="Deux familles, trois enfants, et un prorata par heures qui semble juste sur le papier — mais qui ne l'est plus une fois le crédit d'impôt pris en compte."
       category="Répartition"
       publishedAt="2026-07-20"
     >
       <SummaryBox
-        title="Ce que vous devez retenir avant de continuer"
+        title="Ce que vous devez retenir de cet article"
         items={[
           <>Le prorata par heures est un <strong>point de départ</strong>, pas une obligation légale.</>,
           <>Le crédit d&apos;impôt est <strong>plafonné par famille</strong> selon son nombre d&apos;enfants gardés — pas
           proportionnellement aux heures.</>,
           <>Sur le reste à charge, ce plafond pénalise davantage la famille qui garde <strong>le plus d&apos;enfants</strong>.</>,
-          <>D&apos;où l&apos;usage fréquent de rééquilibrer la répartition du salaire vers <strong>60/40</strong> plutôt que de suivre
+          <>D&apos;où l&apos;usage fréquent de rééquilibrer la répartition du salaire vers <strong>60%/40%</strong> plutôt que de suivre
           le prorata strict.</>,
           <>Le calculateur nounoulink. simule les deux scénarios — et tous les autres — <strong>en quelques secondes</strong>.</>,
         ]}
@@ -38,20 +38,14 @@ export default function Article() {
       <p>
         Cet article prend l&apos;exemple de deux familles qui gardent trois enfants à elles deux — Sophie et Lucas chez
         la famille A, Emma chez la famille B — pour chiffrer deux façons de répartir le salaire : le prorata strict par
-        heures (66/33) et l&apos;ajustement le plus souvent pratiqué (60/40). On regarde ensuite l&apos;effet réel de chaque
+        heures (66%/33%) et l&apos;ajustement le plus souvent pratiqué (60%/40%). On regarde ensuite l&apos;effet réel de chaque
         méthode sur le reste à charge pour comprendre pourquoi la majorité des familles dans cette situation finissent
-        par choisir 60/40.
+        par choisir 60%/40%.
       </p>
       <p>
         Le calcul du salaire suit un prorata logique. Mais le crédit d&apos;impôt, lui, est plafonné par famille selon le
-        nombre d&apos;enfants gardés — pas au même rythme que les heures. C&apos;est cet écart qui explique le passage au 60/40.
+        nombre d&apos;enfants gardés — pas au même rythme que les heures. C&apos;est cet écart qui explique le passage au 60%/40%.
       </p>
-
-      <Note type="info">
-        <span className="text-base flex-shrink-0">💡</span>
-        <span>Depuis janvier 2026, on parle d&apos;<strong>assistant parental</strong> et non plus de &laquo; garde d&apos;enfants à
-        domicile &raquo;. Ce guide utilise cette terminologie tout du long.</span>
-      </Note>
 
       <Note type="info">
         <span className="text-base flex-shrink-0">📌</span>
@@ -117,10 +111,10 @@ export default function Article() {
       </CalcCard>
 
       <h2 id="rac-60-40">
-        <SectionNum n="3" />Le reste à charge à 60/40 : un rééquilibrage net
+        <SectionNum n="3" />Le reste à charge à 60%/40% : un rééquilibrage net
       </h2>
       <p>
-        En ajustant la répartition du <strong>salaire</strong> à 60/40 plutôt qu&apos;à 66,7/33,3, la dépense de la famille A
+        En ajustant la répartition du <strong>salaire</strong> à 60%/40% plutôt qu&apos;à 66,7/33,3, la dépense de la famille A
         baisse suffisamment pour que le plafond du crédit d&apos;impôt pèse moins lourd dans la comparaison.
       </p>
 
@@ -139,7 +133,7 @@ export default function Article() {
 
       <CtaMid
         title="nounoulink. calcule votre répartition exacte"
-        desc="Entrez le nombre d'enfants de chaque famille et leurs horaires — le calculateur compare instantanément prorata strict, 60/40 ou toute autre répartition sur le reste à charge réel."
+        desc="Entrez le nombre d'enfants de chaque famille et leurs horaires — le calculateur compare instantanément prorata strict, 60%/40% ou toute autre répartition sur le reste à charge réel."
         ctaText="Essayer la démo →"
         ctaHref="/"
       />
@@ -148,7 +142,7 @@ export default function Article() {
         <SectionNum n="4" />Comparer les deux répartitions
       </h2>
       <p>
-        Sur le salaire, le prorata strict et l&apos;ajustement à 60/40 ne sont séparés que de quelques points. Mais sur le
+        Sur le salaire, le prorata strict et l&apos;ajustement à 60%/40% ne sont séparés que de quelques points. Mais sur le
         reste à charge réellement payé chaque mois, l&apos;écart est net :
       </p>
 
@@ -158,7 +152,7 @@ export default function Article() {
         <CalcNoteRow>
           65 % est beaucoup plus proche des 66,7 % qui correspondent au poids réel de la famille A (2 enfants sur 3) —
           c&apos;est cette proximité qui explique pourquoi la majorité des familles dans cette configuration ajustent leur
-          répartition vers 60/40.
+          répartition vers 60%/40%.
         </CalcNoteRow>
       </CalcCard>
 
@@ -168,11 +162,11 @@ export default function Article() {
       <p>
         Refaire ce calcul à la main chaque mois, en tenant compte du plafond du crédit d&apos;impôt et de l&apos;évolution des
         revenus de chaque famille, est fastidieux. Le calculateur nounoulink. simule en quelques secondes le prorata
-        strict, le 60/40, ou toute autre répartition choisie par les deux familles, et affiche directement le reste à
+        strict, le 60%/40%, ou toute autre répartition choisie par les deux familles, et affiche directement le reste à
         charge réel de chacune.
       </p>
       <p>
-        Rien n&apos;impose de suivre 60/40 : la convention collective ne fixe aucune méthode de répartition entre familles
+        Rien n&apos;impose de suivre 60%/40% : la convention collective ne fixe aucune méthode de répartition entre familles
         en garde partagée. C&apos;est un accord librement négocié — le calculateur ne fait que rendre visible, chiffres à
         l&apos;appui, l&apos;effet de chaque choix.
       </p>
@@ -194,7 +188,7 @@ export default function Article() {
           Le calcul dépend du foyer fiscal de chaque famille. Utilisez le simulateur officiel sur impots.gouv.fr plutôt
           que de généraliser l&apos;exemple de cet article à votre situation.
         </Step>
-        <Step num="✕" title="Imposer 60/40 comme une règle fixe" error>
+        <Step num="✕" title="Imposer 60%/40% comme une règle fixe" error>
           Ce n&apos;est pas un taux légal : c&apos;est un ordre de grandeur observé dans ce type de configuration à 2 + 1
           enfants. Le ratio exact dépend des revenus et de la situation de chaque famille.
         </Step>
