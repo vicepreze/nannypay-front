@@ -45,6 +45,13 @@
     <priority>0.7</priority>
   </url>
 
+  <url>
+    <loc>https://nounoulink.fr/blog/rituel-fin-de-mois-garde-partagee</loc>
+    <lastmod>2026-08-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
   <!--
     Les prochains articles seront ajoutés ici.
     Format :
