@@ -378,6 +378,100 @@ export function EquityFlow({
   );
 }
 
+type RangeRow = { label: string; value: string; left?: number; right?: number; width?: number };
+
+export function RangeChart({
+  icon = '📊',
+  title,
+  rows,
+  scale,
+}: {
+  icon?: string;
+  title: string;
+  rows: RangeRow[];
+  scale?: string[];
+}) {
+  return (
+    <div className="bg-white border border-[var(--line)] rounded-2xl overflow-hidden my-5">
+      <div className="bg-[#1a2318] px-5 py-3.5 flex items-center gap-3">
+        <span className="w-8 h-8 bg-[var(--sage)]/20 rounded-lg flex items-center justify-center text-base flex-shrink-0">
+          {icon}
+        </span>
+        <span className="text-sm font-semibold text-white">{title}</span>
+      </div>
+      <div className="px-5 py-5">
+        {rows.map((r, i) => (
+          <div key={i} className={i < rows.length - 1 ? 'mb-5' : ''}>
+            <div className="flex justify-between text-sm font-semibold text-[var(--ink)] mb-1.5">
+              <span>{r.label}</span>
+              <span className="text-[var(--sage-dark)] font-bold">{r.value}</span>
+            </div>
+            <div className="relative h-2.5 bg-[var(--sage-light)] rounded-full">
+              <div
+                className="absolute top-0 bottom-0 bg-[var(--sage)] rounded-full"
+                style={{
+                  left: r.left !== undefined ? `${r.left}%` : 0,
+                  right: r.right !== undefined ? `${r.right}%` : undefined,
+                  width: r.width !== undefined ? `${r.width}%` : undefined,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+        {scale && (
+          <div className="flex justify-between text-[11px] text-[var(--dust)] mt-4 pt-2.5 border-t border-dashed border-[var(--line)]">
+            {scale.map((s, i) => (
+              <span key={i}>{s}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type CompareColumn = { label: string; sub?: string };
+type CompareRow = { label: React.ReactNode; values: React.ReactNode[]; total?: boolean };
+
+export function CompareTable({ columns, rows }: { columns: CompareColumn[]; rows: CompareRow[] }) {
+  return (
+    <div className="overflow-x-auto my-5">
+      <table className="w-full border-collapse bg-white border border-[var(--line)] rounded-2xl overflow-hidden text-sm">
+        <thead>
+          <tr>
+            <th className="bg-[var(--ink)] text-white text-left px-4 py-3 text-[13px] font-semibold" />
+            {columns.map((c, i) => (
+              <th key={i} className="bg-[var(--sage)] text-white text-left px-4 py-3 text-[13px] font-semibold">
+                {c.label}
+                {c.sub && <span className="block font-normal text-[11px] opacity-85 mt-0.5">{c.sub}</span>}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className={r.total ? 'bg-[var(--sage-light)]' : 'border-b border-[var(--line)]'}>
+              <td
+                className={`px-4 py-2.5 ${r.total ? 'font-bold text-[var(--sage-dark)]' : 'font-medium text-[var(--ink)]'}`}
+              >
+                {r.label}
+              </td>
+              {r.values.map((v, j) => (
+                <td
+                  key={j}
+                  className={`px-4 py-2.5 whitespace-nowrap ${r.total ? 'font-bold text-[var(--sage-dark)]' : 'text-[var(--dust)]'}`}
+                >
+                  {v}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function FieldBlock({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="flex items-start gap-3 border border-[var(--line)] rounded-xl px-4 py-3 my-3 bg-white">
