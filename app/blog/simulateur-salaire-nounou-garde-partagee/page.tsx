@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { ArticleLayout } from '../_components/ArticleLayout';
 import {
   SummaryBox, Note, Steps, Step, CalcCard, CalcRow, CalcTotalRow, CtaMid, SourcesSection, SectionNum,
 } from '../_components/ArticleBlocks';
 
 export const metadata: Metadata = {
-  title: 'Simulateur de salaire nounou en garde partagée (2026) | nounoulink.',
+  title: 'Simulateur calcul salaire nounou en garde partagée (2026) | nounoulink',
   description:
     "Ce qu'un simulateur de salaire doit prendre en compte pour une garde partagée : taux horaire, heures, répartition entre familles. Exemple chiffré et accès au simulateur complet.",
   alternates: {
@@ -25,6 +26,15 @@ export default function Article() {
       category="Calcul de salaire"
       publishedAt="2026-08-17"
     >
+      <Note type="info">
+        <span className="text-base flex-shrink-0">💡</span>
+        <span>Pour aller plus loin, consultez notre <Link
+          href="/blog/calculer-salaire-nounou-garde-partagee"
+          className="text-[var(--sage)] hover:underline no-underline"
+        >guide complet du calcul de salaire nounou en garde partagée</Link> — méthode détaillée, exemples
+        chiffrés et règles Pajemploi.</span>
+      </Note>
+
       <SummaryBox
         title="Ce que vous devez retenir de cet article"
         items={[
