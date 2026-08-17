@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description:
     "Pourquoi deux familles en garde partagée revérifient leur déclaration de salaire chaque mois, et comment les paniers repas génèrent le plus d'écarts. Guide 2026.",
   alternates: {
-    canonical: 'https://nounoulink.fr/blog/rituel-fin-de-mois-garde-partagee',
+    canonical: 'https://nounoulink.com/blog/rituel-fin-de-mois-garde-partagee',
   },
 };
 

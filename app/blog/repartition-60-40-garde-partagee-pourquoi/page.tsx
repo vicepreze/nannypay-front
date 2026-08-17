@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description:
     "Plafond CMG, crédit d'impôt, reste à charge réel : on vous explique le calcul qui justifie la répartition 60%/40% entre deux familles en garde partagée.",
   alternates: {
-    canonical: 'https://nounoulink.fr/blog/repartition-60-40-garde-partagee-pourquoi',
+    canonical: 'https://nounoulink.com/blog/repartition-60-40-garde-partagee-pourquoi',
   },
 };
 

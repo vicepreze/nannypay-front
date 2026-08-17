@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description:
     "Fourchettes de taux horaire net observées par géographie, nombre d'enfants et heures hebdomadaires, pour négocier un contrat de garde partagée en 2026.",
   alternates: {
-    canonical: 'https://nounoulink.fr/blog/taux-horaire-nounou-garde-partagee-2026',
+    canonical: 'https://nounoulink.com/blog/taux-horaire-nounou-garde-partagee-2026',
   },
 };
 

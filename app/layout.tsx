@@ -28,6 +28,7 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://nounoulink.com'),
   title: 'nounoulink — Garde partagée simplifiée',
   description: 'Coordonnez votre garde partagée sereinement. Calcul Pajemploi, planning, validation à 3.',
 };
