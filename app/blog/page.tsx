@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: 'Blog nounoulink — Conseils garde à domicile partagée',
   description:
     'Guides pratiques pour les parents en garde partagée : calcul du salaire, Pajemploi, congés payés, heures supplémentaires.',
-  alternates: { canonical: 'https://nounoulink.fr/blog' },
+  alternates: { canonical: 'https://nounoulink.com/blog' },
 };
 
 type Article = {

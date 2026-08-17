@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description:
     "Ce qu'un simulateur de salaire doit prendre en compte pour une garde partagée : taux horaire, heures, répartition entre familles. Exemple chiffré et accès au simulateur complet.",
   alternates: {
-    canonical: 'https://nounoulink.fr/blog/simulateur-salaire-nounou-garde-partagee',
+    canonical: 'https://nounoulink.com/blog/simulateur-salaire-nounou-garde-partagee',
   },
 };
 

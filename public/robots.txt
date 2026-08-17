@@ -7,4 +7,4 @@ Disallow: /nouvelle-garde/
 Disallow: /gardes/
 Disallow: /public/
 
-Sitemap: https://nounoulink.fr/sitemap.xml
+Sitemap: https://nounoulink.com/sitemap.xml

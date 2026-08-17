@@ -4,7 +4,7 @@ import path from 'node:path';
 const ROOT = process.cwd();
 const SITEMAP_PATH = path.join(ROOT, 'public/sitemap.xml');
 const QUEUE_PATH = path.join(ROOT, 'blog/queue.json');
-const PROD_ORIGIN = process.env.PROD_ORIGIN || 'https://nounoulink.fr';
+const PROD_ORIGIN = process.env.PROD_ORIGIN || 'https://nounoulink.com';
 const SITEMAP_MARKER = '  <!--\n    Les prochains articles seront ajoutés ici.';
 
 function updateSitemap(slug, lastmod) {

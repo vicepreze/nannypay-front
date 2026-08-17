@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description:
     'Calcul du salaire nounou en garde partagée : formule, exemples chiffrés, heures supplémentaires et règles Pajemploi. Guide complet 2026.',
   alternates: {
-    canonical: 'https://nounoulink.fr/blog/calculer-salaire-nounou-garde-partagee',
+    canonical: 'https://nounoulink.com/blog/calculer-salaire-nounou-garde-partagee',
   },
 };
 

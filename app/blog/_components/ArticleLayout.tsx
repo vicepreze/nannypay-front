@@ -24,7 +24,7 @@ export interface ArticleLayoutProps {
  *   export const metadata: Metadata = {
  *     title: 'Comment calculer le salaire d\'une nounou en garde partagée',
  *     description: 'Guide complet pour calculer le salaire net...',
- *     alternates: { canonical: 'https://nounoulink.fr/blog/calculer-salaire-nounou-garde-partagee' },
+ *     alternates: { canonical: 'https://nounoulink.com/blog/calculer-salaire-nounou-garde-partagee' },
  *   };
  *
  *   export default function Article() {
