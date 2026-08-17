@@ -189,10 +189,13 @@ describe('calculerCotisationsDetaillees', () => {
 
 // ── calculerSalaireEtCotisations ─────────────────────────────────────────────
 //
-// Le salaire net doit rester calculé sur les heures mensualisées EXACTES, jamais sur les heures
-// arrondies à l'entier le plus proche (celles-ci ne servent qu'à l'affichage "heures déclarées") — sinon
-// l'arrondi (toujours vers le haut) gonfle artificiellement le salaire réellement versé.
-// Vérifié sur deux bulletins Pajemploi réels du même foyer partagé (taux 12,50 €/h) :
+// Le salaire net doit être calculé sur les heures DÉCLARÉES (arrondies à l'entier le plus proche),
+// pas sur les heures mensualisées exactes — sinon le net déclaré ne réconcilie plus avec les heures
+// entières saisies sur Pajemploi, qui recalcule lui-même le net à partir de ces heures et rejette
+// la déclaration pour « erreur de calcul » dès que l'arrondi n'est pas neutre (cas réel : 69,5h exact
+// → 70h déclarées, net sur heures exactes refusé par Pajemploi, net sur 70h accepté).
+// Vérifié sur deux bulletins Pajemploi réels du même foyer partagé (taux 12,50 €/h), heures exactes
+// déjà entières donc arrondi neutre :
 //   Famille A : 69h normales, 14h sup 25 %, 2h sup 50 % → 1 118,75 €
 //   Famille B : 106h normales, 20h sup 25 %, 2h sup 50 % → 1 675,00 €
 
@@ -220,12 +223,18 @@ describe('calculerSalaireEtCotisations', () => {
     expect(netAPayerAvantIR).toBe(1264.25);
   });
 
-  it('les heures déclarées (affichage) sont arrondies à l\'entier le plus proche, mais salNet reste basé sur les heures exactes', () => {
-    // 68,7h exact → salNet doit utiliser 68,7, pas 69 (l'arrondi affiché)
+  it('les heures déclarées (affichage) sont arrondies à l\'entier le plus proche, et salNet est basé sur ces heures arrondies (pas les heures exactes) pour rester réconciliable avec Pajemploi', () => {
+    // 68,7h exact → arrondi à 69h déclarées ; salNet doit utiliser 69, pas 68,7
     const r = calculerSalaireEtCotisations(68.7, 0, 0, 12.50);
-    expect(r.hNorm).toBe(69); // arrondi à l'entier le plus proche pour l'affichage
-    expect(r.salNet).toBe(Math.round(68.7 * 12.50 * 100) / 100); // calcul sur l'heure exacte
-    expect(r.salNet).not.toBe(Math.round(69 * 12.50 * 100) / 100); // pas sur l'heure arrondie
+    expect(r.hNorm).toBe(69); // arrondi à l'entier le plus proche
+    expect(r.salNet).toBe(Math.round(69 * 12.50 * 100) / 100); // calcul sur l'heure déclarée (arrondie)
+    expect(r.salNet).not.toBe(Math.round(68.7 * 12.50 * 100) / 100); // pas sur l'heure exacte
+
+    // 69,5h exact → arrondi à 70h déclarées (cas réel qui faisait rejeter la déclaration Pajemploi
+    // quand salNet restait basé sur l'heure exacte)
+    const r2 = calculerSalaireEtCotisations(69.5, 0, 0, 12.50);
+    expect(r2.hNorm).toBe(70);
+    expect(r2.salNet).toBe(Math.round(70 * 12.50 * 100) / 100);
   });
 });
 
@@ -572,6 +581,49 @@ describe('calculerMois', () => {
       // d'égalité stricte au ratio près — l'arrondi peut absorber une petite partie de la réduction).
       expect(malade.famA.hSup25).toBeLessThanOrEqual(plein.famA.hSup25);
       expect(malade.famA.hNorm).toBeCloseTo(plein.famA.hNorm * malade.ratio, 0);
+    });
+  });
+
+  // ── Régression : réconciliation salNet / heures déclarées (rejet Pajemploi) ──
+  //
+  // Cas réel remonté : Pajemploi n'accepte aucune décimale sur les heures et recalcule lui-même
+  // le net à partir des heures entières saisies. Avec salNet basé sur les heures mensualisées
+  // EXACTES (avant fix), la déclaration était rejetée pour « erreur de calcul » dès que la
+  // répartition qp/ratio faisait tomber les heures d'une famille sur un arrondi non neutre
+  // (qp ≈ 40 %, heures normales à la limite d'arrondi → 70h déclarées mais net calculé sur ~69,5h).
+  // Ce test vérifie la réconciliation au niveau du pipeline complet (`calculerMois`, avec
+  // répartition qp et ratio maladie), pas seulement `calculerSalaireEtCotisations` en isolation —
+  // pour s'assurer que la proratisation ne réintroduit pas l'écart.
+
+  describe('réconciliation salNet / heures déclarées (régression rejet Pajemploi)', () => {
+    it('qp non ronde (≈40/60) avec heures sup : salNet de chaque famille reste exactement dérivé de ses heures déclarées (arrondies)', () => {
+      const input: CalcInput = {
+        ...baseInput(),
+        taux:             12.50,
+        hNormalesSemaine: 40,
+        hSup25Semaine:    8,
+        hSup50Semaine:    2,
+        repartitionA:     0.41, // qp non ronde → heures mensualisées et prorata non entières
+      };
+      const r = calculerMois(input);
+
+      for (const fam of [r.famA, r.famB] as const) {
+        const attendu = Math.round((
+          Math.round(fam.hNorm  * 12.50        * 100) / 100 +
+          Math.round(fam.hSup25 * 12.50 * 1.25 * 100) / 100 +
+          Math.round(fam.hSup50 * 12.50 * 1.50 * 100) / 100
+        ) * 100) / 100;
+        expect(fam.salNet).toBe(attendu);
+      }
+    });
+
+    it('cas limite d\'arrondi (69,5h exact → 70h déclarées) : salNet suit l\'arrondi, pas les heures exactes', () => {
+      const H_NORM_MENS = 40 * 52 / 12; // 173,333...h
+      const repartitionA = 69.5 / H_NORM_MENS; // choisie pour tomber pile sur la frontière d'arrondi
+      const r = calculerMois({ ...baseInput(), taux: 12.50, repartitionA });
+
+      expect(r.famA.hNorm).toBe(70); // 69,5 exact arrondi vers le haut
+      expect(r.famA.salNet).toBe(Math.round(70 * 12.50 * 100) / 100); // net basé sur 70h, pas 69,5h
     });
   });
 
