@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: "Comment calculer le salaire d'une nounou en garde partagée : le guide complet | nounoulink.",
+  title: 'Calcul salaire nounou en garde partagée : la méthode complète (2026) | nounoulink.',
   description:
-    "Formule, exemples chiffrés, heures supplémentaires et règles Pajemploi pour calculer et répartir le salaire de votre assistant parental en garde partagée en 2026.",
+    'Calcul du salaire nounou en garde partagée : formule, exemples chiffrés, heures supplémentaires et règles Pajemploi. Guide complet 2026.',
   alternates: {
     canonical: 'https://nounoulink.fr/blog/calculer-salaire-nounou-garde-partagee',
   },
@@ -204,9 +204,9 @@ export default function ArticleCalculerSalaire() {
 
             {/* H1 */}
             <h1 className="font-serif font-bold leading-tight text-[var(--ink)] tracking-tight" style={{ fontSize: 'clamp(1.9rem, 4.5vw, 3rem)' }}>
-              Comment calculer le salaire d&apos;une nounou{' '}
+              Calcul du salaire d&apos;une nounou{' '}
               <em className="italic text-[var(--sage-dark)]">en garde partagée</em>{' '}
-              : le guide complet
+              : la méthode complète
             </h1>
 
             {/* Meta */}
